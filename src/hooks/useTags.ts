@@ -1,0 +1,173 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useProfile } from './useProfile';
+import { toast } from 'sonner';
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  organization_id: string;
+}
+
+export const TAG_COLORS = [
+  { name: 'slate', label: 'Cinza', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200', selector: 'bg-slate-500' },
+  { name: 'red', label: 'Vermelho', bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200', selector: 'bg-red-500' },
+  { name: 'orange', label: 'Laranja', bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200', selector: 'bg-orange-500' },
+  { name: 'amber', label: 'Amarelo', bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200', selector: 'bg-amber-500' },
+  { name: 'green', label: 'Verde', bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', selector: 'bg-emerald-500' },
+  { name: 'blue', label: 'Azul', bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200', selector: 'bg-blue-500' },
+  { name: 'indigo', label: 'Índigo', bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-200', selector: 'bg-indigo-500' },
+  { name: 'violet', label: 'Violeta', bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-200', selector: 'bg-violet-500' },
+  { name: 'pink', label: 'Rosa', bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-200', selector: 'bg-pink-500' },
+];
+
+export function useTags() {
+  const { profile } = useProfile();
+  const orgId = profile?.organization_id;
+  const queryClient = useQueryClient();
+
+  const { data: availableTags = [], isLoading: isLoadingTags } = useQuery({
+    queryKey: ['tags', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from('tags')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('name');
+      
+      if (error) throw error;
+      return data as Tag[];
+    },
+    enabled: !!orgId
+  });
+
+  const createTag = useMutation({
+    mutationFn: async ({ name, color }: { name: string; color: string }) => {
+      if (!orgId) throw new Error("Organização não encontrada");
+      
+      const { data, error } = await supabase
+        .from('tags')
+        .insert({ name, color, organization_id: orgId })
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags', orgId] });
+      toast.success("Etiqueta criada!");
+    },
+    onError: (err: any) => toast.error(`Erro ao criar etiqueta: ${err.message}`)
+  });
+
+  const updateTag = useMutation({
+    mutationFn: async ({ id, name, color }: { id: string; name: string; color: string }) => {
+      if (!orgId) throw new Error("Organização não encontrada");
+      const { data, error } = await supabase
+        .from('tags')
+        .update({ name, color })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags', orgId] });
+      toast.success("Etiqueta atualizada!");
+    },
+    onError: (err: any) => toast.error(`Erro ao atualizar etiqueta: ${err.message}`)
+  });
+
+  const deleteTag = useMutation({
+    mutationFn: async (id: string) => {
+      if (!orgId) throw new Error("Organização não encontrada");
+      const { error } = await supabase
+        .from('tags')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags', orgId] });
+      toast.success("Etiqueta excluída!");
+    },
+    onError: (err: any) => toast.error(`Erro ao excluir etiqueta: ${err.message}`)
+  });
+
+  return {
+    availableTags,
+    isLoadingTags,
+    createTag,
+    updateTag,
+    deleteTag
+  };
+}
+
+export function useLeadTags(leadId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  const { data: leadTags = [], isLoading } = useQuery({
+    queryKey: ['lead_tags', leadId],
+    queryFn: async () => {
+      if (!leadId) return [];
+      
+      const { data, error } = await supabase
+        .from('leads_tags')
+        .select(`
+          tag_id,
+          tags (
+            id,
+            name,
+            color
+          )
+        `)
+        .eq('lead_id', leadId);
+
+      if (error) throw error;
+      
+      return data.map((item: any) => item.tags) as Tag[];
+    },
+    enabled: !!leadId
+  });
+
+  const addTagToLead = useMutation({
+    mutationFn: async (tagId: string) => {
+      if (!leadId) throw new Error("Lead não definido");
+      const { error } = await supabase
+        .from('leads_tags')
+        .insert({ lead_id: leadId, tag_id: tagId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lead_tags', leadId] });
+    },
+    onError: (err: any) => toast.error("Erro ao adicionar etiqueta.")
+  });
+
+  const removeTagFromLead = useMutation({
+    mutationFn: async (tagId: string) => {
+      if (!leadId) throw new Error("Lead não definido");
+      const { error } = await supabase
+        .from('leads_tags')
+        .delete()
+        .eq('lead_id', leadId)
+        .eq('tag_id', tagId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lead_tags', leadId] });
+    },
+    onError: (err: any) => toast.error("Erro ao remover etiqueta.")
+  });
+
+  return {
+    leadTags,
+    isLoading,
+    addTagToLead,
+    removeTagFromLead
+  };
+}
