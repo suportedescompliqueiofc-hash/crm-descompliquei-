@@ -24,7 +24,6 @@ export interface Lead {
   criativo?: string;
   status: string;
   etapa_id: number;
-  valor?: number;
   ultimo_contato?: string;
   criado_em: string;
   atualizado_em: string;

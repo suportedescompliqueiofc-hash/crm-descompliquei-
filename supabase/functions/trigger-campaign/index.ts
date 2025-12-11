@@ -116,7 +116,6 @@ serve(async (req) => {
 
           targetedLeads = allLeads.filter(lead => {
               return config.predefined.some(segment => {
-                  if (segment === 'vip') return (lead.valor || 0) > 5000;
                   if (segment === 'active') return lead.ultimo_contato && isAfter(new Date(lead.ultimo_contato), sixMonthsAgo);
                   if (segment === 'inactive') return !lead.ultimo_contato || isBefore(new Date(lead.ultimo_contato), sixMonthsAgo);
                   if (segment === 'new') return isAfter(new Date(lead.criado_em), threeMonthsAgo);

@@ -67,8 +67,6 @@ export function VendaModal({ open, onOpenChange, lead: preselectedLead, venda: e
         setFormData({
           ...initialFormState,
           lead_id: preselectedLead.id,
-          valor_orcado: preselectedLead.valor,
-          valor_fechado: preselectedLead.valor,
           data_fechamento: new Date(),
         });
       } else {

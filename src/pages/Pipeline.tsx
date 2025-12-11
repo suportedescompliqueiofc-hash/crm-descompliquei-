@@ -101,7 +101,6 @@ function LeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
             <Badge variant="outline" className="text-xs font-normal">
               {lead.origem}
             </Badge>
-            <span className="text-sm font-semibold text-accent">{lead.valor ? `R$ ${lead.valor.toLocaleString('pt-BR')}` : '-'}</span>
           </div>
           
           <div className="flex items-center justify-between text-xs text-muted-foreground">

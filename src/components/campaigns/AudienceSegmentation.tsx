@@ -19,7 +19,6 @@ interface AudienceSegmentationProps {
 }
 
 const predefinedSegments = [
-  { id: 'vip', label: '💎 VIP (alto ticket)' },
   { id: 'active', label: '✅ Ativos (consulta nos últimos 6 meses)' },
   { id: 'inactive', label: '💤 Inativos (sem consulta há 6+ meses)' },
   { id: 'new', label: '🆕 Novos (primeira consulta há menos de 3 meses)' },
@@ -65,7 +64,6 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
 
       filtered = leads.filter(lead => {
         return selectedPredefined.some(segment => {
-          if (segment === 'vip') return (lead.valor || 0) > 5000;
           if (segment === 'active') return lead.ultimo_contato && isAfter(new Date(lead.ultimo_contato), sixMonthsAgo);
           if (segment === 'inactive') return !lead.ultimo_contato || isBefore(new Date(lead.ultimo_contato), sixMonthsAgo);
           if (segment === 'new') return isAfter(new Date(lead.criado_em), threeMonthsAgo);

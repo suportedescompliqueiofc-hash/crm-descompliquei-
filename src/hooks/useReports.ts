@@ -166,14 +166,12 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         acc[lead.criativo].leads++;
         if (lead.etapa_id === convertedStageId) {
           acc[lead.criativo].converted++;
-          acc[lead.criativo].value += lead.valor || 0;
         }
         return acc;
       }, {} as Record<string, any>);
       const topCreativesData = Object.values(topCreatives).map(c => ({
         ...c,
         conversion: c.leads > 0 ? `${((c.converted / c.leads) * 100).toFixed(0)}%` : '0%',
-        ticket: c.converted > 0 ? `R$ ${(c.value / c.converted).toFixed(2)}` : 'R$ 0.00',
       })).sort((a, b) => b.leads - a.leads).slice(0, 10);
 
       const funnelData = stages.sort((a, b) => a.posicao_ordem - b.posicao_ordem).map(stage => ({

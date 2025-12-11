@@ -66,7 +66,7 @@ const cleanPhoneNumber = (phone: string): string => phone.replace(/\D/g, '');
 const initialFormData = {
   nome: "", telefone: "", queixa_principal: "", resumo: "", origem: "",
   etapa_id: 1, status: "Ativo", email: "", cpf: "", idade: "",
-  genero: "", endereco: "", criativo: "", valor: "", data_nascimento_display: "",
+  genero: "", endereco: "", criativo: "", data_nascimento_display: "",
   criado_em_display: "",
 };
 
@@ -87,7 +87,6 @@ const ViewContent = ({ lead, stages }: { lead: any, stages: Stage[] }) => {
         <CardContent className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" /><span className="font-medium">{lead.telefone}</span></div>
           {lead.email && <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /><span>{lead.email}</span></div>}
-          {lead.valor && <div className="flex items-center gap-2"><DollarSign className="h-4 w-4 text-muted-foreground" /><span className="font-medium text-accent">R$ {lead.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>}
           {lead.origem && <div className="flex items-center gap-2"><Tag className="h-4 w-4 text-muted-foreground" /><span>{lead.origem}</span></div>}
           {lead.queixa_principal && <div className="col-span-2 flex items-center gap-2"><MessageSquare className="h-4 w-4 text-muted-foreground" /><span>Queixa Principal: {lead.queixa_principal}</span></div>}
         </CardContent>
@@ -165,7 +164,6 @@ const FormContent = ({ formData, handleInputChange, handleSubmit, stages, handle
             </SelectContent>
           </Select>
         </div>
-        <div><Label>Valor (R$)</Label><Input type="number" value={formData.valor} onChange={(e) => handleInputChange('valor', e.target.value)} step="0.01" /></div>
         <div><Label>Data de Cadastro</Label><MaskedInput mask="99/99/9999" placeholder="DD/MM/AAAA" value={formData.criado_em_display} onChange={(e) => handleInputChange('criado_em_display', e.target.value)} /></div>
       </div>
       <div className="flex justify-end gap-2 pt-4">
@@ -206,7 +204,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
           resumo: lead.resumo || "", origem: lead.origem || "", etapa_id: lead.etapa_id || 1,
           status: lead.status || "Ativo", email: lead.email || "", cpf: lead.cpf || "",
           idade: lead.idade?.toString() || "", genero: lead.genero || "", endereco: lead.endereco || "",
-          criativo: lead.criativo || "", valor: lead.valor?.toString().replace(/R\$|\s/g, '') || "",
+          criativo: lead.criativo || "",
           data_nascimento_display: toDisplayDate(lead.data_nascimento),
           criado_em_display: toDisplayDateFromTimestamp(lead.criado_em),
         });
@@ -247,7 +245,6 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
       ...formData,
       telefone: cleanedPhone,
       idade: formData.idade ? parseInt(formData.idade) : undefined,
-      valor: formData.valor ? parseFloat(formData.valor) : undefined,
       data_nascimento: toSupabaseDate(formData.data_nascimento_display),
       criado_em: toSupabaseTimestamp(formData.criado_em_display),
       nome: formData.nome || undefined, queixa_principal: formData.queixa_principal || undefined,
