@@ -35,7 +35,8 @@ export function useDashboard(dateRange: DateRange | undefined) {
         { data: stagesData, error: stagesError },
         { data: activitiesData, error: activitiesError },
         { count: novosLeadsCount, error: novosLeadsError },
-        { count: pacientesCount, error: pacientesError }
+        { count: pacientesCount, error: pacientesError },
+        { data: vendasData, error: vendasError }
       ] = await Promise.all([
         supabase
           .from('leads')
@@ -63,6 +64,12 @@ export function useDashboard(dateRange: DateRange | undefined) {
           .eq('tag_id', pacienteTagId)
           .gte('assigned_at', startDate)
           .lte('assigned_at', endDate) : Promise.resolve({ count: 0, error: null }),
+        supabase
+          .from('vendas')
+          .select('valor_fechado')
+          .eq('organization_id', orgId)
+          .gte('data_fechamento', format(startOfDay(dateRange.from), 'yyyy-MM-dd'))
+          .lte('data_fechamento', format(endOfDay(dateRange.to), 'yyyy-MM-dd'))
       ]);
 
       if (leadsError) throw leadsError;
@@ -70,10 +77,12 @@ export function useDashboard(dateRange: DateRange | undefined) {
       if (activitiesError) throw activitiesError;
       if (novosLeadsError) throw novosLeadsError;
       if (pacientesError) throw pacientesError;
+      if (vendasError) throw vendasError;
 
       const leads = leadsData || [];
       const stages = stagesData || [];
       const activities = activitiesData || [];
+      const vendas = vendasData || [];
       
       const convertedStageId = stages.find(s => s.nome.toLowerCase() === 'contrato fechado')?.id;
       const negotiationStageId = stages.find(s => s.nome.toLowerCase().includes('negociação'))?.id;
@@ -85,6 +94,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
       const valorEmNegociacao = leads
         .filter(l => l.etapa_id === negotiationStageId)
         .reduce((sum, l) => sum + (l.valor || 0), 0);
+      const faturamentoTotal = vendas.reduce((sum, venda) => sum + venda.valor_fechado, 0);
 
       // Charts Data
       const daysInInterval = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
@@ -125,8 +135,9 @@ export function useDashboard(dateRange: DateRange | undefined) {
         totalPacientes: pacientesCount || 0,
         conversionRate: conversionRate.toFixed(1),
         valorEmNegociacao: valorEmNegociacao || 0,
-        leadsByStage: leadsByStage || [],
+        faturamentoTotal: faturamentoTotal || 0,
         activities: activities,
+        leadsByStage: leadsByStage || [],
         leadsOverTime,
         sourceChartData,
       };

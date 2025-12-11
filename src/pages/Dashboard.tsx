@@ -75,9 +75,9 @@ export default function Dashboard() {
       icon: TrendingUp,
     },
     {
-      title: "Valor em Negociação",
-      value: `R$ ${metrics.valorEmNegociacao.toLocaleString('pt-BR')}`,
-      description: "Potencial de receita",
+      title: "Faturamento Total",
+      value: `R$ ${metrics.faturamentoTotal.toLocaleString('pt-BR')}`,
+      description: "Vendas realizadas no período",
       icon: DollarSign,
     },
     {
