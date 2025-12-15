@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageSquare, FileText, Phone } from "lucide-react";
+import { MessageSquare, FileText, Phone, Calendar as CalendarIcon, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,15 @@ import { CSS } from "@dnd-kit/utilities";
 import { LeadModal } from "@/components/leads/LeadModal";
 import { useLeads, Lead } from "@/hooks/useLeads";
 import { useStages } from "@/hooks/useStages";
-import { formatDistanceToNow, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { formatDistanceToNow, subDays, startOfMonth, endOfMonth, format, isToday, isPast, isFuture, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
-function StageColumn({ stage, leads, onCardClick }: { stage: { id: number; nome: string; cor: string; }; leads: Lead[]; onCardClick: (lead: Lead) => void }) {
+function StageColumn({ stage, leads, onCardClick, onUpdateLead }: { stage: { id: number; nome: string; cor: string; }; leads: Lead[]; onCardClick: (lead: Lead) => void; onUpdateLead: (leadId: string, updates: Partial<Lead>) => void }) {
   const { setNodeRef } = useDroppable({
     id: `stage-${stage.id}`,
   });
@@ -45,6 +48,7 @@ function StageColumn({ stage, leads, onCardClick }: { stage: { id: number; nome:
                 key={lead.id} 
                 lead={lead}
                 onClick={() => onCardClick(lead)}
+                onUpdateLead={onUpdateLead}
               />
             ))}
           </SortableContext>
@@ -54,10 +58,11 @@ function StageColumn({ stage, leads, onCardClick }: { stage: { id: number; nome:
   );
 }
 
-function LeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
+function LeadCard({ lead, onClick, onUpdateLead }: { lead: Lead; onClick: () => void; onUpdateLead: (leadId: string, updates: Partial<Lead>) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
     id: lead.id.toString() 
   });
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -68,6 +73,37 @@ function LeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
   const lastContactTime = lead.ultimo_contato 
     ? formatDistanceToNow(new Date(lead.ultimo_contato), { locale: ptBR, addSuffix: true })
     : 'Nunca contatado';
+
+  const handleDateSelect = (date: Date | undefined) => {
+    setIsCalendarOpen(false);
+    if (date) {
+        // Ajusta para o meio do dia para evitar problemas de fuso horário ao salvar apenas a data
+        const adjustedDate = new Date(date);
+        adjustedDate.setHours(12, 0, 0, 0);
+        onUpdateLead(lead.id, { agendamento: adjustedDate.toISOString() });
+    } else {
+        onUpdateLead(lead.id, { agendamento: null as any }); // Remove o agendamento
+    }
+  };
+
+  const getScheduleBadge = () => {
+    if (!lead.agendamento) return null;
+    const date = parseISO(lead.agendamento);
+    const isLate = isPast(date) && !isToday(date);
+    const isForToday = isToday(date);
+
+    return (
+      <div className={cn(
+        "flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border",
+        isLate ? "bg-red-50 text-red-700 border-red-200" : 
+        isForToday ? "bg-green-50 text-green-700 border-green-200" : 
+        "bg-blue-50 text-blue-700 border-blue-200"
+      )}>
+        <CalendarIcon className="h-3 w-3" />
+        {format(date, "dd/MM", { locale: ptBR })}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -82,11 +118,14 @@ function LeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
       >
         <CardContent className="p-4 space-y-3">
           <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <p className="font-semibold text-foreground">{lead.nome}</p>
-              <p className="text-xs text-muted-foreground mt-1">{lead.telefone}</p>
+            <div className="flex-1 min-w-0 pr-2">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <p className="font-semibold text-foreground truncate">{lead.nome}</p>
+                {getScheduleBadge()}
+              </div>
+              <p className="text-xs text-muted-foreground">{lead.telefone}</p>
             </div>
-            <Avatar className="h-8 w-8">
+            <Avatar className="h-8 w-8 flex-shrink-0">
               <AvatarFallback className="bg-accent text-accent-foreground text-xs">
                 {lead.nome?.split(' ').map(n => n[0]).join('')}
               </AvatarFallback>
@@ -98,14 +137,49 @@ function LeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
           </p>
           
           <div className="flex items-center justify-between pt-2 border-t">
-            <Badge variant="outline" className="text-xs font-normal">
-              {lead.origem}
+            <Badge variant="outline" className="text-xs font-normal max-w-[120px] truncate">
+              {lead.origem || 'Sem origem'}
             </Badge>
+            
+            <div className="flex items-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
+                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                    <PopoverTrigger asChild>
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className={cn("h-7 w-7", lead.agendamento ? "text-primary" : "text-muted-foreground hover:text-foreground")}
+                            onClick={(e) => { e.stopPropagation(); }}
+                        >
+                            <CalendarIcon className="h-4 w-4" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end" onClick={(e) => e.stopPropagation()}>
+                        <Calendar
+                            mode="single"
+                            selected={lead.agendamento ? parseISO(lead.agendamento) : undefined}
+                            onSelect={handleDateSelect}
+                            initialFocus
+                            locale={ptBR}
+                        />
+                        {lead.agendamento && (
+                            <div className="p-2 border-t text-center">
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="w-full text-xs h-7 text-destructive hover:text-destructive"
+                                    onClick={() => handleDateSelect(undefined)}
+                                >
+                                    Remover Agendamento
+                                </Button>
+                            </div>
+                        )}
+                    </PopoverContent>
+                </Popover>
+            </div>
           </div>
           
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium text-sm text-muted-foreground">{lastContactTime}</span>
-            {/* Botões de ação rápida removidos conforme solicitado */}
           </div>
         </CardContent>
       </Card>
@@ -177,6 +251,10 @@ export default function Pipeline() {
     setModalOpen(true);
   };
 
+  const handleUpdateLead = (leadId: string, updates: Partial<Lead>) => {
+    updateLead({ id: leadId, ...updates });
+  };
+
   const activeLead = activeId ? leads.find(l => l.id.toString() === activeId) : null;
 
   if (leadsLoading || stagesLoading) {
@@ -224,6 +302,7 @@ export default function Pipeline() {
                   stage={stage} 
                   leads={stageLeads}
                   onCardClick={handleCardClick}
+                  onUpdateLead={handleUpdateLead}
                 />
               );
             })}

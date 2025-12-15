@@ -31,6 +31,7 @@ export interface Lead {
   ia_ativa?: boolean;
   ia_paused_until?: string;
   leads_tags?: { tags: Tag }[];
+  agendamento?: string; // Novo campo
 }
 
 export function useLeads(dateRange?: DateRange) {
