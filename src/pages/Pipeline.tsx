@@ -11,7 +11,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { LeadModal } from "@/components/leads/LeadModal";
 import { useLeads, Lead } from "@/hooks/useLeads";
 import { useStages } from "@/hooks/useStages";
-import { formatDistanceToNow, subDays, startOfMonth, endOfMonth, format, isToday, isPast, isFuture, parseISO, startOfDay } from 'date-fns';
+import { formatDistanceToNow, startOfMonth, endOfMonth, format, isToday, isPast, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
@@ -188,7 +188,6 @@ function LeadCard({ lead, onClick, onUpdateLead }: { lead: Lead; onClick: () => 
 }
 
 export default function Pipeline() {
-  // Inicializa o período para 'Mês Atual'
   const today = new Date();
   const initialDateRange: DateRange = { 
     from: startOfMonth(today), 
@@ -264,19 +263,10 @@ export default function Pipeline() {
       </div>
     );
   }
-  
-  // Filtra os leads para remover aqueles com agendamento futuro
-  const now = new Date();
-  const visibleLeads = leads.filter(lead => {
-    if (lead.agendamento) {
-      const scheduledDate = parseISO(lead.agendamento);
-      // Um lead só é visível no pipeline se a data de agendamento for hoje ou anterior.
-      // Usamos startOfDay para comparar apenas a data, ignorando a hora.
-      return isPast(startOfDay(scheduledDate)) || isToday(scheduledDate);
-    }
-    // Se não tem agendamento, é sempre visível (a menos que o filtro de data geral o exclua, o que já é tratado pelo useLeads)
-    return true;
-  });
+
+  // Removemos a lógica de filtragem manual que ocultava agendamentos futuros.
+  // Agora, confiamos que o useLeads trará os leads corretos baseados no DateRange selecionado.
+  const visibleLeads = leads;
 
   return (
     <div className="space-y-6">
@@ -351,7 +341,7 @@ export default function Pipeline() {
         open={modalOpen}
         onOpenChange={(open) => {
           setModalOpen(open);
-          if (!open) setViewingLead(null); // Limpa o lead selecionado ao fechar
+          if (!open) setViewingLead(null);
         }}
         lead={viewingLead}
         mode="view"

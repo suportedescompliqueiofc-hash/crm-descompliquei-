@@ -31,7 +31,7 @@ export interface Lead {
   ia_ativa?: boolean;
   ia_paused_until?: string;
   leads_tags?: { tags: Tag }[];
-  agendamento?: string; // Novo campo
+  agendamento?: string;
 }
 
 export function useLeads(dateRange?: DateRange) {
@@ -62,10 +62,10 @@ export function useLeads(dateRange?: DateRange) {
         const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
         const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
         
-        // Filtra leads que foram CRIADOS dentro do período.
-        query = query
-          .gte('criado_em', startDate)
-          .lte('criado_em', endDate);
+        // Filtra leads que foram criados NO período OU agendados PARA o período.
+        // Utiliza a sintaxe do PostgREST para combinar condições AND dentro de um OR.
+        // Isso permite buscar leads antigos que foram agendados para "hoje", por exemplo.
+        query = query.or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(agendamento.gte.${startDate},agendamento.lte.${endDate})`);
       }
 
       const { data, error } = await query;
@@ -108,7 +108,6 @@ export function useLeads(dateRange?: DateRange) {
     mutationFn: async ({ id, ...updates }: Partial<Lead> & { id: string }) => {
       if (!user) throw new Error("Usuário não autenticado");
       
-      // RLS já cuida da permissão por organização
       const { data, error } = await supabase
         .from('leads')
         .update(updates)
