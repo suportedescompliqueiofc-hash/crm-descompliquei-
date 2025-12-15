@@ -62,16 +62,10 @@ export function useLeads(dateRange?: DateRange) {
         const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
         const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
         
-        // Filtra leads que foram criados OU atualizados OU agendados dentro do período.
-        // Usamos a função OR do PostgREST para combinar as condições.
-        query = query.or(`
-          criado_em.gte.${startDate},
-          criado_em.lte.${endDate},
-          atualizado_em.gte.${startDate},
-          atualizado_em.lte.${endDate},
-          agendamento.gte.${startDate},
-          agendamento.lte.${endDate}
-        `);
+        // Filtra leads que foram CRIADOS dentro do período.
+        query = query
+          .gte('criado_em', startDate)
+          .lte('criado_em', endDate);
       }
 
       const { data, error } = await query;
