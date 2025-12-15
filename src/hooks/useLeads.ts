@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { DateRange } from 'react-day-picker';
-import { format, startOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { useProfile } from './useProfile';
 import { Tag } from './useTags';
 
@@ -60,11 +60,18 @@ export function useLeads(dateRange?: DateRange) {
 
       if (dateRange?.from && dateRange?.to) {
         const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
-        const endDate = format(startOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
+        const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
         
-        query = query
-          .gte('criado_em', startDate)
-          .lte('criado_em', endDate);
+        // Filtra leads que foram criados OU atualizados OU agendados dentro do período.
+        // Usamos a função OR do PostgREST para combinar as condições.
+        query = query.or(`
+          criado_em.gte.${startDate},
+          criado_em.lte.${endDate},
+          atualizado_em.gte.${startDate},
+          atualizado_em.lte.${endDate},
+          agendamento.gte.${startDate},
+          agendamento.lte.${endDate}
+        `);
       }
 
       const { data, error } = await query;

@@ -11,7 +11,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { LeadModal } from "@/components/leads/LeadModal";
 import { useLeads, Lead } from "@/hooks/useLeads";
 import { useStages } from "@/hooks/useStages";
-import { formatDistanceToNow, subDays, startOfMonth, endOfMonth, format, isToday, isPast, isFuture, parseISO } from 'date-fns';
+import { formatDistanceToNow, subDays, startOfMonth, endOfMonth, format, isToday, isPast, isFuture, parseISO, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
@@ -264,6 +264,19 @@ export default function Pipeline() {
       </div>
     );
   }
+  
+  // Filtra os leads para remover aqueles com agendamento futuro
+  const now = new Date();
+  const visibleLeads = leads.filter(lead => {
+    if (lead.agendamento) {
+      const scheduledDate = parseISO(lead.agendamento);
+      // Um lead só é visível no pipeline se a data de agendamento for hoje ou anterior.
+      // Usamos startOfDay para comparar apenas a data, ignorando a hora.
+      return isPast(startOfDay(scheduledDate)) || isToday(scheduledDate);
+    }
+    // Se não tem agendamento, é sempre visível (a menos que o filtro de data geral o exclua, o que já é tratado pelo useLeads)
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -278,7 +291,7 @@ export default function Pipeline() {
           <Card className="shadow-sm">
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">Total de Leads</p>
-              <p className="text-2xl font-bold text-foreground">{leads.length}</p>
+              <p className="text-2xl font-bold text-foreground">{visibleLeads.length}</p>
             </CardContent>
           </Card>
         </div>
@@ -294,7 +307,7 @@ export default function Pipeline() {
         <div className="overflow-x-auto pb-4">
           <div className="flex gap-4 min-w-max">
             {stages.map((stage) => {
-              const stageLeads = leads.filter(l => l.etapa_id === stage.id);
+              const stageLeads = visibleLeads.filter(l => l.etapa_id === stage.id);
               
               return (
                 <StageColumn 
