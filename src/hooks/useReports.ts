@@ -27,7 +27,32 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
       const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
       
-      // --- START: KPI Calculations (unfiltered by advanced filters) ---
+      // 1. Resolve Tag Filter First (if applied)
+      let leadIdsFromTagFilter: string[] | null = null;
+
+      if (filters.tagId && filters.tagId !== "Todos") {
+        // Se houver filtro de tag, buscamos quais leads possuem essa tag (independente da data de atribuição da tag de filtro, 
+        // ou restringindo ao período? Geralmente filtro é "tem a tag X". 
+        // Mas o código anterior usava o range. Vou manter sem range para ser "leads com a tag X neste momento", 
+        // ou manter o range se a intenção for "ganhou a tag X neste período".
+        // O padrão de relatórios costuma ser interseção. 
+        // Para consistência com o comportamento anterior da lista, vou buscar leads que TÊM a tag atualmente ou ganharam no período.
+        // Simplificação: Leads que possuem essa tag na tabela leads_tags.
+        
+        const { data: leadsTagsData, error: leadsTagsError } = await supabase
+          .from('leads_tags')
+          .select('lead_id')
+          .eq('tag_id', filters.tagId);
+
+        if (leadsTagsError) throw leadsTagsError;
+        leadIdsFromTagFilter = leadsTagsData.map(lt => lt.lead_id);
+
+        if (leadIdsFromTagFilter.length === 0) {
+          leadIdsFromTagFilter = ['00000000-0000-0000-0000-000000000000']; // Dummy ID para retornar 0
+        }
+      }
+
+      // 2. Prepare KPIs Queries with Filters
       const { data: tagsData, error: tagsError } = await supabase
         .from('tags')
         .select('id, name')
@@ -39,54 +64,98 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       const leadTagId = tagsData.find(t => t.name === 'LEAD')?.id;
       const pacienteTagId = tagsData.find(t => t.name === 'PACIENTE')?.id;
 
+      // Helper to apply filters to a query
+      const applyFilters = (query: any, tablePrefix: string = '') => {
+        const prefix = tablePrefix ? `${tablePrefix}.` : '';
+        
+        if (filters.etapa_id !== "Todos") query = query.eq(`${prefix}etapa_id`, parseInt(filters.etapa_id));
+        if (filters.origem !== "Todos") query = query.eq(`${prefix}origem`, filters.origem);
+        if (filters.genero !== "Todos") query = query.eq(`${prefix}genero`, filters.genero);
+        if (filters.idade) {
+          const age = parseInt(filters.idade);
+          if (!isNaN(age)) query = query.eq(`${prefix}idade`, age);
+        }
+        
+        if (leadIdsFromTagFilter) {
+          // Se for query na tabela leads_tags, a coluna é lead_id. Se for leads, é id.
+          const idColumn = tablePrefix === 'leads' ? 'lead_id' : 'id'; 
+          // Correção: Se tablePrefix for usado (ex: leads_tags join leads), o filtro 'in' deve ser no ID do lead.
+          // Na tabela leads: .in('id', ids)
+          // Na tabela leads_tags: .in('lead_id', ids)
+          
+          if (tablePrefix === 'leads') {
+             // Estamos filtrando dentro de um join (leads_tags -> leads), mas o .in deve ser aplicado na query principal ou no join?
+             // O Supabase postgrest filter 'in' funciona na coluna.
+             // Para leads_tags, filtramos lead_id.
+             // Para leads, filtramos id.
+          }
+        }
+        return query;
+      };
+
+      // Query: Novos Contatos (Tabela Leads)
+      let qNovosContatos = supabase
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', orgId)
+        .gte('criado_em', startDate)
+        .lte('criado_em', endDate);
+      
+      qNovosContatos = applyFilters(qNovosContatos);
+      if (leadIdsFromTagFilter) qNovosContatos = qNovosContatos.in('id', leadIdsFromTagFilter);
+
+      // Query: Novos Leads (Tabela Leads Tags + Join Leads)
+      let qNovosLeads = leadTagId ? supabase
+        .from('leads_tags')
+        .select('*, leads!inner(*)', { count: 'exact', head: true }) // Inner join para filtrar por props do lead
+        .eq('tag_id', leadTagId)
+        .gte('assigned_at', startDate)
+        .lte('assigned_at', endDate)
+        .eq('leads.organization_id', orgId) 
+        : Promise.resolve({ count: 0, error: null });
+
+      if (leadTagId) {
+        // Aplica filtros na tabela relacionada 'leads'
+        if (filters.etapa_id !== "Todos") qNovosLeads = (qNovosLeads as any).eq('leads.etapa_id', parseInt(filters.etapa_id));
+        if (filters.origem !== "Todos") qNovosLeads = (qNovosLeads as any).eq('leads.origem', filters.origem);
+        if (filters.genero !== "Todos") qNovosLeads = (qNovosLeads as any).eq('leads.genero', filters.genero);
+        if (filters.idade) qNovosLeads = (qNovosLeads as any).eq('leads.idade', parseInt(filters.idade));
+        if (leadIdsFromTagFilter) qNovosLeads = (qNovosLeads as any).in('lead_id', leadIdsFromTagFilter);
+      }
+
+      // Query: Novos Pacientes (Tabela Leads Tags + Join Leads)
+      let qNovosPacientes = pacienteTagId ? supabase
+        .from('leads_tags')
+        .select('*, leads!inner(*)', { count: 'exact', head: true })
+        .eq('tag_id', pacienteTagId)
+        .gte('assigned_at', startDate)
+        .lte('assigned_at', endDate)
+        .eq('leads.organization_id', orgId)
+        : Promise.resolve({ count: 0, error: null });
+
+      if (pacienteTagId) {
+        if (filters.etapa_id !== "Todos") qNovosPacientes = (qNovosPacientes as any).eq('leads.etapa_id', parseInt(filters.etapa_id));
+        if (filters.origem !== "Todos") qNovosPacientes = (qNovosPacientes as any).eq('leads.origem', filters.origem);
+        if (filters.genero !== "Todos") qNovosPacientes = (qNovosPacientes as any).eq('leads.genero', filters.genero);
+        if (filters.idade) qNovosPacientes = (qNovosPacientes as any).eq('leads.idade', parseInt(filters.idade));
+        if (leadIdsFromTagFilter) qNovosPacientes = (qNovosPacientes as any).in('lead_id', leadIdsFromTagFilter);
+      }
+
       const [
         { count: novosContatosCount, error: novosContatosError },
         { count: novosLeadsCount, error: novosLeadsError },
         { count: novosPacientesCount, error: novosPacientesError }
       ] = await Promise.all([
-        supabase
-          .from('leads')
-          .select('*', { count: 'exact', head: true })
-          .eq('organization_id', orgId)
-          .gte('criado_em', startDate)
-          .lte('criado_em', endDate),
-        leadTagId ? supabase
-          .from('leads_tags')
-          .select('*', { count: 'exact', head: true })
-          .eq('tag_id', leadTagId)
-          .gte('assigned_at', startDate)
-          .lte('assigned_at', endDate) : Promise.resolve({ count: 0, error: null }),
-        pacienteTagId ? supabase
-          .from('leads_tags')
-          .select('*', { count: 'exact', head: true })
-          .eq('tag_id', pacienteTagId)
-          .gte('assigned_at', startDate)
-          .lte('assigned_at', endDate) : Promise.resolve({ count: 0, error: null }),
+        qNovosContatos,
+        qNovosLeads,
+        qNovosPacientes
       ]);
 
       if (novosContatosError) throw novosContatosError;
       if (novosLeadsError) throw novosLeadsError;
       if (novosPacientesError) throw novosPacientesError;
-      // --- END: KPI Calculations ---
 
-      let leadIdsFromTagFilter: string[] | null = null;
-
-      if (filters.tagId && filters.tagId !== "Todos") {
-        const { data: leadsTagsData, error: leadsTagsError } = await supabase
-          .from('leads_tags')
-          .select('lead_id')
-          .eq('tag_id', filters.tagId)
-          .gte('assigned_at', startDate)
-          .lte('assigned_at', endDate);
-
-        if (leadsTagsError) throw leadsTagsError;
-        leadIdsFromTagFilter = leadsTagsData.map(lt => lt.lead_id);
-
-        if (leadIdsFromTagFilter.length === 0) {
-          leadIdsFromTagFilter = [''];
-        }
-      }
-
+      // 3. Main Data Fetch (Charts & Lists) - Reusing Logic
       let leadsQuery = supabase
         .from('leads')
         .select('*')
@@ -94,19 +163,14 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
       if (leadIdsFromTagFilter) {
         leadsQuery = leadsQuery.in('id', leadIdsFromTagFilter);
-      } else {
-        leadsQuery = leadsQuery
+      }
+      
+      // Filtra leads criados no período
+      leadsQuery = leadsQuery
           .gte('criado_em', startDate)
           .lte('criado_em', endDate);
-      }
 
-      if (filters.etapa_id !== "Todos") leadsQuery = leadsQuery.eq('etapa_id', parseInt(filters.etapa_id));
-      if (filters.origem !== "Todos") leadsQuery = leadsQuery.eq('origem', filters.origem);
-      if (filters.genero !== "Todos") leadsQuery = leadsQuery.eq('genero', filters.genero);
-      if (filters.idade) {
-        const age = parseInt(filters.idade);
-        if (!isNaN(age)) leadsQuery = leadsQuery.eq('idade', age);
-      }
+      leadsQuery = applyFilters(leadsQuery); // Reusa a função simples para tabela leads
 
       const [
         { data: leadsData, error: leadsError },
