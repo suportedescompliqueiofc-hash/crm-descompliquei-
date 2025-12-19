@@ -21,12 +21,14 @@ export function CreativeCard({ criativo, onEditName, onDelete }: CreativeCardPro
     <>
       <Card className="overflow-hidden hover:shadow-md transition-all duration-200 group flex flex-col h-full">
         {/* Thumbnail Section */}
-        <div className="relative aspect-video bg-muted flex items-center justify-center overflow-hidden cursor-pointer" onClick={() => setIsModalOpen(true)}>
+        {/* Adicionado bg-black/5 para criar um fundo neutro onde a imagem não preencher */}
+        <div className="relative aspect-video bg-black/5 dark:bg-white/5 flex items-center justify-center overflow-hidden cursor-pointer border-b" onClick={() => setIsModalOpen(true)}>
           {criativo.url_thumbnail ? (
             <img 
               src={criativo.url_thumbnail} 
               alt={criativo.nome || criativo.titulo || "Criativo"} 
-              className="w-full h-full object-cover transition-transform group-hover:scale-105"
+              // Alterado de object-cover para object-contain para mostrar a imagem inteira sem cortes
+              className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
             <div className="flex flex-col items-center text-muted-foreground">
@@ -36,7 +38,7 @@ export function CreativeCard({ criativo, onEditName, onDelete }: CreativeCardPro
           )}
           
           <div className="absolute top-2 right-2">
-            <Badge variant="secondary" className="bg-black/60 text-white hover:bg-black/70 backdrop-blur-sm">
+            <Badge variant="secondary" className="bg-black/60 text-white hover:bg-black/70 backdrop-blur-sm shadow-sm">
               {criativo.aplicativo || "N/A"}
             </Badge>
           </div>
