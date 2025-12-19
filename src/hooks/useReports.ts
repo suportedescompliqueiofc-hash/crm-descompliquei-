@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
-import { differenceInDays, eachDayOfInterval, startOfDay, endOfDay, format, parseISO } from 'date-fns';
+import { differenceInDays, eachDayOfInterval, format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
 
@@ -22,14 +22,15 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
   const { data, isLoading } = useQuery({
     queryKey: ['reports', orgId, dateRange, filters],
     queryFn: async () => {
-      if (!user || !orgId || !dateRange?.from) return null; // dateRange.to pode ser undefined se for dia único
+      if (!user || !orgId || !dateRange?.from) return null;
       
-      // Ajuste Crítico: Usa startOfDay/endOfDay e converte para ISO UTC.
-      // Garante que o intervalo abranja todo o dia local.
-      const startDate = startOfDay(dateRange.from).toISOString();
+      // FIX: Usar limites de data UTC explícitos (T00:00:00 e T23:59:59)
+      // Isso alinha a busca com como os dados são tipicamente salvos no banco (UTC),
+      // evitando que o fuso horário local "empurre" o início do dia para o dia anterior.
+      const startDate = `${format(dateRange.from, 'yyyy-MM-dd')}T00:00:00`;
       const endDate = dateRange.to 
-        ? endOfDay(dateRange.to).toISOString() 
-        : endOfDay(dateRange.from).toISOString();
+        ? `${format(dateRange.to, 'yyyy-MM-dd')}T23:59:59`
+        : `${format(dateRange.from, 'yyyy-MM-dd')}T23:59:59`;
       
       // 1. Resolve Tag Filter First (if applied)
       let leadIdsFromTagFilter: string[] | null = null;
@@ -152,13 +153,13 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
       leadsQuery = applyFilters(leadsQuery);
 
-      // Preparar query de vendas (usando ISO string também para consistência)
+      // Preparar query de vendas
       let vendasQuery = supabase
         .from('vendas')
         .select('*, leads(nome, telefone)')
         .eq('organization_id', orgId)
-        .gte('data_fechamento', startDate.split('T')[0]) // Vendas usa campo date, então pegamos YYYY-MM-DD
-        .lte('data_fechamento', endDate.split('T')[0]);
+        .gte('data_fechamento', format(dateRange.from, 'yyyy-MM-dd'))
+        .lte('data_fechamento', format(dateRange.to || dateRange.from, 'yyyy-MM-dd'));
 
       const [
         { data: leadsData, error: leadsError },
@@ -186,9 +187,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       const vendas = vendasData || [];
       const criativos = criativosData || [];
       
-      // Mapa para acesso rápido aos nomes dos criativos
       const criativosMap = new Map(criativos.map(c => [c.id, c]));
-
       const userMap = new Map(profiles.map(p => [p.id, p.nome_completo || 'Desconhecido']));
       const convertedStageId = stages.find(s => s.nome.toLowerCase() === 'contrato fechado')?.id;
       
@@ -201,13 +200,12 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         ? convertedLeads.reduce((sum, lead) => differenceInDays(new Date(lead.atualizado_em), new Date(lead.criado_em)), 0) / convertedLeads.length
         : 0;
 
-      // Safe date range for chart generation
       const safeEnd = dateRange.to || dateRange.from;
       const daysInInterval = eachDayOfInterval({ start: dateRange.from, end: safeEnd });
       
       const leadsCapturedData = daysInInterval.map((day) => {
         const dayString = format(day, 'yyyy-MM-dd');
-        // Usa parseISO para comparação local correta
+        // Usa parseISO para comparação local correta ao gerar o gráfico
         const captados = leads.filter(l => format(parseISO(l.criado_em), 'yyyy-MM-dd') === dayString).length;
         const convertidos = convertedLeads.filter(l => l.atualizado_em && format(parseISO(l.atualizado_em), 'yyyy-MM-dd') === dayString).length;
         return { day: format(day, 'dd/MM', { locale: ptBR }), captados, convertidos };
@@ -220,7 +218,6 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       }, {} as Record<string, number>);
       const sourceChartData = Object.entries(sourceData).map(([source, leads]) => ({ source, leads }));
       
-      // Top Creatives Logic
       const topCreatives = leads.reduce((acc, lead) => {
         if (!lead.criativo_id || !criativosMap.has(lead.criativo_id)) {
             return acc;

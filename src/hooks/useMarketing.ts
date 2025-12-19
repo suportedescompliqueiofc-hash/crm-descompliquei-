@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 import { DateRange } from 'react-day-picker';
-import { startOfDay, endOfDay } from 'date-fns';
+import { format } from 'date-fns';
 
 export interface Criativo {
   id: string;
@@ -35,13 +35,13 @@ export function useMarketing(dateRange?: DateRange) {
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      // Ajuste Crítico: Usa startOfDay/endOfDay baseado no local time e converte para ISO UTC.
-      // Isso garante que o intervalo cubra exatamente o dia selecionado pelo usuário, independente do fuso do servidor.
-      // Se 'to' não existir (seleção de um único dia), usa 'from' para definir o final do dia.
-      const startDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : null;
+      // FIX: Usar formatação de string direta 'yyyy-MM-dd' + horário fixo.
+      // Isso envia para o banco uma data que ele interpreta como UTC, alinhando com como os dados foram salvos.
+      // Ex: Dia 19 vira "2025-12-19T00:00:00" (início do dia UTC) até "2025-12-19T23:59:59" (fim do dia UTC).
+      const startDate = dateRange?.from ? `${format(dateRange.from, 'yyyy-MM-dd')}T00:00:00` : null;
       const endDate = dateRange?.to 
-        ? endOfDay(dateRange.to).toISOString() 
-        : (dateRange?.from ? endOfDay(dateRange.from).toISOString() : null);
+        ? `${format(dateRange.to, 'yyyy-MM-dd')}T23:59:59`
+        : (dateRange?.from ? `${format(dateRange.from, 'yyyy-MM-dd')}T23:59:59` : null);
 
       // 1. Buscar criativos
       const { data, error } = await supabase
