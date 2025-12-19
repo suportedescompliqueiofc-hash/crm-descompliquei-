@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
-import { differenceInDays, eachDayOfInterval, format, parseISO } from 'date-fns';
+import { differenceInDays, eachDayOfInterval, startOfDay, endOfDay, format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
 
@@ -24,10 +24,11 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from || !dateRange?.to) return null;
       
-      // FIX: Usar strings formatadas YYYY-MM-DD HH:mm:ss para garantir a cobertura do dia inteiro
-      // sem sofrer deslocamento de fuso horário indesejado (UTC offset).
-      const startDate = `${format(dateRange.from, 'yyyy-MM-dd')} 00:00:00`;
-      const endDate = `${format(dateRange.to, 'yyyy-MM-dd')} 23:59:59`;
+      // Ajuste: Usa ISOString para cobrir o dia exato no fuso local do usuário.
+      // Ex: Se o usuário está em UTC+1 e seleciona dia 19, startOfDay gera 18 23:00 UTC.
+      // Isso garante que o registro feito na "madrugada do dia 19" seja capturado.
+      const startDate = startOfDay(dateRange.from).toISOString();
+      const endDate = endOfDay(dateRange.to).toISOString();
       
       // 1. Resolve Tag Filter First (if applied)
       let leadIdsFromTagFilter: string[] | null = null;
@@ -164,7 +165,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
           .from('vendas')
           .select('*, leads(nome, telefone)')
           .eq('organization_id', orgId)
-          .gte('data_fechamento', format(dateRange.from, 'yyyy-MM-dd')) // Usa data simples para vendas também
+          .gte('data_fechamento', format(dateRange.from, 'yyyy-MM-dd')) // Vendas geralmente usam data 'date' não timestamp, mantemos assim ou ajustamos se for timestamptz
           .lte('data_fechamento', format(dateRange.to, 'yyyy-MM-dd')),
         supabase.from('criativos').select('id, nome, titulo, plataforma').eq('organization_id', orgId)
       ]);

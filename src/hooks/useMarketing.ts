@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 import { DateRange } from 'react-day-picker';
-import { format } from 'date-fns';
+import { startOfDay, endOfDay } from 'date-fns';
 
 export interface Criativo {
   id: string;
@@ -35,9 +35,10 @@ export function useMarketing(dateRange?: DateRange) {
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      // Usando formatação de string direta para garantir cobertura total do dia selecionado
-      const startDate = dateRange?.from ? `${format(dateRange.from, 'yyyy-MM-dd')} 00:00:00` : null;
-      const endDate = dateRange?.to ? `${format(dateRange.to, 'yyyy-MM-dd')} 23:59:59` : null;
+      // Ajuste: Converte o início e fim do dia local para ISO UTC exato
+      // Isso evita que registros feitos na "madrugada" local caiam no dia anterior em UTC
+      const startDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : null;
+      const endDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : null;
 
       // 1. Buscar criativos
       const { data, error } = await supabase
@@ -70,11 +71,13 @@ export function useMarketing(dateRange?: DateRange) {
 
         if (leadIds.length > 0) {
             // Buscar vendas associadas a esses leads
-            const { data: salesData } = await supabase
+            let salesQuery = supabase
               .from('vendas')
               .select('valor_fechado')
               .eq('organization_id', orgId)
               .in('lead_id', leadIds);
+            
+            const { data: salesData } = await salesQuery;
             
             if (salesData) {
                 salesCount = salesData.length;
