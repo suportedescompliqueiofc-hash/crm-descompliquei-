@@ -70,7 +70,6 @@ export default function Marketing() {
           <TabsList>
             <TabsTrigger value="creatives">Criativos de Anúncios</TabsTrigger>
             <TabsTrigger value="reports" className="gap-2"><BarChart2 className="h-4 w-4"/> Relatórios</TabsTrigger>
-            <TabsTrigger value="campaigns" disabled>Campanhas (Em breve)</TabsTrigger>
           </TabsList>
 
           {activeTab === 'creatives' && (
