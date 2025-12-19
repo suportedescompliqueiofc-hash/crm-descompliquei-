@@ -21,7 +21,8 @@ export interface Lead {
   queixa_principal?: string;
   resumo?: string;
   origem?: string;
-  criativo?: string;
+  criativo?: string; // Mantido para legado ou fallback visual
+  criativo_id?: string; // Novo campo de relacionamento
   status: string;
   etapa_id: number;
   ultimo_contato?: string;
@@ -62,9 +63,6 @@ export function useLeads(dateRange?: DateRange) {
         const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
         const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
         
-        // Filtra leads que foram criados NO período OU agendados PARA o período.
-        // Utiliza a sintaxe do PostgREST para combinar condições AND dentro de um OR.
-        // Isso permite buscar leads antigos que foram agendados para "hoje", por exemplo.
         query = query.or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(agendamento.gte.${startDate},agendamento.lte.${endDate})`);
       }
 

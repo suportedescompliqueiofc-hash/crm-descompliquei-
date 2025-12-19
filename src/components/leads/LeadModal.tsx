@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { CreatableSelect } from "@/components/ui/CreatableSelect";
 import { useLeadSources } from "@/hooks/useLeadSources";
+import { useMarketing } from "@/hooks/useMarketing"; // Hook de Marketing
 import { VendaModal } from "@/components/vendas/VendaModal";
 
 // --- Funções Auxiliares ---
@@ -42,7 +43,6 @@ const toDisplayDate = (supabaseDate: string | undefined): string => {
   }
 };
 
-// Converts a full ISO timestamp string to 'dd/MM/yyyy'
 const toDisplayDateFromTimestamp = (supabaseTimestamp: string | undefined): string => {
   if (!supabaseTimestamp) return '';
   try {
@@ -53,11 +53,9 @@ const toDisplayDateFromTimestamp = (supabaseTimestamp: string | undefined): stri
   }
 };
 
-// Converts 'dd/MM/yyyy' to a full ISO string for timestamp columns
 const toSupabaseTimestamp = (displayDate: string): string | undefined => {
   if (!displayDate || displayDate.length !== 10) return undefined;
   const date = parse(displayDate, 'dd/MM/yyyy', new Date());
-  // Set to start of day to avoid timezone issues if only date is provided
   return isValid(date) ? startOfDay(date).toISOString() : undefined;
 };
 
@@ -66,13 +64,15 @@ const cleanPhoneNumber = (phone: string): string => phone.replace(/\D/g, '');
 const initialFormData = {
   nome: "", telefone: "", queixa_principal: "", resumo: "", origem: "",
   etapa_id: 1, status: "Ativo", email: "", cpf: "", idade: "",
-  genero: "", endereco: "", criativo: "", data_nascimento_display: "",
+  genero: "", endereco: "", 
+  criativo_id: "none", // ID do criativo selecionado
+  data_nascimento_display: "",
   criado_em_display: "",
 };
 
-// --- Componentes de UI (extraídos para estabilidade) ---
+// --- Componentes de UI ---
 
-const ViewContent = ({ lead, stages }: { lead: any, stages: Stage[] }) => {
+const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[], creativeName?: string }) => {
   const currentStage = stages.find(s => s.id === lead?.etapa_id);
   return (
     <div className="space-y-6 py-4 max-h-[70vh] overflow-y-auto px-4">
@@ -88,6 +88,7 @@ const ViewContent = ({ lead, stages }: { lead: any, stages: Stage[] }) => {
           <div className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" /><span className="font-medium">{lead.telefone}</span></div>
           {lead.email && <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /><span>{lead.email}</span></div>}
           {lead.origem && <div className="flex items-center gap-2"><Tag className="h-4 w-4 text-muted-foreground" /><span>{lead.origem}</span></div>}
+          {creativeName && <div className="flex items-center gap-2 col-span-2 md:col-span-1"><Tag className="h-4 w-4 text-muted-foreground" /><span className="truncate" title={creativeName}>{creativeName}</span></div>}
           {lead.queixa_principal && <div className="col-span-2 flex items-center gap-2"><MessageSquare className="h-4 w-4 text-muted-foreground" /><span>Queixa Principal: {lead.queixa_principal}</span></div>}
         </CardContent>
       </Card>
@@ -111,6 +112,7 @@ const ViewContent = ({ lead, stages }: { lead: any, stages: Stage[] }) => {
 
 const FormContent = ({ formData, handleInputChange, handleSubmit, stages, handleClose, isEdit, handleSourceChange }: any) => {
   const { allSources } = useLeadSources();
+  const { criativos } = useMarketing(); // Hook de Marketing
   
   return (
     <form onSubmit={handleSubmit} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-4">
@@ -146,7 +148,20 @@ const FormContent = ({ formData, handleInputChange, handleSubmit, stages, handle
             placeholder="Ex: Facebook Ads"
           />
         </div>
-        <div><Label>Criativo</Label><Input value={formData.criativo} onChange={(e) => handleInputChange('criativo', e.target.value)} /></div>
+        <div>
+          <Label>Criativo</Label>
+          <Select value={formData.criativo_id} onValueChange={(value) => handleInputChange('criativo_id', value)}>
+            <SelectTrigger><SelectValue placeholder="Selecione o criativo" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Nenhum</SelectItem>
+              {criativos.map((criativo: any) => (
+                <SelectItem key={criativo.id} value={criativo.id}>
+                  {criativo.nome || criativo.titulo || `Criativo ${criativo.id.substring(0, 8)}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div>
           <Label>Etapa</Label>
           <Select value={formData.etapa_id.toString()} onValueChange={(value) => handleInputChange('etapa_id', parseInt(value))}>
@@ -187,6 +202,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
   const { createLead, updateLead } = useLeads();
   const { stages } = useStages();
   const { allSources, createSource } = useLeadSources();
+  const { criativos } = useMarketing(); // Hook para buscar nome do criativo no modo view
   const [formData, setFormData] = useState(initialFormData);
   const [currentMode, setCurrentMode] = useState(mode);
   const [isVendaModalOpen, setIsVendaModalOpen] = useState(false);
@@ -204,7 +220,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
           resumo: lead.resumo || "", origem: lead.origem || "", etapa_id: lead.etapa_id || 1,
           status: lead.status || "Ativo", email: lead.email || "", cpf: lead.cpf || "",
           idade: lead.idade?.toString() || "", genero: lead.genero || "", endereco: lead.endereco || "",
-          criativo: lead.criativo || "",
+          criativo_id: lead.criativo_id || "none", // Usar ID do relacionamento
           data_nascimento_display: toDisplayDate(lead.data_nascimento),
           criado_em_display: toDisplayDateFromTimestamp(lead.criado_em),
         });
@@ -241,18 +257,28 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
       alert("O campo Telefone é obrigatório e deve ser válido.");
       return;
     }
+    
+    // Preparar dados para envio
     const data = {
       ...formData,
       telefone: cleanedPhone,
       idade: formData.idade ? parseInt(formData.idade) : undefined,
       data_nascimento: toSupabaseDate(formData.data_nascimento_display),
       criado_em: toSupabaseTimestamp(formData.criado_em_display),
-      nome: formData.nome || undefined, queixa_principal: formData.queixa_principal || undefined,
-      origem: formData.origem || undefined, resumo: formData.resumo || undefined,
-      email: formData.email || undefined, cpf: formData.cpf || undefined,
-      genero: formData.genero || undefined, endereco: formData.endereco || undefined,
-      criativo: formData.criativo || undefined,
+      // Campos opcionais
+      nome: formData.nome || undefined, 
+      queixa_principal: formData.queixa_principal || undefined,
+      origem: formData.origem || undefined, 
+      resumo: formData.resumo || undefined,
+      email: formData.email || undefined, 
+      cpf: formData.cpf || undefined,
+      genero: formData.genero || undefined, 
+      endereco: formData.endereco || undefined,
+      // Tratar criativo_id: enviar null se for "none"
+      criativo_id: formData.criativo_id === "none" ? null : formData.criativo_id,
     };
+    
+    // Remover campos de exibição e limpar campos não usados
     delete (data as any).data_nascimento_display;
     delete (data as any).criado_em_display;
 
@@ -276,6 +302,11 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
 
   const currentStage = stages.find(s => s.id === lead?.etapa_id);
   const isContratoFechado = currentStage?.nome === 'Contrato Fechado';
+  
+  // Buscar nome do criativo para o modo de visualização
+  const creativeName = lead?.criativo_id 
+    ? criativos.find((c: any) => c.id === lead.criativo_id)?.nome || criativos.find((c: any) => c.id === lead.criativo_id)?.titulo 
+    : lead?.criativo; // Fallback para campo legado de texto
 
   return (
     <>
@@ -288,7 +319,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
           </DialogHeader>
           
           {isView && lead ? (
-            <ViewContent lead={lead} stages={stages} />
+            <ViewContent lead={lead} stages={stages} creativeName={creativeName} />
           ) : (
             <FormContent
               formData={formData}
