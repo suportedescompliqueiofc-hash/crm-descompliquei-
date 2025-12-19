@@ -24,8 +24,9 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from || !dateRange?.to) return null;
       
-      const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
-      const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
+      // FIX: Use toISOString() to ensure full day coverage in UTC corresponding to user's local time
+      const startDate = startOfDay(dateRange.from).toISOString();
+      const endDate = endOfDay(dateRange.to).toISOString();
       
       // 1. Resolve Tag Filter First (if applied)
       let leadIdsFromTagFilter: string[] | null = null;

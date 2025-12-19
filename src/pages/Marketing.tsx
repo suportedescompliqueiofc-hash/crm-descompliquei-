@@ -20,10 +20,8 @@ export default function Marketing() {
   const today = new Date();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: startOfMonth(today), to: endOfMonth(today) });
   
-  // Hooks existentes
-  const { criativos, isLoading: isLoadingCreatives, atualizarNomeCriativo, deletarCriativo } = useMarketing();
-  
-  // Hook de Relatórios para a nova aba
+  // Hooks atualizados com dateRange
+  const { criativos, isLoading: isLoadingCreatives, atualizarNomeCriativo, deletarCriativo } = useMarketing(dateRange);
   const { reports, isLoading: isLoadingReports } = useReports(dateRange);
 
   const [searchTerm, setSearchTerm] = useState("");

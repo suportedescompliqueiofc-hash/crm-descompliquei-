@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
+import { DateRange } from 'react-day-picker';
+import { startOfDay, endOfDay } from 'date-fns';
 
 export interface Criativo {
   id: string;
@@ -18,22 +20,25 @@ export interface Criativo {
   stats?: {
     contagem_leads: number;
     contagem_vendas: number;
-    faturamento: number; // Novo campo
+    faturamento: number;
   };
 }
 
-export function useMarketing() {
+export function useMarketing(dateRange?: DateRange) {
   const { user } = useAuth();
   const { profile } = useProfile();
   const orgId = profile?.organization_id;
   const queryClient = useQueryClient();
 
   const { data: criativos = [], isLoading } = useQuery({
-    queryKey: ['criativos', orgId],
+    queryKey: ['criativos', orgId, dateRange],
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      // 1. Buscar criativos
+      const startDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : null;
+      const endDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : null;
+
+      // 1. Buscar criativos (traz todos, pois queremos ver o criativo mesmo que não tenha leads no período)
       const { data, error } = await supabase
         .from('criativos')
         .select('*')
@@ -42,13 +47,19 @@ export function useMarketing() {
 
       if (error) throw error;
 
-      // 2. Buscar estatísticas detalhadas
+      // 2. Buscar estatísticas detalhadas filtradas por data
       const criativosComStats = await Promise.all(data.map(async (criativo) => {
-        // Buscar IDs dos leads originados por este criativo
-        const { data: leadsData } = await supabase
+        // Buscar IDs dos leads originados por este criativo NO PERÍODO SELECIONADO
+        let leadsQuery = supabase
           .from('leads')
           .select('id')
           .eq('criativo_id', criativo.id);
+        
+        if (startDate && endDate) {
+          leadsQuery = leadsQuery.gte('criado_em', startDate).lte('criado_em', endDate);
+        }
+
+        const { data: leadsData } = await leadsQuery;
         
         const leadIds = leadsData?.map(l => l.id) || [];
         const leadsCount = leadIds.length;
@@ -57,12 +68,23 @@ export function useMarketing() {
         let revenue = 0;
 
         if (leadIds.length > 0) {
-            // Buscar vendas associadas a esses leads para somar o valor
-            const { data: salesData } = await supabase
+            // Buscar vendas associadas a esses leads (independente da data da venda, ou filtrando?)
+            // Geralmente em marketing, queremos saber se o lead gerado no período converteu.
+            // Se quisermos vendas NO PERÍODO, descomente o filtro de data abaixo.
+            // Por padrão de atribuição, mantemos vendas desses leads específicos.
+            let salesQuery = supabase
               .from('vendas')
               .select('valor_fechado')
               .eq('organization_id', orgId)
               .in('lead_id', leadIds);
+            
+            // Opcional: Filtrar também a data da venda? 
+            // Se descomentar, mostra apenas vendas fechadas no período para leads desse criativo.
+            // if (startDate && endDate) {
+            //   salesQuery = salesQuery.gte('data_fechamento', startDate).lte('data_fechamento', endDate);
+            // }
+            
+            const { data: salesData } = await salesQuery;
             
             if (salesData) {
                 salesCount = salesData.length;
