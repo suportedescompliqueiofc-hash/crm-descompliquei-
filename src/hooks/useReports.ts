@@ -31,14 +31,6 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       let leadIdsFromTagFilter: string[] | null = null;
 
       if (filters.tagId && filters.tagId !== "Todos") {
-        // Se houver filtro de tag, buscamos quais leads possuem essa tag (independente da data de atribuição da tag de filtro, 
-        // ou restringindo ao período? Geralmente filtro é "tem a tag X". 
-        // Mas o código anterior usava o range. Vou manter sem range para ser "leads com a tag X neste momento", 
-        // ou manter o range se a intenção for "ganhou a tag X neste período".
-        // O padrão de relatórios costuma ser interseção. 
-        // Para consistência com o comportamento anterior da lista, vou buscar leads que TÊM a tag atualmente ou ganharam no período.
-        // Simplificação: Leads que possuem essa tag na tabela leads_tags.
-        
         const { data: leadsTagsData, error: leadsTagsError } = await supabase
           .from('leads_tags')
           .select('lead_id')
@@ -48,7 +40,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         leadIdsFromTagFilter = leadsTagsData.map(lt => lt.lead_id);
 
         if (leadIdsFromTagFilter.length === 0) {
-          leadIdsFromTagFilter = ['00000000-0000-0000-0000-000000000000']; // Dummy ID para retornar 0
+          leadIdsFromTagFilter = ['00000000-0000-0000-0000-000000000000'];
         }
       }
 
@@ -76,20 +68,6 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
           if (!isNaN(age)) query = query.eq(`${prefix}idade`, age);
         }
         
-        if (leadIdsFromTagFilter) {
-          // Se for query na tabela leads_tags, a coluna é lead_id. Se for leads, é id.
-          const idColumn = tablePrefix === 'leads' ? 'lead_id' : 'id'; 
-          // Correção: Se tablePrefix for usado (ex: leads_tags join leads), o filtro 'in' deve ser no ID do lead.
-          // Na tabela leads: .in('id', ids)
-          // Na tabela leads_tags: .in('lead_id', ids)
-          
-          if (tablePrefix === 'leads') {
-             // Estamos filtrando dentro de um join (leads_tags -> leads), mas o .in deve ser aplicado na query principal ou no join?
-             // O Supabase postgrest filter 'in' funciona na coluna.
-             // Para leads_tags, filtramos lead_id.
-             // Para leads, filtramos id.
-          }
-        }
         return query;
       };
 
@@ -104,10 +82,10 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       qNovosContatos = applyFilters(qNovosContatos);
       if (leadIdsFromTagFilter) qNovosContatos = qNovosContatos.in('id', leadIdsFromTagFilter);
 
-      // Query: Novos Leads (Tabela Leads Tags + Join Leads)
+      // Query: Novos Leads
       let qNovosLeads = leadTagId ? supabase
         .from('leads_tags')
-        .select('*, leads!inner(*)', { count: 'exact', head: true }) // Inner join para filtrar por props do lead
+        .select('*, leads!inner(*)', { count: 'exact', head: true })
         .eq('tag_id', leadTagId)
         .gte('assigned_at', startDate)
         .lte('assigned_at', endDate)
@@ -115,7 +93,6 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         : Promise.resolve({ count: 0, error: null });
 
       if (leadTagId) {
-        // Aplica filtros na tabela relacionada 'leads'
         if (filters.etapa_id !== "Todos") qNovosLeads = (qNovosLeads as any).eq('leads.etapa_id', parseInt(filters.etapa_id));
         if (filters.origem !== "Todos") qNovosLeads = (qNovosLeads as any).eq('leads.origem', filters.origem);
         if (filters.genero !== "Todos") qNovosLeads = (qNovosLeads as any).eq('leads.genero', filters.genero);
@@ -123,7 +100,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         if (leadIdsFromTagFilter) qNovosLeads = (qNovosLeads as any).in('lead_id', leadIdsFromTagFilter);
       }
 
-      // Query: Novos Pacientes (Tabela Leads Tags + Join Leads)
+      // Query: Novos Pacientes
       let qNovosPacientes = pacienteTagId ? supabase
         .from('leads_tags')
         .select('*, leads!inner(*)', { count: 'exact', head: true })
@@ -155,7 +132,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       if (novosLeadsError) throw novosLeadsError;
       if (novosPacientesError) throw novosPacientesError;
 
-      // 3. Main Data Fetch (Charts & Lists) - Reusing Logic
+      // 3. Main Data Fetch (Charts & Lists)
       let leadsQuery = supabase
         .from('leads')
         .select('*')
@@ -165,18 +142,18 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         leadsQuery = leadsQuery.in('id', leadIdsFromTagFilter);
       }
       
-      // Filtra leads criados no período
       leadsQuery = leadsQuery
           .gte('criado_em', startDate)
           .lte('criado_em', endDate);
 
-      leadsQuery = applyFilters(leadsQuery); // Reusa a função simples para tabela leads
+      leadsQuery = applyFilters(leadsQuery);
 
       const [
         { data: leadsData, error: leadsError },
         { data: stagesData, error: stagesError },
         { data: profilesData, error: profilesError },
-        { data: vendasData, error: vendasError }
+        { data: vendasData, error: vendasError },
+        { data: criativosData, error: criativosError } // Novo: Busca dados dos criativos
       ] = await Promise.all([
         leadsQuery,
         supabase.from('etapas').select('*'),
@@ -186,18 +163,25 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
           .select('*, leads(nome, telefone)')
           .eq('organization_id', orgId)
           .gte('data_fechamento', format(startOfDay(dateRange.from), 'yyyy-MM-dd'))
-          .lte('data_fechamento', format(endOfDay(dateRange.to), 'yyyy-MM-dd'))
+          .lte('data_fechamento', format(endOfDay(dateRange.to), 'yyyy-MM-dd')),
+        supabase.from('criativos').select('id, nome, titulo, plataforma').eq('organization_id', orgId)
       ]);
       
       if (leadsError) throw leadsError;
       if (stagesError) throw stagesError;
       if (profilesError) throw profilesError;
       if (vendasError) throw vendasError;
+      if (criativosError) throw criativosError;
 
       const leads = leadsData || [];
       const stages = stagesData || [];
       const profiles = profilesData || [];
       const vendas = vendasData || [];
+      const criativos = criativosData || [];
+      
+      // Mapa para acesso rápido aos nomes dos criativos
+      const criativosMap = new Map(criativos.map(c => [c.id, c]));
+
       const userMap = new Map(profiles.map(p => [p.id, p.nome_completo || 'Desconhecido']));
       const convertedStageId = stages.find(s => s.nome.toLowerCase() === 'contrato fechado')?.id;
       
@@ -224,12 +208,24 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         return acc;
       }, {} as Record<string, number>);
       const sourceChartData = Object.entries(sourceData).map(([source, leads]) => ({ source, leads }));
+      
+      // Lógica atualizada para Top Criativos (Geral)
       const topCreatives = leads.reduce((acc, lead) => {
-        if (!lead.criativo) return acc;
-        if (!acc[lead.criativo]) acc[lead.criativo] = { name: lead.criativo, origin: lead.origem, leads: 0, converted: 0, value: 0 };
-        acc[lead.criativo].leads++;
+        // Tenta resolver o nome pelo ID primeiro, depois pelo campo de texto legado
+        let creativeName = 'N/A';
+        if (lead.criativo_id && criativosMap.has(lead.criativo_id)) {
+            const c = criativosMap.get(lead.criativo_id);
+            creativeName = c.nome || c.titulo || 'Criativo sem nome';
+        } else if (lead.criativo) {
+            creativeName = lead.criativo;
+        }
+
+        if (creativeName === 'N/A') return acc;
+
+        if (!acc[creativeName]) acc[creativeName] = { name: creativeName, origin: lead.origem, leads: 0, converted: 0, value: 0 };
+        acc[creativeName].leads++;
         if (lead.etapa_id === convertedStageId) {
-          acc[lead.criativo].converted++;
+          acc[creativeName].converted++;
         }
         return acc;
       }, {} as Record<string, any>);
@@ -270,9 +266,22 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         valor: venda.valor_fechado, atualizado_em: venda.data_fechamento,
       }));
 
+      // Lógica atualizada de Performance de Marketing
       const marketingPerformance = leads.reduce((acc, lead) => {
-        const key = `${lead.origem || 'N/A'}::${lead.criativo || 'N/A'}`;
-        if (!acc[key]) acc[key] = { origem: lead.origem || 'N/A', criativo: lead.criativo || 'N/A', leads: 0, conversions: 0, totalValue: 0 };
+        // Resolve nome do criativo
+        let creativeName = 'N/A';
+        if (lead.criativo_id && criativosMap.has(lead.criativo_id)) {
+            const c = criativosMap.get(lead.criativo_id);
+            creativeName = c.nome || c.titulo || 'Criativo sem nome';
+        } else if (lead.criativo) {
+            creativeName = lead.criativo;
+        }
+
+        const origem = lead.origem || 'N/A';
+        const key = `${origem}::${creativeName}`;
+        
+        if (!acc[key]) acc[key] = { origem: origem, criativo: creativeName, leads: 0, conversions: 0, totalValue: 0 };
+        
         acc[key].leads++;
         const sale = vendas.find(v => v.lead_id === lead.id);
         if (sale) {
@@ -281,12 +290,15 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         }
         return acc;
       }, {} as Record<string, { origem: string; criativo: string; leads: number; conversions: number; totalValue: number; }>);
+
       const marketingPerformanceData = Object.values(marketingPerformance).map(item => ({
         ...item,
         conversionRate: item.leads > 0 ? (item.conversions / item.leads) * 100 : 0,
         avgTicket: item.conversions > 0 ? item.totalValue / item.conversions : 0,
       })).sort((a, b) => b.leads - a.leads);
+      
       const bestCreativeByConversions = [...marketingPerformanceData].filter(c => c.criativo !== 'N/A').sort((a, b) => b.conversions - a.conversions)[0] || null;
+      
       const sourcePerformance = marketingPerformanceData.reduce((acc, item) => {
         const source = item.origem;
         if (!acc[source]) acc[source] = { name: source, leads: 0, conversions: 0, totalValue: 0 };
@@ -295,6 +307,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         acc[source].totalValue += item.totalValue;
         return acc;
       }, {} as Record<string, { name: string; leads: number; conversions: number; totalValue: number; }>);
+      
       const bestSourceByRevenue = Object.values(sourcePerformance).filter(s => s.name !== 'N/A').sort((a, b) => b.totalValue - a.totalValue)[0] || null;
       const totalMarketingLeads = Object.values(sourcePerformance).filter(s => s.name !== 'N/A' && s.name !== 'Desconhecida').reduce((sum, s) => sum + s.leads, 0);
       const leadsVsConversionsByCreative = marketingPerformanceData.filter(item => item.criativo !== 'N/A').slice(0, 10).map(item => ({ name: item.criativo, Leads: item.leads, Conversões: item.conversions }));
