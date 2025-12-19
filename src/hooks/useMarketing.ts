@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 import { DateRange } from 'react-day-picker';
-import { startOfDay, endOfDay } from 'date-fns';
+import { format } from 'date-fns';
 
 export interface Criativo {
   id: string;
@@ -35,10 +35,11 @@ export function useMarketing(dateRange?: DateRange) {
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      const startDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : null;
-      const endDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : null;
+      // Usando formatação de string direta para garantir cobertura total do dia selecionado
+      const startDate = dateRange?.from ? `${format(dateRange.from, 'yyyy-MM-dd')} 00:00:00` : null;
+      const endDate = dateRange?.to ? `${format(dateRange.to, 'yyyy-MM-dd')} 23:59:59` : null;
 
-      // 1. Buscar criativos (traz todos, pois queremos ver o criativo mesmo que não tenha leads no período)
+      // 1. Buscar criativos
       const { data, error } = await supabase
         .from('criativos')
         .select('*')
@@ -68,23 +69,12 @@ export function useMarketing(dateRange?: DateRange) {
         let revenue = 0;
 
         if (leadIds.length > 0) {
-            // Buscar vendas associadas a esses leads (independente da data da venda, ou filtrando?)
-            // Geralmente em marketing, queremos saber se o lead gerado no período converteu.
-            // Se quisermos vendas NO PERÍODO, descomente o filtro de data abaixo.
-            // Por padrão de atribuição, mantemos vendas desses leads específicos.
-            let salesQuery = supabase
+            // Buscar vendas associadas a esses leads
+            const { data: salesData } = await supabase
               .from('vendas')
               .select('valor_fechado')
               .eq('organization_id', orgId)
               .in('lead_id', leadIds);
-            
-            // Opcional: Filtrar também a data da venda? 
-            // Se descomentar, mostra apenas vendas fechadas no período para leads desse criativo.
-            // if (startDate && endDate) {
-            //   salesQuery = salesQuery.gte('data_fechamento', startDate).lte('data_fechamento', endDate);
-            // }
-            
-            const { data: salesData } = await salesQuery;
             
             if (salesData) {
                 salesCount = salesData.length;

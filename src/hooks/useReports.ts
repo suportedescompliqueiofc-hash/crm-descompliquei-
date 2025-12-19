@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
-import { differenceInDays, eachDayOfInterval, startOfDay, endOfDay, format, parseISO } from 'date-fns';
+import { differenceInDays, eachDayOfInterval, format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
 
@@ -24,9 +24,10 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from || !dateRange?.to) return null;
       
-      // FIX: Use toISOString() to ensure full day coverage in UTC corresponding to user's local time
-      const startDate = startOfDay(dateRange.from).toISOString();
-      const endDate = endOfDay(dateRange.to).toISOString();
+      // FIX: Usar strings formatadas YYYY-MM-DD HH:mm:ss para garantir a cobertura do dia inteiro
+      // sem sofrer deslocamento de fuso horário indesejado (UTC offset).
+      const startDate = `${format(dateRange.from, 'yyyy-MM-dd')} 00:00:00`;
+      const endDate = `${format(dateRange.to, 'yyyy-MM-dd')} 23:59:59`;
       
       // 1. Resolve Tag Filter First (if applied)
       let leadIdsFromTagFilter: string[] | null = null;
@@ -163,8 +164,8 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
           .from('vendas')
           .select('*, leads(nome, telefone)')
           .eq('organization_id', orgId)
-          .gte('data_fechamento', format(startOfDay(dateRange.from), 'yyyy-MM-dd'))
-          .lte('data_fechamento', format(endOfDay(dateRange.to), 'yyyy-MM-dd')),
+          .gte('data_fechamento', format(dateRange.from, 'yyyy-MM-dd')) // Usa data simples para vendas também
+          .lte('data_fechamento', format(dateRange.to, 'yyyy-MM-dd')),
         supabase.from('criativos').select('id, nome, titulo, plataforma').eq('organization_id', orgId)
       ]);
       
