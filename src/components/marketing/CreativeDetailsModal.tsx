@@ -41,7 +41,7 @@ export function CreativeDetailsModal({ open, onOpenChange, criativo, onEditName 
     : 0;
 
   const formatCurrency = (value: number) => 
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,22 +144,27 @@ export function CreativeDetailsModal({ open, onOpenChange, criativo, onEditName 
                 </div>
               </div>
 
-              {/* Card Faturamento */}
-              <div className="border rounded-lg p-4 bg-primary/5 border-primary/20 flex flex-col justify-between md:col-span-2">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 text-primary">
-                    <DollarSign className="h-4 w-4" />
-                    <span className="text-xs font-bold uppercase">Faturamento Gerado</span>
-                  </div>
+              {/* Card Faturamento (Agora estilo padrão e menor) */}
+              <div className="border rounded-lg p-4 bg-card flex flex-col justify-between hover:border-primary/50 transition-colors">
+                <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                  <DollarSign className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-medium uppercase">Faturamento</span>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-foreground">{formatCurrency(stats.faturamento)}</span>
+                <div>
+                  <span className="text-2xl font-bold tracking-tight">{formatCurrency(stats.faturamento)}</span>
+                  <p className="text-[10px] text-muted-foreground mt-1">Total gerado</p>
                 </div>
-                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-primary/10">
-                  <CreditCard className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">
-                    Ticket Médio: <span className="font-medium text-foreground">{formatCurrency(ticketMedio)}</span>
-                  </span>
+              </div>
+
+              {/* Card Ticket Médio (Separado) */}
+              <div className="border rounded-lg p-4 bg-card flex flex-col justify-between hover:border-blue-500/50 transition-colors">
+                <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                  <CreditCard className="h-4 w-4 text-blue-600" />
+                  <span className="text-xs font-medium uppercase">Ticket Médio</span>
+                </div>
+                <div>
+                  <span className="text-2xl font-bold tracking-tight">{formatCurrency(ticketMedio)}</span>
+                  <p className="text-[10px] text-muted-foreground mt-1">Por venda</p>
                 </div>
               </div>
             </div>
