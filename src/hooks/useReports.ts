@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
-import { differenceInDays, eachDayOfInterval, format, parseISO } from 'date-fns';
+import { differenceInDays, eachDayOfInterval, startOfDay, endOfDay, format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
 
@@ -24,15 +24,13 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from) return null;
       
-      // FIX: Usar limites de data UTC explícitos (T00:00:00 e T23:59:59)
-      // Isso alinha a busca com como os dados são tipicamente salvos no banco (UTC),
-      // evitando que o fuso horário local "empurre" o início do dia para o dia anterior.
-      const startDate = `${format(dateRange.from, 'yyyy-MM-dd')}T00:00:00`;
+      // Ajuste para fuso horário: Início e Fim exatos do dia local em ISO UTC
+      const startDate = startOfDay(dateRange.from).toISOString();
       const endDate = dateRange.to 
-        ? `${format(dateRange.to, 'yyyy-MM-dd')}T23:59:59`
-        : `${format(dateRange.from, 'yyyy-MM-dd')}T23:59:59`;
+        ? endOfDay(dateRange.to).toISOString() 
+        : endOfDay(dateRange.from).toISOString();
       
-      // 1. Resolve Tag Filter First (if applied)
+      // 1. Filtro de Tags
       let leadIdsFromTagFilter: string[] | null = null;
 
       if (filters.tagId && filters.tagId !== "Todos") {
@@ -49,7 +47,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         }
       }
 
-      // 2. Prepare KPIs Queries with Filters
+      // 2. Busca de IDs de Tags Especiais
       const { data: tagsData, error: tagsError } = await supabase
         .from('tags')
         .select('id, name')
@@ -61,7 +59,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       const leadTagId = tagsData.find(t => t.name === 'LEAD')?.id;
       const pacienteTagId = tagsData.find(t => t.name === 'PACIENTE')?.id;
 
-      // Helper to apply filters to a query
+      // Helper para aplicar filtros
       const applyFilters = (query: any, tablePrefix: string = '') => {
         const prefix = tablePrefix ? `${tablePrefix}.` : '';
         
@@ -76,7 +74,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         return query;
       };
 
-      // Query: Novos Contatos (Tabela Leads)
+      // Query: Novos Contatos
       let qNovosContatos = supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
@@ -137,7 +135,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       if (novosLeadsError) throw novosLeadsError;
       if (novosPacientesError) throw novosPacientesError;
 
-      // 3. Main Data Fetch (Charts & Lists)
+      // 3. Busca Principal de Dados
       let leadsQuery = supabase
         .from('leads')
         .select('*')
@@ -153,7 +151,9 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
       leadsQuery = applyFilters(leadsQuery);
 
-      // Preparar query de vendas
+      // Query Vendas
+      // Para vendas, mantemos a lógica de data string pois geralmente é campo 'date', mas se for timestamp, isoString funciona
+      // Assumindo campo `data_fechamento` como DATE (yyyy-mm-dd), usamos string formatada
       let vendasQuery = supabase
         .from('vendas')
         .select('*, leads(nome, telefone)')
@@ -205,7 +205,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       
       const leadsCapturedData = daysInInterval.map((day) => {
         const dayString = format(day, 'yyyy-MM-dd');
-        // Usa parseISO para comparação local correta ao gerar o gráfico
+        // Usa parseISO para comparação consistente
         const captados = leads.filter(l => format(parseISO(l.criado_em), 'yyyy-MM-dd') === dayString).length;
         const convertidos = convertedLeads.filter(l => l.atualizado_em && format(parseISO(l.atualizado_em), 'yyyy-MM-dd') === dayString).length;
         return { day: format(day, 'dd/MM', { locale: ptBR }), captados, convertidos };
@@ -219,9 +219,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       const sourceChartData = Object.entries(sourceData).map(([source, leads]) => ({ source, leads }));
       
       const topCreatives = leads.reduce((acc, lead) => {
-        if (!lead.criativo_id || !criativosMap.has(lead.criativo_id)) {
-            return acc;
-        }
+        if (!lead.criativo_id || !criativosMap.has(lead.criativo_id)) return acc;
 
         const c = criativosMap.get(lead.criativo_id);
         const creativeName = c.nome || c.titulo || 'Criativo sem nome';
@@ -271,9 +269,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       }));
 
       const marketingPerformance = leads.reduce((acc, lead) => {
-        if (!lead.criativo_id || !criativosMap.has(lead.criativo_id)) {
-            return acc;
-        }
+        if (!lead.criativo_id || !criativosMap.has(lead.criativo_id)) return acc;
 
         const c = criativosMap.get(lead.criativo_id);
         const creativeName = c.nome || c.titulo || 'Criativo sem nome';

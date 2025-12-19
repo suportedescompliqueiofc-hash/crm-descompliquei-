@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 import { DateRange } from 'react-day-picker';
-import { format } from 'date-fns';
+import { startOfDay, endOfDay } from 'date-fns';
 
 export interface Criativo {
   id: string;
@@ -35,26 +35,31 @@ export function useMarketing(dateRange?: DateRange) {
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      // FIX: Usar formatação de string direta 'yyyy-MM-dd' + horário fixo.
-      // Isso envia para o banco uma data que ele interpreta como UTC, alinhando com como os dados foram salvos.
-      // Ex: Dia 19 vira "2025-12-19T00:00:00" (início do dia UTC) até "2025-12-19T23:59:59" (fim do dia UTC).
-      const startDate = dateRange?.from ? `${format(dateRange.from, 'yyyy-MM-dd')}T00:00:00` : null;
+      // Converte o início (00:00) e fim (23:59) do dia LOCAL para o timestamp UTC exato.
+      // Isso corrige o problema de registros feitos à noite caindo no dia errado.
+      const startDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : null;
       const endDate = dateRange?.to 
-        ? `${format(dateRange.to, 'yyyy-MM-dd')}T23:59:59`
-        : (dateRange?.from ? `${format(dateRange.from, 'yyyy-MM-dd')}T23:59:59` : null);
+        ? endOfDay(dateRange.to).toISOString() 
+        : (dateRange?.from ? endOfDay(dateRange.from).toISOString() : null);
 
-      // 1. Buscar criativos
-      const { data, error } = await supabase
+      // 1. Buscar criativos (FILTRANDO PELA DATA DE CADASTRO)
+      let query = supabase
         .from('criativos')
         .select('*')
         .eq('organization_id', orgId)
         .order('criado_em', { ascending: false });
 
+      if (startDate && endDate) {
+        query = query.gte('criado_em', startDate).lte('criado_em', endDate);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
 
-      // 2. Buscar estatísticas detalhadas filtradas por data
+      // 2. Buscar estatísticas
       const criativosComStats = await Promise.all(data.map(async (criativo) => {
-        // Buscar IDs dos leads originados por este criativo NO PERÍODO SELECIONADO
+        // Estatísticas também respeitam o filtro de data para consistência
         let leadsQuery = supabase
           .from('leads')
           .select('id')
@@ -73,12 +78,13 @@ export function useMarketing(dateRange?: DateRange) {
         let revenue = 0;
 
         if (leadIds.length > 0) {
-            // Buscar vendas associadas a esses leads
-            const { data: salesData } = await supabase
+            let salesQuery = supabase
               .from('vendas')
               .select('valor_fechado')
               .eq('organization_id', orgId)
               .in('lead_id', leadIds);
+            
+            const { data: salesData } = await salesQuery;
             
             if (salesData) {
                 salesCount = salesData.length;
