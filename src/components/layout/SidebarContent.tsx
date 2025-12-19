@@ -13,7 +13,8 @@ import {
   MessageSquare,
   Bell,
   ShoppingCart,
-  Bot
+  Bot,
+  Target
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -29,6 +30,7 @@ const menuItems = [
   { title: "Notificações", icon: Bell, path: "/notificacoes" },
   { title: "Vendas", icon: ShoppingCart, path: "/vendas" },
   { title: "Relatórios", icon: BarChart3, path: "/reports" },
+  { title: "Marketing", icon: Target, path: "/marketing" },
   { title: "Campanhas", icon: Megaphone, path: "/campaigns" },
   { title: "Templates", icon: FileText, path: "/templates" },
   { title: "IA", icon: Bot, path: "/ia" },
