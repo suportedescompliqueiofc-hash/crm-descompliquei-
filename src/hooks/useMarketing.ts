@@ -4,21 +4,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 
-export interface Creative {
+export interface Criativo {
   id: string;
   organization_id: string;
-  custom_name: string | null;
-  title: string | null;
-  body: string | null;
-  source_url: string | null;
-  thumbnail_url: string | null;
-  source_platform: string | null;
-  source_app: string | null;
-  created_at: string;
+  nome: string | null;
+  titulo: string | null;
+  conteudo: string | null;
+  url_midia: string | null;
+  url_thumbnail: string | null;
+  plataforma: string | null;
+  aplicativo: string | null;
+  criado_em: string;
   stats?: {
-    leads_count: number;
-    sales_count: number;
-    investment?: number; // Futuro: valor investido
+    contagem_leads: number;
+    contagem_vendas: number;
   };
 }
 
@@ -28,88 +27,85 @@ export function useMarketing() {
   const orgId = profile?.organization_id;
   const queryClient = useQueryClient();
 
-  const { data: creatives = [], isLoading } = useQuery({
-    queryKey: ['marketing_creatives', orgId],
+  const { data: criativos = [], isLoading } = useQuery({
+    queryKey: ['criativos', orgId],
     queryFn: async () => {
       if (!user || !orgId) return [];
 
       // 1. Buscar criativos
       const { data, error } = await supabase
-        .from('marketing_creatives')
+        .from('criativos')
         .select('*')
         .eq('organization_id', orgId)
-        .order('created_at', { ascending: false });
+        .order('criado_em', { ascending: false });
 
       if (error) throw error;
 
-      // 2. Buscar estatísticas para cada criativo (Leads vinculados e Vendas)
-      // Para performance, em produção faríamos via RPC ou View, mas aqui faremos no cliente por enquanto
-      const creativesWithStats = await Promise.all(data.map(async (creative) => {
+      // 2. Buscar estatísticas
+      const criativosComStats = await Promise.all(data.map(async (criativo) => {
         // Contar leads deste criativo
         const { count: leadsCount } = await supabase
           .from('leads')
           .select('id', { count: 'exact', head: true })
-          .eq('creative_id', creative.id);
+          .eq('criativo_id', criativo.id);
 
         // Contar vendas (leads convertidos) deste criativo
-        // Assumindo que temos uma etapa de "Contrato Fechado" ou tabela de vendas vinculada ao lead
-        // Vamos usar a tabela 'vendas' fazendo join com leads
         const { count: salesCount } = await supabase
           .from('vendas')
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', orgId)
           .in('lead_id', (
-            await supabase.from('leads').select('id').eq('creative_id', creative.id)
+            await supabase.from('leads').select('id').eq('criativo_id', criativo.id)
           ).data?.map(l => l.id) || []);
 
         return {
-          ...creative,
+          ...criativo,
           stats: {
-            leads_count: leadsCount || 0,
-            sales_count: salesCount || 0
+            contagem_leads: leadsCount || 0,
+            contagem_vendas: salesCount || 0
           }
         };
       }));
 
-      return creativesWithStats as Creative[];
+      return criativosComStats as Criativo[];
     },
     enabled: !!user && !!orgId,
   });
 
-  const updateCreativeName = useMutation({
-    mutationFn: async ({ id, custom_name }: { id: string; custom_name: string }) => {
+  const atualizarNomeCriativo = useMutation({
+    mutationFn: async ({ id, nome }: { id: string; nome: string }) => {
       const { error } = await supabase
-        .from('marketing_creatives')
-        .update({ custom_name })
+        .from('criativos')
+        .update({ nome })
         .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketing_creatives', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['criativos', orgId] });
       toast.success('Nome do criativo atualizado!');
     },
     onError: (err: any) => toast.error(`Erro: ${err.message}`),
   });
 
-  const deleteCreative = useMutation({
+  const deletarCriativo = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('marketing_creatives')
+        .from('criativos')
         .delete()
         .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketing_creatives', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['criativos', orgId] });
       toast.success('Criativo excluído com sucesso.');
     },
     onError: (err: any) => toast.error(`Erro: ${err.message}`),
   });
 
   return {
-    creatives,
+    criativos,
     isLoading,
-    updateCreativeName: updateCreativeName.mutate,
-    deleteCreative: deleteCreative.mutate,
+    atualizarNomeCriativo: atualizarNomeCriativo.mutate,
+    deletarCriativo: deletarCriativo.mutate,
   };
 }

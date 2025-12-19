@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { Megaphone, Search, Filter, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Megaphone, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreativeCard } from "@/components/marketing/CreativeCard";
 import { useMarketing } from "@/hooks/useMarketing";
@@ -10,23 +9,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export default function Marketing() {
-  const { creatives, isLoading, updateCreativeName, deleteCreative } = useMarketing();
+  const { criativos, isLoading, atualizarNomeCriativo, deletarCriativo } = useMarketing();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("creatives");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const filteredCreatives = creatives.filter(c => {
+  const criativosFiltrados = criativos.filter(c => {
     const search = searchTerm.toLowerCase();
     return (
-      (c.custom_name && c.custom_name.toLowerCase().includes(search)) ||
-      (c.title && c.title.toLowerCase().includes(search)) ||
-      (c.body && c.body.toLowerCase().includes(search))
+      (c.nome && c.nome.toLowerCase().includes(search)) ||
+      (c.titulo && c.titulo.toLowerCase().includes(search)) ||
+      (c.conteudo && c.conteudo.toLowerCase().includes(search))
     );
   });
 
   const handleDeleteConfirm = () => {
     if (deleteId) {
-      deleteCreative(deleteId);
+      deletarCriativo(deleteId);
       setDeleteId(null);
     }
   };
@@ -43,8 +42,7 @@ export default function Marketing() {
           <p className="text-muted-foreground mt-1">Gerencie seus criativos e acompanhe a performance dos anúncios.</p>
         </div>
         <div className="flex gap-3">
-          {/* Futuro: Botão para adicionar manualmente se necessário, mas o foco é automação */}
-          {/* <Button className="gap-2"><Plus className="h-4 w-4" /> Novo Criativo</Button> */}
+          {/* Espaço reservado para botões futuros */}
         </div>
       </div>
 
@@ -78,7 +76,7 @@ export default function Marketing() {
                 </div>
               ))}
             </div>
-          ) : filteredCreatives.length === 0 ? (
+          ) : criativosFiltrados.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                 <Megaphone className="h-12 w-12 text-muted-foreground mb-4 opacity-20" />
@@ -90,11 +88,11 @@ export default function Marketing() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredCreatives.map((creative) => (
+              {criativosFiltrados.map((criativo) => (
                 <CreativeCard 
-                  key={creative.id} 
-                  creative={creative} 
-                  onEditName={(id, name) => updateCreativeName({ id, custom_name: name })}
+                  key={criativo.id} 
+                  criativo={criativo} 
+                  onEditName={(id, nome) => atualizarNomeCriativo({ id, nome })}
                   onDelete={setDeleteId}
                 />
               ))}

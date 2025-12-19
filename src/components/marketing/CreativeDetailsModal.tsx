@@ -6,33 +6,32 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ExternalLink, Save, Users, DollarSign, Target, Calendar } from "lucide-react";
-import { Creative } from "@/hooks/useMarketing";
+import { Criativo } from "@/hooks/useMarketing";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface CreativeDetailsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  creative: Creative;
+  criativo: Criativo;
   onEditName: (id: string, name: string) => void;
 }
 
-export function CreativeDetailsModal({ open, onOpenChange, creative, onEditName }: CreativeDetailsModalProps) {
-  const [customName, setCustomName] = useState("");
+export function CreativeDetailsModal({ open, onOpenChange, criativo, onEditName }: CreativeDetailsModalProps) {
+  const [nomePersonalizado, setNomePersonalizado] = useState("");
 
   useEffect(() => {
     if (open) {
-      setCustomName(creative.custom_name || "");
+      setNomePersonalizado(criativo.nome || "");
     }
-  }, [open, creative]);
+  }, [open, criativo]);
 
   const handleSave = () => {
-    onEditName(creative.id, customName);
-    // Não fechamos o modal para permitir ver a mudança
+    onEditName(criativo.id, nomePersonalizado);
   };
 
-  const conversionRate = creative.stats?.leads_count 
-    ? ((creative.stats.sales_count / creative.stats.leads_count) * 100).toFixed(1) 
+  const taxaConversao = criativo.stats?.contagem_leads 
+    ? ((criativo.stats.contagem_vendas / criativo.stats.contagem_leads) * 100).toFixed(1) 
     : "0.0";
 
   return (
@@ -41,7 +40,7 @@ export function CreativeDetailsModal({ open, onOpenChange, creative, onEditName 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Detalhes do Anúncio
-            {creative.source_platform && <Badge variant="outline">{creative.source_platform}</Badge>}
+            {criativo.plataforma && <Badge variant="outline">{criativo.plataforma}</Badge>}
           </DialogTitle>
         </DialogHeader>
 
@@ -49,9 +48,9 @@ export function CreativeDetailsModal({ open, onOpenChange, creative, onEditName 
           {/* Header Image & Basic Info */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="relative rounded-lg overflow-hidden border bg-muted aspect-square md:aspect-auto">
-              {creative.thumbnail_url ? (
+              {criativo.url_thumbnail ? (
                 <img 
-                  src={creative.thumbnail_url} 
+                  src={criativo.url_thumbnail} 
                   alt="Thumbnail" 
                   className="w-full h-full object-contain bg-black/5"
                 />
@@ -68,8 +67,8 @@ export function CreativeDetailsModal({ open, onOpenChange, creative, onEditName 
                 <div className="flex gap-2">
                   <Input 
                     id="name" 
-                    value={customName} 
-                    onChange={(e) => setCustomName(e.target.value)} 
+                    value={nomePersonalizado} 
+                    onChange={(e) => setNomePersonalizado(e.target.value)} 
                     placeholder="Ex: Vídeo Depoimento - Julho"
                   />
                   <Button onClick={handleSave} size="icon" variant="outline"><Save className="h-4 w-4" /></Button>
@@ -80,17 +79,17 @@ export function CreativeDetailsModal({ open, onOpenChange, creative, onEditName 
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Título Original (Meta)</Label>
                 <p className="text-sm font-medium border p-2 rounded-md bg-muted/20 min-h-[2.5rem]">
-                  {creative.title || "N/A"}
+                  {criativo.titulo || "N/A"}
                 </p>
               </div>
 
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Origem</Label>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="capitalize">{creative.source_app || "Desconhecido"}</Badge>
+                  <Badge variant="secondary" className="capitalize">{criativo.aplicativo || "Desconhecido"}</Badge>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <Calendar className="h-3 w-3" /> 
-                    {format(new Date(creative.created_at), "PPP", { locale: ptBR })}
+                    {format(new Date(criativo.criado_em), "PPP", { locale: ptBR })}
                   </span>
                 </div>
               </div>
@@ -105,17 +104,17 @@ export function CreativeDetailsModal({ open, onOpenChange, creative, onEditName 
             <div className="grid grid-cols-3 gap-4">
               <div className="border rounded-lg p-3 bg-card flex flex-col items-center justify-center text-center">
                 <Users className="h-5 w-5 text-primary mb-1" />
-                <span className="text-2xl font-bold">{creative.stats?.leads_count || 0}</span>
+                <span className="text-2xl font-bold">{criativo.stats?.contagem_leads || 0}</span>
                 <span className="text-xs text-muted-foreground">Leads Gerados</span>
               </div>
               <div className="border rounded-lg p-3 bg-card flex flex-col items-center justify-center text-center">
                 <DollarSign className="h-5 w-5 text-green-600 mb-1" />
-                <span className="text-2xl font-bold">{creative.stats?.sales_count || 0}</span>
+                <span className="text-2xl font-bold">{criativo.stats?.contagem_vendas || 0}</span>
                 <span className="text-xs text-muted-foreground">Contratos Fechados</span>
               </div>
               <div className="border rounded-lg p-3 bg-card flex flex-col items-center justify-center text-center">
                 <Target className="h-5 w-5 text-blue-600 mb-1" />
-                <span className="text-2xl font-bold">{conversionRate}%</span>
+                <span className="text-2xl font-bold">{taxaConversao}%</span>
                 <span className="text-xs text-muted-foreground">Conversão</span>
               </div>
             </div>
@@ -127,15 +126,15 @@ export function CreativeDetailsModal({ open, onOpenChange, creative, onEditName 
           <div className="space-y-2">
             <Label>Texto do Anúncio (Copy)</Label>
             <div className="bg-muted/30 p-4 rounded-lg text-sm whitespace-pre-wrap border max-h-40 overflow-y-auto">
-              {creative.body || "Nenhum texto disponível."}
+              {criativo.conteudo || "Nenhum texto disponível."}
             </div>
           </div>
         </div>
 
         <DialogFooter className="gap-2 sm:justify-between">
-          {creative.source_url ? (
+          {criativo.url_midia ? (
             <Button variant="outline" asChild className="w-full sm:w-auto">
-              <a href={creative.source_url} target="_blank" rel="noopener noreferrer">
+              <a href={criativo.url_midia} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="mr-2 h-4 w-4" />
                 Ver Anúncio Original
               </a>
