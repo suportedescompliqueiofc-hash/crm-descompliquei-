@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Megaphone, Search, Users, Target, Radio, DollarSign, BarChart2, ArrowUpRight, Trophy, MousePointerClick } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreativeCard } from "@/components/marketing/CreativeCard";
@@ -14,7 +15,6 @@ import { startOfMonth, endOfMonth } from "date-fns";
 import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress"; // Assumindo que este componente existe ou usando div simples
 
 export default function Marketing() {
   const today = new Date();
