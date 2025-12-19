@@ -35,10 +35,13 @@ export function useMarketing(dateRange?: DateRange) {
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      // Ajuste: Converte o início e fim do dia local para ISO UTC exato
-      // Isso evita que registros feitos na "madrugada" local caiam no dia anterior em UTC
+      // Ajuste Crítico: Usa startOfDay/endOfDay baseado no local time e converte para ISO UTC.
+      // Isso garante que o intervalo cubra exatamente o dia selecionado pelo usuário, independente do fuso do servidor.
+      // Se 'to' não existir (seleção de um único dia), usa 'from' para definir o final do dia.
       const startDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : null;
-      const endDate = dateRange?.to ? endOfDay(dateRange.to).toISOString() : null;
+      const endDate = dateRange?.to 
+        ? endOfDay(dateRange.to).toISOString() 
+        : (dateRange?.from ? endOfDay(dateRange.from).toISOString() : null);
 
       // 1. Buscar criativos
       const { data, error } = await supabase
@@ -71,13 +74,11 @@ export function useMarketing(dateRange?: DateRange) {
 
         if (leadIds.length > 0) {
             // Buscar vendas associadas a esses leads
-            let salesQuery = supabase
+            const { data: salesData } = await supabase
               .from('vendas')
               .select('valor_fechado')
               .eq('organization_id', orgId)
               .in('lead_id', leadIds);
-            
-            const { data: salesData } = await salesQuery;
             
             if (salesData) {
                 salesCount = salesData.length;

@@ -22,13 +22,14 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
   const { data, isLoading } = useQuery({
     queryKey: ['reports', orgId, dateRange, filters],
     queryFn: async () => {
-      if (!user || !orgId || !dateRange?.from || !dateRange?.to) return null;
+      if (!user || !orgId || !dateRange?.from) return null; // dateRange.to pode ser undefined se for dia único
       
-      // Ajuste: Usa ISOString para cobrir o dia exato no fuso local do usuário.
-      // Ex: Se o usuário está em UTC+1 e seleciona dia 19, startOfDay gera 18 23:00 UTC.
-      // Isso garante que o registro feito na "madrugada do dia 19" seja capturado.
+      // Ajuste Crítico: Usa startOfDay/endOfDay e converte para ISO UTC.
+      // Garante que o intervalo abranja todo o dia local.
       const startDate = startOfDay(dateRange.from).toISOString();
-      const endDate = endOfDay(dateRange.to).toISOString();
+      const endDate = dateRange.to 
+        ? endOfDay(dateRange.to).toISOString() 
+        : endOfDay(dateRange.from).toISOString();
       
       // 1. Resolve Tag Filter First (if applied)
       let leadIdsFromTagFilter: string[] | null = null;
@@ -151,22 +152,25 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
       leadsQuery = applyFilters(leadsQuery);
 
+      // Preparar query de vendas (usando ISO string também para consistência)
+      let vendasQuery = supabase
+        .from('vendas')
+        .select('*, leads(nome, telefone)')
+        .eq('organization_id', orgId)
+        .gte('data_fechamento', startDate.split('T')[0]) // Vendas usa campo date, então pegamos YYYY-MM-DD
+        .lte('data_fechamento', endDate.split('T')[0]);
+
       const [
         { data: leadsData, error: leadsError },
         { data: stagesData, error: stagesError },
         { data: profilesData, error: profilesError },
         { data: vendasData, error: vendasError },
-        { data: criativosData, error: criativosError } // Novo: Busca dados dos criativos
+        { data: criativosData, error: criativosError } 
       ] = await Promise.all([
         leadsQuery,
         supabase.from('etapas').select('*'),
         supabase.from('perfis').select('id, nome_completo'),
-        supabase
-          .from('vendas')
-          .select('*, leads(nome, telefone)')
-          .eq('organization_id', orgId)
-          .gte('data_fechamento', format(dateRange.from, 'yyyy-MM-dd')) // Vendas geralmente usam data 'date' não timestamp, mantemos assim ou ajustamos se for timestamptz
-          .lte('data_fechamento', format(dateRange.to, 'yyyy-MM-dd')),
+        vendasQuery,
         supabase.from('criativos').select('id, nome, titulo, plataforma').eq('organization_id', orgId)
       ]);
       
@@ -197,9 +201,13 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         ? convertedLeads.reduce((sum, lead) => differenceInDays(new Date(lead.atualizado_em), new Date(lead.criado_em)), 0) / convertedLeads.length
         : 0;
 
-      const daysInInterval = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
+      // Safe date range for chart generation
+      const safeEnd = dateRange.to || dateRange.from;
+      const daysInInterval = eachDayOfInterval({ start: dateRange.from, end: safeEnd });
+      
       const leadsCapturedData = daysInInterval.map((day) => {
         const dayString = format(day, 'yyyy-MM-dd');
+        // Usa parseISO para comparação local correta
         const captados = leads.filter(l => format(parseISO(l.criado_em), 'yyyy-MM-dd') === dayString).length;
         const convertidos = convertedLeads.filter(l => l.atualizado_em && format(parseISO(l.atualizado_em), 'yyyy-MM-dd') === dayString).length;
         return { day: format(day, 'dd/MM', { locale: ptBR }), captados, convertidos };
@@ -212,9 +220,8 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       }, {} as Record<string, number>);
       const sourceChartData = Object.entries(sourceData).map(([source, leads]) => ({ source, leads }));
       
-      // Lógica atualizada para Top Criativos (Geral)
+      // Top Creatives Logic
       const topCreatives = leads.reduce((acc, lead) => {
-        // FILTRAGEM ESTRITA: Se não tem criativo_id ou o ID não existe no mapa, IGNORA.
         if (!lead.criativo_id || !criativosMap.has(lead.criativo_id)) {
             return acc;
         }
@@ -266,9 +273,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         valor: venda.valor_fechado, atualizado_em: venda.data_fechamento,
       }));
 
-      // Lógica atualizada de Performance de Marketing
       const marketingPerformance = leads.reduce((acc, lead) => {
-        // FILTRAGEM ESTRITA: Ignora leads sem criativo_id ou com IDs inválidos
         if (!lead.criativo_id || !criativosMap.has(lead.criativo_id)) {
             return acc;
         }
@@ -337,7 +342,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         }
       };
     },
-    enabled: !!user && !!orgId && !!dateRange?.from && !!dateRange?.to,
+    enabled: !!user && !!orgId && !!dateRange?.from,
   });
 
   return { reports: data, isLoading };
