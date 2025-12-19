@@ -13,7 +13,6 @@ import {
   Target,
   CreditCard,
   BarChart2,
-  Radio,
   Tag,
   UserCheck
 } from "lucide-react";
@@ -23,7 +22,6 @@ import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tool
 import { useToast } from "@/hooks/use-toast";
 import { useReports } from "@/hooks/useReports";
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { useStages } from "@/hooks/useStages"; // Para obter etapas
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -123,7 +121,6 @@ export default function Reports() {
           <TabsTrigger value="funnel">Funil de Vendas</TabsTrigger>
           <TabsTrigger value="conversions">Conversões</TabsTrigger>
           <TabsTrigger value="financial">Financeiro</TabsTrigger>
-          <TabsTrigger value="marketing">Marketing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -169,19 +166,6 @@ export default function Reports() {
             <Card className="lg:col-span-2"><CardHeader><CardTitle>Evolução do Faturamento</CardTitle><CardDescription>Receita diária no período selecionado</CardDescription></CardHeader><CardContent><ResponsiveContainer width="100%" height={350}><BarChart data={reports.financial.faturamentoPorDia}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" className="text-xs" /><YAxis stroke="hsl(var(--muted-foreground))" className="text-xs" tickFormatter={(value) => `R$${value/1000}k`} /><Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} contentStyle={chartTooltipStyle} /><Bar dataKey="valor" fill="hsl(var(--primary))" name="Faturamento" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></CardContent></Card>
             <Card><CardHeader><CardTitle>Métodos de Pagamento</CardTitle><CardDescription>Distribuição do faturamento</CardDescription></CardHeader><CardContent><ResponsiveContainer width="100%" height={350}><PieChart><Pie data={reports.financial.metodosPagamentoData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5}>{reports.financial.metodosPagamentoData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} contentStyle={chartTooltipStyle} /><Legend verticalAlign="bottom" height={36}/></PieChart></ResponsiveContainer></CardContent></Card>
           </div>
-        </TabsContent>
-
-        <TabsContent value="marketing" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card><CardHeader className="pb-3"><CardDescription className="flex items-center gap-2"><Users className="h-4 w-4" />Leads de Marketing</CardDescription><CardTitle className="text-2xl font-bold">{reports.marketing.kpis.totalMarketingLeads}</CardTitle></CardHeader><CardContent><p className="text-xs text-muted-foreground">Total de leads de fontes conhecidas</p></CardContent></Card>
-            <Card><CardHeader className="pb-3"><CardDescription className="flex items-center gap-2"><Target className="h-4 w-4" />Melhor Criativo</CardDescription><CardTitle className="text-2xl font-bold truncate">{reports.marketing.kpis.bestCreative?.criativo || 'N/A'}</CardTitle></CardHeader><CardContent><p className="text-xs text-muted-foreground">{reports.marketing.kpis.bestCreative?.conversions || 0} conversões</p></CardContent></Card>
-            <Card><CardHeader className="pb-3"><CardDescription className="flex items-center gap-2"><Radio className="h-4 w-4" />Melhor Origem</CardDescription><CardTitle className="text-2xl font-bold truncate">{reports.marketing.kpis.bestSource?.name || 'N/A'}</CardTitle></CardHeader><CardContent><p className="text-xs text-muted-foreground">R$ {reports.marketing.kpis.bestSource?.totalValue.toLocaleString('pt-BR') || '0,00'} em faturamento</p></CardContent></Card>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <Card className="lg:col-span-3"><CardHeader><CardTitle>Leads vs Conversões por Criativo</CardTitle><CardDescription>Top 10 criativos com maior volume de leads</CardDescription></CardHeader><CardContent><ResponsiveContainer width="100%" height={350}><BarChart data={reports.marketing.charts.leadsVsConversionsByCreative}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" className="text-xs" /><YAxis stroke="hsl(var(--muted-foreground))" className="text-xs" /><Tooltip contentStyle={chartTooltipStyle} /><Legend /><Bar dataKey="Leads" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} /><Bar dataKey="Conversões" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></CardContent></Card>
-            <Card className="lg:col-span-2"><CardHeader><CardTitle>Faturamento por Origem</CardTitle><CardDescription>Distribuição da receita por canal</CardDescription></CardHeader><CardContent><ResponsiveContainer width="100%" height={350}><PieChart><Pie data={reports.marketing.charts.revenueBySourceData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5}>{reports.marketing.charts.revenueBySourceData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} contentStyle={chartTooltipStyle} /><Legend verticalAlign="bottom" height={36}/></PieChart></ResponsiveContainer></CardContent></Card>
-          </div>
-          <Card><CardHeader><CardTitle>Tabela de Performance de Marketing</CardTitle><CardDescription>Análise detalhada por origem e criativo</CardDescription></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>Origem</TableHead><TableHead>Criativo</TableHead><TableHead>Leads</TableHead><TableHead>Conversões</TableHead><TableHead>Taxa de Conversão</TableHead><TableHead>Faturamento</TableHead><TableHead>Ticket Médio</TableHead></TableRow></TableHeader><TableBody>{reports.marketing.performanceTable.map((item, i) => <TableRow key={i}><TableCell><Badge variant="outline">{item.origem}</Badge></TableCell><TableCell className="font-medium">{item.criativo}</TableCell><TableCell>{item.leads}</TableCell><TableCell>{item.conversions}</TableCell><TableCell>{item.conversionRate.toFixed(1)}%</TableCell><TableCell>R$ {item.totalValue.toLocaleString('pt-BR')}</TableCell><TableCell>R$ {item.avgTicket.toLocaleString('pt-BR')}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
         </TabsContent>
       </Tabs>
     </div>
