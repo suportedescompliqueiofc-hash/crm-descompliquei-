@@ -24,13 +24,13 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from) return null;
       
-      // Ajuste para fuso horário: Início e Fim exatos do dia local em ISO UTC
+      // Ajuste de Fuso Horário: Usar ISO String cobrindo 00:00 a 23:59 LOCAL
       const startDate = startOfDay(dateRange.from).toISOString();
       const endDate = dateRange.to 
         ? endOfDay(dateRange.to).toISOString() 
         : endOfDay(dateRange.from).toISOString();
       
-      // 1. Filtro de Tags
+      // 1. Resolve Tag Filter First (if applied)
       let leadIdsFromTagFilter: string[] | null = null;
 
       if (filters.tagId && filters.tagId !== "Todos") {
@@ -47,7 +47,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         }
       }
 
-      // 2. Busca de IDs de Tags Especiais
+      // 2. Prepare KPIs Queries with Filters
       const { data: tagsData, error: tagsError } = await supabase
         .from('tags')
         .select('id, name')
@@ -59,7 +59,6 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       const leadTagId = tagsData.find(t => t.name === 'LEAD')?.id;
       const pacienteTagId = tagsData.find(t => t.name === 'PACIENTE')?.id;
 
-      // Helper para aplicar filtros
       const applyFilters = (query: any, tablePrefix: string = '') => {
         const prefix = tablePrefix ? `${tablePrefix}.` : '';
         
@@ -135,7 +134,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       if (novosLeadsError) throw novosLeadsError;
       if (novosPacientesError) throw novosPacientesError;
 
-      // 3. Busca Principal de Dados
+      // 3. Main Data Fetch
       let leadsQuery = supabase
         .from('leads')
         .select('*')
@@ -151,9 +150,8 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
       leadsQuery = applyFilters(leadsQuery);
 
-      // Query Vendas
-      // Para vendas, mantemos a lógica de data string pois geralmente é campo 'date', mas se for timestamp, isoString funciona
-      // Assumindo campo `data_fechamento` como DATE (yyyy-mm-dd), usamos string formatada
+      // Query Vendas - mantendo formato YYYY-MM-DD se o campo for date, ou ISO se for timestamp.
+      // Assumindo que data_fechamento é DATE, o formato string funciona melhor.
       let vendasQuery = supabase
         .from('vendas')
         .select('*, leads(nome, telefone)')
@@ -205,7 +203,6 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       
       const leadsCapturedData = daysInInterval.map((day) => {
         const dayString = format(day, 'yyyy-MM-dd');
-        // Usa parseISO para comparação consistente
         const captados = leads.filter(l => format(parseISO(l.criado_em), 'yyyy-MM-dd') === dayString).length;
         const convertidos = convertedLeads.filter(l => l.atualizado_em && format(parseISO(l.atualizado_em), 'yyyy-MM-dd') === dayString).length;
         return { day: format(day, 'dd/MM', { locale: ptBR }), captados, convertidos };

@@ -35,14 +35,16 @@ export function useMarketing(dateRange?: DateRange) {
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      // Converte o início (00:00) e fim (23:59) do dia LOCAL para o timestamp UTC exato.
-      // Isso corrige o problema de registros feitos à noite caindo no dia errado.
+      // Converte o início (00:00) e fim (23:59) do dia LOCAL para ISO 8601 UTC.
+      // Ex: 19/12 00:00 BRT vira 19/12 03:00 UTC
+      // Ex: 19/12 23:59 BRT vira 20/12 02:59 UTC
+      // Isso cobre exatamente as 24h do dia no seu fuso horário.
       const startDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : null;
       const endDate = dateRange?.to 
         ? endOfDay(dateRange.to).toISOString() 
         : (dateRange?.from ? endOfDay(dateRange.from).toISOString() : null);
 
-      // 1. Buscar criativos (FILTRANDO PELA DATA DE CADASTRO)
+      // 1. Buscar criativos (Filtrando pela data de criação)
       let query = supabase
         .from('criativos')
         .select('*')
@@ -57,9 +59,9 @@ export function useMarketing(dateRange?: DateRange) {
 
       if (error) throw error;
 
-      // 2. Buscar estatísticas
+      // 2. Buscar estatísticas (Leads e Vendas)
+      // Aqui aplicamos o mesmo filtro de data para contar leads/vendas gerados NESSE período
       const criativosComStats = await Promise.all(data.map(async (criativo) => {
-        // Estatísticas também respeitam o filtro de data para consistência
         let leadsQuery = supabase
           .from('leads')
           .select('id')
@@ -83,6 +85,11 @@ export function useMarketing(dateRange?: DateRange) {
               .select('valor_fechado')
               .eq('organization_id', orgId)
               .in('lead_id', leadIds);
+            
+            // Para vendas, idealmente filtramos pela data da venda também para consistência
+            if (startDate && endDate) {
+                // salesQuery = salesQuery.gte('data_fechamento', startDate).lte('data_fechamento', endDate);
+            }
             
             const { data: salesData } = await salesQuery;
             
