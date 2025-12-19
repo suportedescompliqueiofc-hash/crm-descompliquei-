@@ -211,16 +211,13 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       
       // Lógica atualizada para Top Criativos (Geral)
       const topCreatives = leads.reduce((acc, lead) => {
-        // Tenta resolver o nome pelo ID primeiro, depois pelo campo de texto legado
-        let creativeName = 'N/A';
-        if (lead.criativo_id && criativosMap.has(lead.criativo_id)) {
-            const c = criativosMap.get(lead.criativo_id);
-            creativeName = c.nome || c.titulo || 'Criativo sem nome';
-        } else if (lead.criativo) {
-            creativeName = lead.criativo;
+        // FILTRAGEM ESTRITA: Se não tem criativo_id ou o ID não existe no mapa, IGNORA.
+        if (!lead.criativo_id || !criativosMap.has(lead.criativo_id)) {
+            return acc;
         }
 
-        if (creativeName === 'N/A') return acc;
+        const c = criativosMap.get(lead.criativo_id);
+        const creativeName = c.nome || c.titulo || 'Criativo sem nome';
 
         if (!acc[creativeName]) acc[creativeName] = { name: creativeName, origin: lead.origem, leads: 0, converted: 0, value: 0 };
         acc[creativeName].leads++;
@@ -268,14 +265,13 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
       // Lógica atualizada de Performance de Marketing
       const marketingPerformance = leads.reduce((acc, lead) => {
-        // Resolve nome do criativo
-        let creativeName = 'N/A';
-        if (lead.criativo_id && criativosMap.has(lead.criativo_id)) {
-            const c = criativosMap.get(lead.criativo_id);
-            creativeName = c.nome || c.titulo || 'Criativo sem nome';
-        } else if (lead.criativo) {
-            creativeName = lead.criativo;
+        // FILTRAGEM ESTRITA: Ignora leads sem criativo_id ou com IDs inválidos
+        if (!lead.criativo_id || !criativosMap.has(lead.criativo_id)) {
+            return acc;
         }
+
+        const c = criativosMap.get(lead.criativo_id);
+        const creativeName = c.nome || c.titulo || 'Criativo sem nome';
 
         const origem = lead.origem || 'N/A';
         const key = `${origem}::${creativeName}`;

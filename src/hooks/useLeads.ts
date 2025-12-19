@@ -21,8 +21,8 @@ export interface Lead {
   queixa_principal?: string;
   resumo?: string;
   origem?: string;
-  criativo?: string; // Mantido para legado ou fallback visual
-  criativo_id?: string; // Novo campo de relacionamento
+  // Campo 'criativo' removido. Usar apenas criativo_id.
+  criativo_id?: string; 
   status: string;
   etapa_id: number;
   ultimo_contato?: string;

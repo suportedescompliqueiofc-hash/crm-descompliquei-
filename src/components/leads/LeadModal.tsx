@@ -303,10 +303,10 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
   const currentStage = stages.find(s => s.id === lead?.etapa_id);
   const isContratoFechado = currentStage?.nome === 'Contrato Fechado';
   
-  // Buscar nome do criativo para o modo de visualização
+  // Buscar nome do criativo para o modo de visualização - AGORA USA APENAS O RELACIONAMENTO
   const creativeName = lead?.criativo_id 
     ? criativos.find((c: any) => c.id === lead.criativo_id)?.nome || criativos.find((c: any) => c.id === lead.criativo_id)?.titulo 
-    : lead?.criativo; // Fallback para campo legado de texto
+    : undefined;
 
   return (
     <>
