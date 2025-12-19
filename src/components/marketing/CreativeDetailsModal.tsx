@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ExternalLink, Save, Users, DollarSign, Target, Calendar } from "lucide-react";
+import { ExternalLink, Save, Users, DollarSign, Target, Calendar, TrendingUp, CreditCard } from "lucide-react";
 import { Criativo } from "@/hooks/useMarketing";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -30,33 +30,42 @@ export function CreativeDetailsModal({ open, onOpenChange, criativo, onEditName 
     onEditName(criativo.id, nomePersonalizado);
   };
 
-  const taxaConversao = criativo.stats?.contagem_leads 
-    ? ((criativo.stats.contagem_vendas / criativo.stats.contagem_leads) * 100).toFixed(1) 
+  const stats = criativo.stats || { contagem_leads: 0, contagem_vendas: 0, faturamento: 0 };
+  
+  const taxaConversao = stats.contagem_leads > 0 
+    ? ((stats.contagem_vendas / stats.contagem_leads) * 100).toFixed(1) 
     : "0.0";
+    
+  const ticketMedio = stats.contagem_vendas > 0 
+    ? stats.faturamento / stats.contagem_vendas 
+    : 0;
+
+  const formatCurrency = (value: number) => 
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Detalhes do Anúncio
-            {criativo.plataforma && <Badge variant="outline">{criativo.plataforma}</Badge>}
+            {criativo.plataforma && <Badge variant="outline" className="capitalize">{criativo.plataforma}</Badge>}
           </DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-6 py-4">
           {/* Header Image & Basic Info */}
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="relative rounded-lg overflow-hidden border bg-muted aspect-square md:aspect-auto">
+            <div className="relative rounded-lg overflow-hidden border bg-muted aspect-video bg-black/5 flex items-center justify-center">
               {criativo.url_thumbnail ? (
                 <img 
                   src={criativo.url_thumbnail} 
                   alt="Thumbnail" 
-                  className="w-full h-full object-contain bg-black/5"
+                  className="w-full h-full object-contain"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                  Sem imagem
+                <div className="text-muted-foreground flex flex-col items-center">
+                  <span className="text-sm">Sem pré-visualização</span>
                 </div>
               )}
             </div>
@@ -78,19 +87,22 @@ export function CreativeDetailsModal({ open, onOpenChange, criativo, onEditName 
 
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Título Original (Meta)</Label>
-                <p className="text-sm font-medium border p-2 rounded-md bg-muted/20 min-h-[2.5rem]">
+                <p className="text-sm font-medium border p-2 rounded-md bg-muted/20 min-h-[2.5rem] line-clamp-2" title={criativo.titulo || ""}>
                   {criativo.titulo || "N/A"}
                 </p>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Origem</Label>
-                <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground pt-2">
+                <div>
+                  <span className="block font-semibold mb-1">Origem</span>
                   <Badge variant="secondary" className="capitalize">{criativo.aplicativo || "Desconhecido"}</Badge>
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                </div>
+                <div>
+                  <span className="block font-semibold mb-1">Data de Criação</span>
+                  <div className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" /> 
-                    {format(new Date(criativo.criado_em), "PPP", { locale: ptBR })}
-                  </span>
+                    {format(new Date(criativo.criado_em), "dd/MM/yyyy", { locale: ptBR })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -100,38 +112,71 @@ export function CreativeDetailsModal({ open, onOpenChange, criativo, onEditName 
 
           {/* Stats Section */}
           <div className="space-y-3">
-            <h4 className="font-semibold text-sm">Performance do Criativo</h4>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="border rounded-lg p-3 bg-card flex flex-col items-center justify-center text-center">
-                <Users className="h-5 w-5 text-primary mb-1" />
-                <span className="text-2xl font-bold">{criativo.stats?.contagem_leads || 0}</span>
-                <span className="text-xs text-muted-foreground">Leads Gerados</span>
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" /> Performance Financeira
+            </h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Card Leads */}
+              <div className="border rounded-lg p-4 bg-card flex flex-col justify-between hover:border-primary/50 transition-colors">
+                <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                  <Users className="h-4 w-4" />
+                  <span className="text-xs font-medium uppercase">Leads</span>
+                </div>
+                <div>
+                  <span className="text-2xl font-bold">{stats.contagem_leads}</span>
+                  <p className="text-[10px] text-muted-foreground mt-1">Total captado</p>
+                </div>
               </div>
-              <div className="border rounded-lg p-3 bg-card flex flex-col items-center justify-center text-center">
-                <DollarSign className="h-5 w-5 text-green-600 mb-1" />
-                <span className="text-2xl font-bold">{criativo.stats?.contagem_vendas || 0}</span>
-                <span className="text-xs text-muted-foreground">Contratos Fechados</span>
+
+              {/* Card Vendas */}
+              <div className="border rounded-lg p-4 bg-card flex flex-col justify-between hover:border-green-500/50 transition-colors">
+                <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                  <Target className="h-4 w-4 text-green-600" />
+                  <span className="text-xs font-medium uppercase">Vendas</span>
+                </div>
+                <div>
+                  <span className="text-2xl font-bold">{stats.contagem_vendas}</span>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-green-100 text-green-700 hover:bg-green-100">
+                      {taxaConversao}% conv.
+                    </Badge>
+                  </div>
+                </div>
               </div>
-              <div className="border rounded-lg p-3 bg-card flex flex-col items-center justify-center text-center">
-                <Target className="h-5 w-5 text-blue-600 mb-1" />
-                <span className="text-2xl font-bold">{taxaConversao}%</span>
-                <span className="text-xs text-muted-foreground">Conversão</span>
+
+              {/* Card Faturamento */}
+              <div className="border rounded-lg p-4 bg-primary/5 border-primary/20 flex flex-col justify-between md:col-span-2">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-primary">
+                    <DollarSign className="h-4 w-4" />
+                    <span className="text-xs font-bold uppercase">Faturamento Gerado</span>
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-foreground">{formatCurrency(stats.faturamento)}</span>
+                </div>
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-primary/10">
+                  <CreditCard className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">
+                    Ticket Médio: <span className="font-medium text-foreground">{formatCurrency(ticketMedio)}</span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-
-          <Separator />
 
           {/* Ad Content */}
-          <div className="space-y-2">
-            <Label>Texto do Anúncio (Copy)</Label>
-            <div className="bg-muted/30 p-4 rounded-lg text-sm whitespace-pre-wrap border max-h-40 overflow-y-auto">
-              {criativo.conteudo || "Nenhum texto disponível."}
+          {criativo.conteudo && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Texto do Anúncio (Copy)</Label>
+              <div className="bg-muted/30 p-4 rounded-lg text-sm whitespace-pre-wrap border max-h-40 overflow-y-auto font-mono text-xs">
+                {criativo.conteudo}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        <DialogFooter className="gap-2 sm:justify-between">
+        <DialogFooter className="gap-2 sm:justify-between border-t pt-4">
           {criativo.url_midia ? (
             <Button variant="outline" asChild className="w-full sm:w-auto">
               <a href={criativo.url_midia} target="_blank" rel="noopener noreferrer">

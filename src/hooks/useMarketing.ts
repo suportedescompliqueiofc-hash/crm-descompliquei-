@@ -18,6 +18,7 @@ export interface Criativo {
   stats?: {
     contagem_leads: number;
     contagem_vendas: number;
+    faturamento: number; // Novo campo
   };
 }
 
@@ -41,28 +42,40 @@ export function useMarketing() {
 
       if (error) throw error;
 
-      // 2. Buscar estatísticas
+      // 2. Buscar estatísticas detalhadas
       const criativosComStats = await Promise.all(data.map(async (criativo) => {
-        // Contar leads deste criativo
-        const { count: leadsCount } = await supabase
+        // Buscar IDs dos leads originados por este criativo
+        const { data: leadsData } = await supabase
           .from('leads')
-          .select('id', { count: 'exact', head: true })
+          .select('id')
           .eq('criativo_id', criativo.id);
+        
+        const leadIds = leadsData?.map(l => l.id) || [];
+        const leadsCount = leadIds.length;
 
-        // Contar vendas (leads convertidos) deste criativo
-        const { count: salesCount } = await supabase
-          .from('vendas')
-          .select('id', { count: 'exact', head: true })
-          .eq('organization_id', orgId)
-          .in('lead_id', (
-            await supabase.from('leads').select('id').eq('criativo_id', criativo.id)
-          ).data?.map(l => l.id) || []);
+        let salesCount = 0;
+        let revenue = 0;
+
+        if (leadIds.length > 0) {
+            // Buscar vendas associadas a esses leads para somar o valor
+            const { data: salesData } = await supabase
+              .from('vendas')
+              .select('valor_fechado')
+              .eq('organization_id', orgId)
+              .in('lead_id', leadIds);
+            
+            if (salesData) {
+                salesCount = salesData.length;
+                revenue = salesData.reduce((sum, sale) => sum + Number(sale.valor_fechado || 0), 0);
+            }
+        }
 
         return {
           ...criativo,
           stats: {
-            contagem_leads: leadsCount || 0,
-            contagem_vendas: salesCount || 0
+            contagem_leads: leadsCount,
+            contagem_vendas: salesCount,
+            faturamento: revenue
           }
         };
       }));
