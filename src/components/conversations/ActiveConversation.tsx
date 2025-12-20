@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2 } from "lucide-react";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useLead, useLeads } from "@/hooks/useLeads";
-import { useMessages, useSendMessage, Message, Attachment, useDeleteMessage } from "@/hooks/useConversations";
+import { useMessages, useSendMessage, Message, Attachment, useDeleteMessage, useSendAudioMessage } from "@/hooks/useConversations";
 import { useNotifications, useUpdateNotificationStatus } from "@/hooks/useNotifications";
 import { useStages } from "@/hooks/useStages";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +26,7 @@ import { AiLockControl } from "./AiLockControl";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { TagManager } from "@/components/tags/TagManager";
+import { AudioRecorder } from "./AudioRecorder";
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -109,6 +110,7 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
   const { data: notifications } = useNotifications(leadId);
   const { stages, isLoading: stagesLoading } = useStages();
   const { mutate: sendMessage } = useSendMessage();
+  const { mutate: sendAudio, isPending: isSendingAudio } = useSendAudioMessage();
   const { mutate: updateNotification } = useUpdateNotificationStatus(leadId);
   const { updateLead } = useLeads();
   const { mutate: deleteMessage } = useDeleteMessage();
@@ -116,6 +118,7 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
   const [messageContent, setMessageContent] = useState("");
   const [isAiActive, setIsAiActive] = useState(true);
   const [deletingMessage, setDeletingMessage] = useState<Message | null>(null);
+  const [isRecordingMode, setIsRecordingMode] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const groupedMessages = messages ? groupMessagesByDay(messages) : [];
@@ -126,7 +129,7 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
 
   useLayoutEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [messages]);
+  }, [messages, isRecordingMode]); // Scroll quando entrar no modo gravação também
 
   const handleAiToggle = async (checked: boolean) => {
     if (!lead) return;
@@ -168,6 +171,11 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
       sendMessage({ leadId, content: messageContent.trim() });
       setMessageContent("");
     }
+  };
+
+  const handleSendAudio = (blob: Blob) => {
+    setIsRecordingMode(false);
+    sendAudio({ leadId, audioBlob: blob });
   };
 
   const getInitials = (name?: string) => {
@@ -317,14 +325,35 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
       </ScrollArea>
 
       <footer className="p-4 border-t bg-card">
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild><Button variant="ghost" size="icon"><Smile className="h-5 w-5 text-muted-foreground" /></Button></PopoverTrigger>
-            <PopoverContent className="w-auto p-0 border-none"><EmojiPicker onEmojiClick={(emojiObject) => setMessageContent(prev => prev + emojiObject.emoji)} /></PopoverContent>
-          </Popover>
-          <Input placeholder="Digite sua mensagem..." value={messageContent} onChange={(e) => setMessageContent(e.target.value)} autoComplete="off" />
-          <Button type="submit" size="icon" className="bg-primary hover:bg-primary/90"><Send className="h-5 w-5" /></Button>
-        </form>
+        {isRecordingMode ? (
+          <AudioRecorder 
+            onSend={handleSendAudio} 
+            onCancel={() => setIsRecordingMode(false)} 
+          />
+        ) : (
+          <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild><Button variant="ghost" size="icon"><Smile className="h-5 w-5 text-muted-foreground" /></Button></PopoverTrigger>
+              <PopoverContent className="w-auto p-0 border-none"><EmojiPicker onEmojiClick={(emojiObject) => setMessageContent(prev => prev + emojiObject.emoji)} /></PopoverContent>
+            </Popover>
+            <Input placeholder="Digite sua mensagem..." value={messageContent} onChange={(e) => setMessageContent(e.target.value)} autoComplete="off" />
+            
+            {messageContent.trim() ? (
+              <Button type="submit" size="icon" className="bg-primary hover:bg-primary/90 transition-all"><Send className="h-5 w-5" /></Button>
+            ) : (
+              <Button 
+                type="button" 
+                size="icon" 
+                variant="outline" 
+                className={cn("transition-all", isSendingAudio && "opacity-50 cursor-not-allowed")}
+                onClick={() => setIsRecordingMode(true)}
+                disabled={isSendingAudio}
+              >
+                <Mic className="h-5 w-5" />
+              </Button>
+            )}
+          </form>
+        )}
       </footer>
 
       <AlertDialog open={!!deletingMessage} onOpenChange={(open) => !open && setDeletingMessage(null)}>

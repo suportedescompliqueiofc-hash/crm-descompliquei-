@@ -192,7 +192,7 @@ export function useMessages(leadId: string | null) {
   });
 }
 
-// Hook para enviar mensagem
+// Hook para enviar mensagem de texto
 export function useSendMessage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -262,9 +262,100 @@ export function useSendMessage() {
         queryClient.setQueryData(context.queryKey, context.previousMessages);
       }
       toast.error('Erro ao enviar mensagem:', { description: (err as Error).message });
+    }
+  });
+}
+
+// Hook para enviar mensagem de Áudio
+export function useSendAudioMessage() {
+  const { user } = useAuth();
+  const { profile } = useProfile();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ leadId, audioBlob }: { leadId: string; audioBlob: Blob }) => {
+      if (!user || !profile?.organization_id) throw new Error('Usuário ou Organização não autenticado');
+
+      // 1. Upload do arquivo para o bucket
+      const timestamp = Date.now();
+      const filePath = `${profile.organization_id}/${leadId}/${timestamp}.webm`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('media-mensagens') // Usando o bucket que já existe no projeto
+        .upload(filePath, audioBlob, { contentType: 'audio/webm' });
+
+      if (uploadError) throw new Error(`Erro no upload: ${uploadError.message}`);
+
+      // 2. Obter URL pública para enviar no webhook
+      const { data: { publicUrl } } = supabase.storage
+        .from('media-mensagens')
+        .getPublicUrl(filePath);
+
+      // 3. Buscar dados do lead para envio
+      const { data: leadData } = await supabase
+        .from('leads').select('telefone').eq('id', leadId).single();
+
+      if (!leadData) throw new Error('Lead não encontrado');
+
+      // 4. Enviar para o Webhook
+      try {
+        const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-odontonova', {
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            lead_id: leadId, 
+            user_id: user.id,
+            conteudo_mensagem: '', // Mensagem de texto vazia
+            tipo: 'audio',
+            url_midia: publicUrl,
+            telefone: leadData.telefone 
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Falha ao enviar para o WhatsApp');
+        }
+      } catch (webhookError) {
+        console.error('Erro no webhook de áudio:', webhookError);
+        throw webhookError;
+      }
+
+      // 5. Salvar mensagem no banco (para consistência imediata, embora o webhook possa tratar isso)
+      const { data: message, error: dbError } = await supabase
+        .from('mensagens')
+        .insert({
+          lead_id: leadId,
+          user_id: user.id,
+          conteudo: '', // Áudio não tem texto no corpo principal
+          direcao: 'saida',
+          remetente: 'agente',
+          tipo_conteudo: 'audio',
+          media_path: filePath // Caminho interno
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      // 6. Criar anexo
+      await supabase
+        .from('message_attachments')
+        .insert({
+          message_id: message.id,
+          file_path: filePath,
+          file_type: 'audio'
+        });
+
+      return message;
     },
-    // REMOVED onSuccess and onSettled to rely purely on real-time updates
-    // This prevents race conditions between mutation invalidation and real-time invalidation.
+    onSuccess: (_, { leadId }) => {
+      // Invalida para buscar a nova mensagem
+      queryClient.invalidateQueries({ queryKey: ['messages_v6', leadId] });
+      toast.success('Áudio enviado!');
+    },
+    onError: (err: any) => {
+      toast.error('Erro ao enviar áudio', { description: err.message });
+    }
   });
 }
 
