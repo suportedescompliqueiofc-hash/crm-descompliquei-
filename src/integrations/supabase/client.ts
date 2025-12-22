@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 // O projeto utiliza VITE, então usamos import.meta.env.VITE_*
-// Mantemos os valores hardcoded do projeto avmttkbacowahnjrrrwj como fallback de segurança
+// IMPORTANTE: Se existir um arquivo .env local com VITE_SUPABASE_URL antigo, ele terá prioridade.
+// Verifique se seu .env está apontando para 'avmttkbacowahnjrrrwj'.
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://avmttkbacowahnjrrrwj.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2bXR0a2JhY293YWhuanJycndqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0MTM5MDAsImV4cCI6MjA4MTk4OTkwMH0._JxqUHF3fhjrVf606upHSW_ndUCkLviHqKY9VlV0qg8";
 
