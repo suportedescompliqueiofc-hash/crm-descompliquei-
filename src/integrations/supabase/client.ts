@@ -2,8 +2,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://umphfqmhwtqzbogrjzxb.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGhmcW1od3RxemJvZ3JqenhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0MDIwOTMsImV4cCI6MjA3Mzk3ODA5M30.ZEkG0dMplXE8goo0lFfqIPP7sD2GbgNjdeE8NOR0lhc";
+// O projeto utiliza VITE, então usamos import.meta.env.VITE_*
+// Mantemos os valores hardcoded do NOVO projeto como fallback de segurança
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://umphfqmhwtqzbogrjzxb.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcGhmcW1od3RxemJvZ3JqenhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0MDIwOTMsImV4cCI6MjA3Mzk3ODA5M30.ZEkG0dMplXE8goo0lFfqIPP7sD2GbgNjdeE8NOR0lhc";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
