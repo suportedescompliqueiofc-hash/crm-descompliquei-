@@ -10,7 +10,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
   const { profile } = useProfile(); // Obter orgId
   const orgId = profile?.organization_id;
 
-  const { data: metrics, isLoading } = useQuery({
+  const { data: metrics, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard-metrics', orgId, dateRange],
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from || !dateRange?.to) return null;
@@ -148,5 +148,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
   return {
     metrics,
     isLoading,
+    error,
+    refetch
   };
 }

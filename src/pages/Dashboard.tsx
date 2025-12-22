@@ -1,14 +1,15 @@
-import { UserPlus, TrendingUp, DollarSign, MessageSquare, Users, Tag, UserCheck } from "lucide-react";
+import { UserPlus, TrendingUp, DollarSign, MessageSquare, Users, Tag, UserCheck, AlertTriangle, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useStages } from "@/hooks/useStages";
 import { useMemo, useState } from "react";
-import { format, parseISO, formatDistanceToNow, startOfMonth, endOfMonth } from 'date-fns';
+import { formatDistanceToNow, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { Activity } from "@/hooks/useActivities";
+import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
   const today = new Date();
@@ -18,7 +19,7 @@ export default function Dashboard() {
   };
   const [dateRange, setDateRange] = useState<DateRange | undefined>(initialDateRange);
   
-  const { metrics, isLoading: metricsLoading } = useDashboard(dateRange);
+  const { metrics, isLoading: metricsLoading, error: metricsError, refetch } = useDashboard(dateRange);
   const { stages, isLoading: stagesLoading } = useStages();
 
   const isLoading = metricsLoading || stagesLoading;
@@ -37,6 +38,24 @@ export default function Dashboard() {
       color: stage.cor,
     })).filter(s => s.value > 0);
   }, [metrics?.leadsByStage, stages]);
+
+  if (metricsError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <div className="bg-destructive/10 p-4 rounded-full">
+          <AlertTriangle className="h-10 w-10 text-destructive" />
+        </div>
+        <h3 className="text-xl font-semibold">Erro ao carregar o painel</h3>
+        <p className="text-muted-foreground max-w-md text-center">
+          Não foi possível buscar os dados. Isso pode ocorrer se sua conta não estiver totalmente configurada.
+        </p>
+        <Button onClick={() => refetch()} variant="outline" className="gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Tentar Novamente
+        </Button>
+      </div>
+    );
+  }
 
   if (isLoading || !metrics) {
     return (
