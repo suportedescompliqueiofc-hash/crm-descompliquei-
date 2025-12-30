@@ -371,7 +371,6 @@ export function useDeleteMessage() {
       }
       
       // Chama a Edge Function que lida com o webhook do n8n e a exclusão no banco.
-      // A Edge Function garante o envio do webhook para a URL correta (viviane)
       const { data, error } = await supabase.functions.invoke('delete-message', {
         body: { 
           messageId: messageId,

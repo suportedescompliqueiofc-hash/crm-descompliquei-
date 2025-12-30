@@ -9,7 +9,7 @@ const corsHeaders = {
 const N8N_WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/excluir-mensagem-viviane';
 
 serve(async (req) => {
-  // Tratamento de CORS (Preflight)
+  // Tratamento de CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -18,42 +18,37 @@ serve(async (req) => {
     const { messageId, leadId, id_mensagem } = await req.json()
 
     if (!messageId) {
-      throw new Error('ID da mensagem é obrigatório')
+      throw new Error('ID da mensagem (interno) é obrigatório')
     }
 
-    console.log(`[delete-message] Iniciando. MsgID: ${messageId}, WAMID: ${id_mensagem || 'N/A'}`);
+    // 1. Tenta disparar o Webhook ANTES de apagar do banco.
+    // Se der erro aqui, nós queremos saber.
+    console.log(`[delete-message] Disparando webhook para: ${N8N_WEBHOOK_URL}`);
+    
+    const payload = { 
+      id_mensagem: id_mensagem || null, // ID do WhatsApp (WAMID)
+      lead_id: leadId,
+      internal_message_id: messageId,
+      timestamp: new Date().toISOString()
+    };
 
-    // --- DISPARO DO WEBHOOK ---
-    // Removemos a verificação 'if (id_mensagem)' para garantir que o webhook
-    // chegue no n8n independentemente de termos o ID externo ou não.
-    try {
-      console.log(`[delete-message] Disparando webhook para: ${N8N_WEBHOOK_URL}`);
-      
-      const payload = { 
-        id_mensagem: id_mensagem || null, // Garante que envie null se for undefined
-        lead_id: leadId,
-        internal_message_id: messageId,
-        timestamp: new Date().toISOString()
-      };
+    const webhookResponse = await fetch(N8N_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
 
-      const response = await fetch(N8N_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'User-Agent': 'Supabase-Edge-Function/1.0' // Alguns firewalls exigem User-Agent
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[delete-message] N8N respondeu com erro (${response.status}):`, errorText);
-      } else {
-        console.log('[delete-message] Webhook entregue com sucesso ao n8n');
-      }
-    } catch (webhookError) {
-      console.error('[delete-message] Falha crítica ao conectar com n8n:', webhookError);
-      // Não interrompemos o fluxo para garantir que a exclusão no banco ocorra
+    let webhookResult = "Webhook enviado";
+    
+    // Se o N8N retornar erro (4xx ou 5xx), lançamos erro para alertar o front-end
+    // ou logamos o erro crítico mas prosseguimos com a deleção (depende da regra de negócio).
+    // Aqui, vamos logar fortemente, mas permitir a deleção para não travar o banco.
+    if (!webhookResponse.ok) {
+      const errorText = await webhookResponse.text();
+      console.error(`[ERRO N8N] Status: ${webhookResponse.status}. Body: ${errorText}`);
+      webhookResult = `Erro N8N: ${webhookResponse.status} - ${errorText}`;
+      // OPCIONAL: Descomente a linha abaixo se quiser IMPEDIR a exclusão no banco caso o n8n falhe
+      // throw new Error(`Falha no Webhook: ${webhookResult}`); 
     }
 
     // 2. Excluir do Banco de Dados (Supabase)
@@ -68,12 +63,11 @@ serve(async (req) => {
       .eq('id', messageId)
 
     if (dbError) {
-      console.error('[delete-message] Erro ao excluir do banco:', dbError);
       throw new Error(`Erro ao excluir do banco: ${dbError.message}`)
     }
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, webhook_log: webhookResult }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
 
