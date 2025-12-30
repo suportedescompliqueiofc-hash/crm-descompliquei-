@@ -6,6 +6,7 @@ import { DateRange } from 'react-day-picker';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { toast } from 'sonner';
 import { Lead } from './useLeads';
+import { useEffect } from 'react';
 
 export interface Notification {
   id: string;
@@ -33,25 +34,50 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
 
   const queryKey = ['all_notifications', orgId, dateRange, leadId];
 
+  // Configuração do Real-time para atualizar o sininho e a lista automaticamente
+  useEffect(() => {
+    if (!orgId) return;
+
+    // Inscreve-se em mudanças na tabela de notificações
+    // O filtro filter: `lead_id=in.(...)` é complexo com RLS, então ouvimos tudo da tabela
+    // e confiamos que o Supabase só envia eventos permitidos pelo RLS ou filtramos no client se necessário.
+    // Para simplificar e garantir funcionamento, invalidamos a query ao receber qualquer evento na tabela 'notificacoes'.
+    const channel = supabase
+      .channel('global_notifications_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notificacoes' },
+        (payload) => {
+          // Opcional: Verificar se o payload pertence à organização (se o backend enviar dados completos)
+          // Mas invalidar a query é a forma mais segura de obter os dados atualizados com os joins corretos.
+          queryClient.invalidateQueries({ queryKey: ['all_notifications'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orgId, queryClient]);
+
   const { data: notifications = [], isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      // MUDANÇA: Consulta otimizada usando !inner para filtrar pela organização na relação
-      // Isso elimina a necessidade de buscar IDs de leads separadamente
+      // MUDANÇA: Removido !inner e filtro redundante de organização.
+      // O RLS da tabela 'notificacoes' já deve filtrar apenas as notificações visíveis para o usuário.
+      // Usamos um Left Join padrão para trazer os dados do lead.
       let query = supabase
         .from('notificacoes')
         .select(`
           *,
-          leads!inner (
+          leads (
             id,
             nome,
-            telefone,
-            organization_id
+            telefone
           )
-        `)
-        .eq('leads.organization_id', orgId);
+        `);
 
       // Filtros de Data
       if (dateRange?.from) {
@@ -93,7 +119,7 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
       if (error) throw error;
     },
     onMutate: async ({ notificationId, status }) => {
-      // Cancela qualquer refetch pendente para não sobrescrever a atualização otimista
+      // Cancela qualquer refetch pendente
       await queryClient.cancelQueries({ queryKey });
 
       // Salva o estado anterior
@@ -110,11 +136,9 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
         );
       }
 
-      // Retorna o estado anterior para o caso de erro
       return { previousNotifications };
     },
     onError: (err: any, variables, context) => {
-      // Se a mutação falhar, reverte para o estado anterior
       if (context?.previousNotifications) {
         queryClient.setQueryData(queryKey, context.previousNotifications);
       }
@@ -124,7 +148,6 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
       toast.success('Notificação atualizada com sucesso!');
     },
     onSettled: () => {
-      // No final (sucesso ou erro), busca os dados mais recentes do servidor para garantir consistência
       queryClient.invalidateQueries({ queryKey });
     },
   });
