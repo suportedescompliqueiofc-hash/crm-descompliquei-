@@ -38,18 +38,12 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
   useEffect(() => {
     if (!orgId) return;
 
-    // Inscreve-se em mudanças na tabela de notificações
-    // O filtro filter: `lead_id=in.(...)` é complexo com RLS, então ouvimos tudo da tabela
-    // e confiamos que o Supabase só envia eventos permitidos pelo RLS ou filtramos no client se necessário.
-    // Para simplificar e garantir funcionamento, invalidamos a query ao receber qualquer evento na tabela 'notificacoes'.
     const channel = supabase
       .channel('global_notifications_changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notificacoes' },
-        (payload) => {
-          // Opcional: Verificar se o payload pertence à organização (se o backend enviar dados completos)
-          // Mas invalidar a query é a forma mais segura de obter os dados atualizados com os joins corretos.
+        () => {
           queryClient.invalidateQueries({ queryKey: ['all_notifications'] });
         }
       )
@@ -65,19 +59,11 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      // MUDANÇA: Removido !inner e filtro redundante de organização.
-      // O RLS da tabela 'notificacoes' já deve filtrar apenas as notificações visíveis para o usuário.
-      // Usamos um Left Join padrão para trazer os dados do lead.
+      // 1. Buscar Notificações (Sem Join automático para evitar erros de relacionamento)
+      // O RLS do banco já garante que só trazemos notificações da organização do usuário
       let query = supabase
         .from('notificacoes')
-        .select(`
-          *,
-          leads (
-            id,
-            nome,
-            telefone
-          )
-        `);
+        .select('*');
 
       // Filtros de Data
       if (dateRange?.from) {
@@ -87,7 +73,6 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
       if (dateRange?.to) {
         query = query.lte('criado_em', format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss'));
       } else if (dateRange?.from && !dateRange.to) {
-        // Se tiver apenas data inicial (seleção de um dia), considera até o fim desse dia
         query = query.lte('criado_em', format(endOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss'));
       }
 
@@ -98,14 +83,47 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
 
       query = query.order('criado_em', { ascending: false });
 
-      const { data, error } = await query;
+      const { data: notificationsData, error: notificationsError } = await query;
 
-      if (error) {
-        console.error("Error fetching notifications:", error);
-        throw error;
+      if (notificationsError) {
+        console.error("Error fetching notifications:", notificationsError);
+        throw notificationsError;
       }
+
+      if (!notificationsData || notificationsData.length === 0) {
+        return [];
+      }
+
+      // 2. Buscar Leads associados manualmente
+      // Extrai IDs únicos de leads das notificações
+      const leadIds = Array.from(new Set(notificationsData.map(n => n.lead_id).filter(Boolean)));
       
-      return data as unknown as NotificationWithLead[];
+      let leadsMap = new Map<string, Pick<Lead, 'id' | 'nome' | 'telefone'>>();
+
+      if (leadIds.length > 0) {
+        const { data: leadsData, error: leadsError } = await supabase
+          .from('leads')
+          .select('id, nome, telefone')
+          .in('id', leadIds);
+        
+        if (leadsError) {
+          console.error("Error fetching leads for notifications:", leadsError);
+          // Em caso de erro ao buscar leads, continuamos com as notificações, mas sem dados do lead
+        } else if (leadsData) {
+          leadsData.forEach(lead => {
+            leadsMap.set(lead.id, lead);
+          });
+        }
+      }
+
+      // 3. Montar objeto final combinando notificação com dados do lead
+      const result: NotificationWithLead[] = notificationsData.map(n => ({
+        ...n,
+        status: n.status as 'pendente' | 'resolvido', // Garante tipagem
+        leads: leadsMap.get(n.lead_id) || null
+      }));
+      
+      return result;
     },
     enabled: !!user && !!orgId,
   });
@@ -119,13 +137,9 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
       if (error) throw error;
     },
     onMutate: async ({ notificationId, status }) => {
-      // Cancela qualquer refetch pendente
       await queryClient.cancelQueries({ queryKey });
-
-      // Salva o estado anterior
       const previousNotifications = queryClient.getQueryData<NotificationWithLead[]>(queryKey);
 
-      // Atualiza o cache localmente de forma otimista
       if (previousNotifications) {
         queryClient.setQueryData<NotificationWithLead[]>(queryKey, (old) =>
           old?.map(notification =>
