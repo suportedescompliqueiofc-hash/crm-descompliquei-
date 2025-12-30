@@ -16,7 +16,7 @@ serve(async (req) => {
   }
 
   try {
-    // 1. Autenticação do Usuário (Verifica quem está chamando)
+    // 1. Autenticação do Usuário
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('Authorization header is missing');
@@ -33,7 +33,7 @@ serve(async (req) => {
       throw new Error('Usuário não autenticado ou token inválido.');
     }
 
-    // 2. Inicializa Admin Client (Para operações de banco sem restrição de RLS dentro da função)
+    // 2. Inicializa Admin Client
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -57,19 +57,15 @@ serve(async (req) => {
     if (!message) throw new Error('Mensagem não fornecida.');
 
     // 5. Salva a mensagem do usuário no histórico
-    const { error: insertUserError } = await supabaseAdmin.from('ai_prompt_chat_history').insert({
+    await supabaseAdmin.from('ai_prompt_chat_history').insert({
       organization_id: profile.organization_id,
       role: 'user',
       content: message
     });
 
-    if (insertUserError) {
-      console.error('Erro ao salvar msg usuario:', insertUserError);
-      throw new Error('Falha ao salvar histórico da mensagem.');
-    }
-
     // 6. Envia para o N8N
-    console.log('Enviando para N8N:', N8N_WEBHOOK_URL);
+    console.log(`Enviando requisição para N8N: ${N8N_WEBHOOK_URL}`);
+    
     const response = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -81,29 +77,66 @@ serve(async (req) => {
       }),
     });
 
+    // Lê a resposta como texto primeiro para evitar crash no json()
+    const responseText = await response.text();
+    console.log('Resposta bruta do N8N:', responseText);
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Erro N8N:', response.status, errorText);
-      throw new Error(`Erro na IA (N8N): ${response.status} - ${errorText}`);
+      throw new Error(`Erro no N8N (${response.status}): ${responseText}`);
     }
 
-    // PARSING ROBUSTO DA RESPOSTA DO N8N
-    let aiResponse = await response.json();
-    console.log('Resposta bruta do N8N:', JSON.stringify(aiResponse));
+    let aiResponse;
+    try {
+      aiResponse = JSON.parse(responseText);
+    } catch (e) {
+      // Se não for JSON válido, tenta usar o texto diretamente se não for vazio
+      if (responseText && responseText.trim().length > 0) {
+        aiResponse = { message: responseText };
+      } else {
+        throw new Error('A resposta do N8N não é um JSON válido e está vazia.');
+      }
+    }
 
+    // 7. Parsing Robusto da Resposta
     // Normaliza: Se for array (All Incoming Items), pega o primeiro item
     let outputItem = aiResponse;
     if (Array.isArray(aiResponse)) {
         outputItem = aiResponse[0] || {};
     }
 
-    // Busca a mensagem de texto em 'output' (conforme seu print) ou 'message' (fallback)
-    const aiMessage = outputItem.output || outputItem.message || outputItem.response || "A IA processou a solicitação, mas não retornou uma mensagem de texto clara.";
-    
-    // Busca o novo prompt se houver
-    const newPrompt = outputItem.new_prompt || outputItem.newPrompt || null;
+    // Tenta encontrar a mensagem em várias chaves possíveis
+    const possibleKeys = ['output', 'message', 'response', 'text', 'answer', 'content', 'result'];
+    let aiMessage = null;
 
-    // 7. Salva a resposta da IA no histórico
+    for (const key of possibleKeys) {
+        if (outputItem[key] && typeof outputItem[key] === 'string') {
+            aiMessage = outputItem[key];
+            break;
+        }
+    }
+
+    // Se ainda não achou, verifica se está aninhado em 'data' ou 'body'
+    if (!aiMessage && outputItem.data) {
+        for (const key of possibleKeys) {
+            if (outputItem.data[key]) { aiMessage = outputItem.data[key]; break; }
+        }
+    }
+
+    // Fallback final: Se o outputItem for uma string simples
+    if (!aiMessage && typeof outputItem === 'string') {
+        aiMessage = outputItem;
+    }
+
+    // Se falhar tudo
+    if (!aiMessage) {
+        console.warn('Estrutura do outputItem:', JSON.stringify(outputItem));
+        aiMessage = "A IA processou a solicitação, mas não retornou uma mensagem de texto identificável.";
+    }
+    
+    // Busca o novo prompt se houver (mesma lógica de fallback)
+    const newPrompt = outputItem.new_prompt || outputItem.newPrompt || (outputItem.data ? outputItem.data.new_prompt : null) || null;
+
+    // 8. Salva a resposta da IA no histórico
     const { error: insertAiError } = await supabaseAdmin.from('ai_prompt_chat_history').insert({
       organization_id: profile.organization_id,
       role: 'assistant',
@@ -124,8 +157,10 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Erro na função optimize-prompt:', error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('Erro crítico na função optimize-prompt:', error);
+    return new Response(JSON.stringify({ 
+      error: error.message || 'Erro interno no servidor ao processar IA.' 
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });
