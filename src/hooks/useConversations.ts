@@ -42,13 +42,15 @@ export function useConversationsList() {
   const orgId = profile?.organization_id;
   const queryKey = ['conversations', orgId];
 
-  const refetchInterval = 10000;
+  // Mantemos um intervalo de segurança, mas aumentamos o tempo já que temos realtime
+  const refetchInterval = 30000; 
 
   useEffect(() => {
     if (!orgId) return;
 
     const channel = supabase
-      .channel('public:mensagens_list')
+      .channel('public:mensagens_list_realtime')
+      // Escuta novas mensagens para reordenar a lista e atualizar prévias
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mensagens' }, 
@@ -56,9 +58,18 @@ export function useConversationsList() {
           queryClient.invalidateQueries({ queryKey });
         }
       )
+      // Escuta mudanças nas tags dos leads
       .on( 
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads_tags' },
+        () => {
+          queryClient.invalidateQueries({ queryKey });
+        }
+      )
+      // Escuta mudanças nos dados do lead (nome, telefone)
+      .on( 
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads' },
         () => {
           queryClient.invalidateQueries({ queryKey });
         }
@@ -121,7 +132,7 @@ export function useConversationsList() {
   });
 }
 
-// Hook para buscar mensagens
+// Hook para buscar mensagens (Já estava bom, mas mantive para consistência do arquivo)
 export function useMessages(leadId: string | null) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -192,7 +203,6 @@ export function useMessages(leadId: string | null) {
   });
 }
 
-// Hook para enviar mensagem de texto
 export function useSendMessage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -266,7 +276,6 @@ export function useSendMessage() {
   });
 }
 
-// Hook para enviar mensagem de Áudio
 export function useSendAudioMessage() {
   const { user } = useAuth();
   const { profile } = useProfile();
@@ -276,28 +285,24 @@ export function useSendAudioMessage() {
     mutationFn: async ({ leadId, audioBlob }: { leadId: string; audioBlob: Blob }) => {
       if (!user || !profile?.organization_id) throw new Error('Usuário ou Organização não autenticado');
 
-      // 1. Upload do arquivo para o bucket
       const timestamp = Date.now();
       const filePath = `${profile.organization_id}/${leadId}/${timestamp}.webm`;
       
       const { error: uploadError } = await supabase.storage
-        .from('media-mensagens') // Usando o bucket que já existe no projeto
+        .from('media-mensagens')
         .upload(filePath, audioBlob, { contentType: 'audio/webm' });
 
       if (uploadError) throw new Error(`Erro no upload: ${uploadError.message}`);
 
-      // 2. Obter URL pública para enviar no webhook
       const { data: { publicUrl } } = supabase.storage
         .from('media-mensagens')
         .getPublicUrl(filePath);
 
-      // 3. Buscar dados do lead para envio
       const { data: leadData } = await supabase
         .from('leads').select('telefone').eq('id', leadId).single();
 
       if (!leadData) throw new Error('Lead não encontrado');
 
-      // 4. Salvar mensagem no banco (para consistência imediata)
       const { data: message, error: dbError } = await supabase
         .from('mensagens')
         .insert({
@@ -314,7 +319,6 @@ export function useSendAudioMessage() {
 
       if (dbError) throw dbError;
 
-      // 5. Criar anexo
       await supabase
         .from('message_attachments')
         .insert({
@@ -323,7 +327,6 @@ export function useSendAudioMessage() {
           file_type: 'audio'
         });
 
-      // 6. Enviar para o Webhook e TENTAR recuperar o ID
       try {
         const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-vivianebraga', {
           method: 'POST', 
@@ -342,11 +345,7 @@ export function useSendAudioMessage() {
           throw new Error('Falha ao enviar para o WhatsApp');
         }
 
-        // Tenta ler a resposta para pegar o ID da mensagem (wamid) se o n8n retornar
         const responseData = await response.json().catch(() => null);
-        
-        // Se houver um ID retornado pelo n8n, atualizamos a mensagem no banco
-        // O n8n precisa retornar algo como { "id": "wamid..." } ou { "data": { "id": "..." } }
         const whatsappId = responseData?.id || responseData?.id_mensagem || responseData?.key?.id;
 
         if (whatsappId && message.id) {
@@ -358,15 +357,12 @@ export function useSendAudioMessage() {
 
       } catch (webhookError) {
         console.error('Erro no webhook de áudio:', webhookError);
-        // Não lançamos erro aqui para não "desfazer" a mensagem salva no banco,
-        // apenas avisamos que o envio para o zap pode ter falhado.
         toast.error('Áudio salvo, mas houve erro no envio para o WhatsApp.');
       }
 
       return message;
     },
     onSuccess: (_, { leadId }) => {
-      // Invalida para buscar a nova mensagem
       queryClient.invalidateQueries({ queryKey: ['messages_v6', leadId] });
       toast.success('Áudio enviado!');
     },
@@ -376,18 +372,15 @@ export function useSendAudioMessage() {
   });
 }
 
-// Hook para excluir mensagem
 export function useDeleteMessage() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ messageId, leadId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
-      // Se for uma mensagem otimista (ID temporário), não faz nada no backend
       if (messageId.startsWith('temp-')) {
         return messageId;
       }
       
-      // Chama a Edge Function que lida com o webhook do n8n e a exclusão no banco.
       const { data, error } = await supabase.functions.invoke('delete-message', {
         body: { 
           messageId: messageId,
@@ -396,13 +389,8 @@ export function useDeleteMessage() {
         }
       });
 
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (data && data.error) {
-        throw new Error(data.error);
-      }
+      if (error) throw new Error(error.message);
+      if (data && data.error) throw new Error(data.error);
 
       return messageId;
     },

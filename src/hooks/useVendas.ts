@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Lead } from './useLeads';
 import { DateRange } from 'react-day-picker';
 import { format, startOfDay, endOfDay } from 'date-fns';
+import { useEffect } from 'react';
 
 export interface Venda {
   id: string;
@@ -26,6 +27,26 @@ export function useVendas(dateRange?: DateRange) {
   const { profile } = useProfile();
   const queryClient = useQueryClient();
   const orgId = profile?.organization_id;
+
+  // Realtime Subscription
+  useEffect(() => {
+    if (!orgId) return;
+
+    const channel = supabase
+      .channel('vendas_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'vendas' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['vendas'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orgId, queryClient]);
 
   const { data: vendas = [], isLoading } = useQuery({
     queryKey: ['vendas', orgId, dateRange],

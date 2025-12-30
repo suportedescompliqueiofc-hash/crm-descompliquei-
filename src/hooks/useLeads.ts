@@ -6,6 +6,7 @@ import { DateRange } from 'react-day-picker';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { useProfile } from './useProfile';
 import { Tag } from './useTags';
+import { useEffect } from 'react';
 
 export interface Lead {
   id: string;
@@ -21,7 +22,6 @@ export interface Lead {
   queixa_principal?: string;
   resumo?: string;
   origem?: string;
-  // Campo 'criativo' removido. Usar apenas criativo_id.
   criativo_id?: string; 
   status: string;
   etapa_id: number;
@@ -40,6 +40,38 @@ export function useLeads(dateRange?: DateRange) {
   const { profile } = useProfile();
   const queryClient = useQueryClient();
   const orgId = profile?.organization_id;
+
+  // Realtime Subscription
+  useEffect(() => {
+    if (!orgId) return;
+
+    const channel = supabase
+      .channel('leads_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads' },
+        (payload) => {
+          // Invalida a query para forçar o recarregamento dos dados
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          // Se for uma atualização de um lead específico que está aberto em algum modal, também atualiza
+          if (payload.new && 'id' in payload.new) {
+             queryClient.invalidateQueries({ queryKey: ['lead', payload.new.id] });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads_tags' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orgId, queryClient]);
 
   const { data: leads = [], isLoading } = useQuery({
     queryKey: ['leads', orgId, dateRange],
@@ -88,6 +120,7 @@ export function useLeads(dateRange?: DateRange) {
       return data;
     },
     onSuccess: () => {
+      // Invalidation handled by realtime, but we keep this for optimistic feeling or fallback
       queryClient.invalidateQueries({ queryKey: ['leads', orgId] });
       toast.success('Lead criado com sucesso!', { closeButton: true });
     },
@@ -160,6 +193,27 @@ export function useLead(leadId: string | null) {
   const { user } = useAuth();
   const { profile } = useProfile();
   const orgId = profile?.organization_id;
+  const queryClient = useQueryClient();
+
+  // Subscription específica para um único lead (útil no modal ou na tela de conversa)
+  useEffect(() => {
+    if (!leadId) return;
+
+    const channel = supabase
+      .channel(`lead_detail_${leadId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads', filter: `id=eq.${leadId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [leadId, queryClient]);
 
   return useQuery<Lead | null, Error>({
     queryKey: ['lead', leadId, orgId],

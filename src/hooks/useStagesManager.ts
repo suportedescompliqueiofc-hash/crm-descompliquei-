@@ -3,11 +3,30 @@ import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 import { Stage } from './useStages';
+import { useEffect } from 'react';
 
 export function useStagesManager() {
   const { role } = useProfile();
   const queryClient = useQueryClient();
   const isAdmin = role === 'admin';
+
+  // Realtime Subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('etapas_manager_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'etapas' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['stages'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const { data: stages = [], isLoading } = useQuery<Stage[]>({
     queryKey: ['stages'],

@@ -1,14 +1,41 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile'; // Importar perfil
 import { DateRange } from 'react-day-picker';
 import { format, startOfDay, eachDayOfInterval, parseISO, endOfDay } from 'date-fns';
+import { useEffect } from 'react';
 
 export function useDashboard(dateRange: DateRange | undefined) {
   const { user } = useAuth();
   const { profile } = useProfile(); // Obter orgId
   const orgId = profile?.organization_id;
+  const queryClient = useQueryClient();
+
+  // Realtime Subscription
+  useEffect(() => {
+    if (!orgId) return;
+
+    const channel = supabase
+      .channel('dashboard_realtime')
+      // Escuta mudanças em leads (novos cadastros, mudança de etapa)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      })
+      // Escuta mudanças em vendas (faturamento)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendas' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      })
+      // Escuta mudanças em atividades
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'atividades' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orgId, queryClient]);
 
   const { data: metrics, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard-metrics', orgId, dateRange],

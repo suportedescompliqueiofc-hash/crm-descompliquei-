@@ -5,6 +5,7 @@ import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 import { DateRange } from 'react-day-picker';
 import { startOfDay, endOfDay } from 'date-fns';
+import { useEffect } from 'react';
 
 export interface Criativo {
   id: string;
@@ -30,15 +31,36 @@ export function useMarketing(dateRange?: DateRange) {
   const orgId = profile?.organization_id;
   const queryClient = useQueryClient();
 
+  // Realtime Subscription
+  useEffect(() => {
+    if (!orgId) return;
+
+    const channel = supabase
+      .channel('marketing_realtime')
+      // Se novos criativos forem criados (via integração/webhook)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'criativos' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['criativos'] });
+      })
+      // Se novos leads chegarem, as estatísticas dos criativos mudam
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['criativos'] });
+      })
+      // Se novas vendas ocorrerem, o faturamento do criativo muda
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendas' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['criativos'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orgId, queryClient]);
+
   const { data: criativos = [], isLoading } = useQuery({
     queryKey: ['criativos', orgId, dateRange],
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      // Converte o início (00:00) e fim (23:59) do dia LOCAL para ISO 8601 UTC.
-      // Ex: 19/12 00:00 BRT vira 19/12 03:00 UTC
-      // Ex: 19/12 23:59 BRT vira 20/12 02:59 UTC
-      // Isso cobre exatamente as 24h do dia no seu fuso horário.
       const startDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : null;
       const endDate = dateRange?.to 
         ? endOfDay(dateRange.to).toISOString() 
@@ -60,7 +82,6 @@ export function useMarketing(dateRange?: DateRange) {
       if (error) throw error;
 
       // 2. Buscar estatísticas (Leads e Vendas)
-      // Aqui aplicamos o mesmo filtro de data para contar leads/vendas gerados NESSE período
       const criativosComStats = await Promise.all(data.map(async (criativo) => {
         let leadsQuery = supabase
           .from('leads')
@@ -85,11 +106,6 @@ export function useMarketing(dateRange?: DateRange) {
               .select('valor_fechado')
               .eq('organization_id', orgId)
               .in('lead_id', leadIds);
-            
-            // Para vendas, idealmente filtramos pela data da venda também para consistência
-            if (startDate && endDate) {
-                // salesQuery = salesQuery.gte('data_fechamento', startDate).lte('data_fechamento', endDate);
-            }
             
             const { data: salesData } = await salesQuery;
             

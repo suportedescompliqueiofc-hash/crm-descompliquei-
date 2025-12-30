@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
+import { useEffect } from 'react';
 
 export interface Tag {
   id: string;
@@ -26,6 +27,26 @@ export function useTags() {
   const { profile } = useProfile();
   const orgId = profile?.organization_id;
   const queryClient = useQueryClient();
+
+  // Realtime Subscription
+  useEffect(() => {
+    if (!orgId) return;
+
+    const channel = supabase
+      .channel('tags_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tags' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['tags', orgId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orgId, queryClient]);
 
   const { data: availableTags = [], isLoading: isLoadingTags } = useQuery({
     queryKey: ['tags', orgId],
@@ -109,6 +130,25 @@ export function useTags() {
 
 export function useLeadTags(leadId: string | undefined) {
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!leadId) return;
+
+    const channel = supabase
+      .channel(`lead_tags_realtime_${leadId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads_tags', filter: `lead_id=eq.${leadId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['lead_tags', leadId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [leadId, queryClient]);
 
   const { data: leadTags = [], isLoading } = useQuery({
     queryKey: ['lead_tags', leadId],
