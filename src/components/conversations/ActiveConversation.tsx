@@ -18,6 +18,7 @@ import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AudioMessage } from "./AudioMessage";
 import { MediaMessage } from "./MediaMessage";
+import { FileMessage } from "./FileMessage"; // Importando o novo componente
 import { NotificationMessage } from "./NotificationMessage";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -55,6 +56,11 @@ const AttachmentRenderer = ({ attachment }: { attachment: Attachment }) => {
   if (type.includes('imagem') || type.includes('image') || type.includes('foto') || type.includes('video')) {
     const mediaType = type.includes('video') ? 'video' : 'imagem';
     return <MediaMessage path={path} type={mediaType} />;
+  }
+
+  // Tratamento específico para PDF e documentos
+  if (type.includes('pdf') || type.includes('document') || type.includes('application')) {
+    return <FileMessage path={path} fileName="Documento PDF" />;
   }
 
   return <div className="p-2 bg-muted/20 border rounded text-xs text-muted-foreground mb-1 break-all">Anexo: {path}</div>;
