@@ -207,7 +207,7 @@ export function useSendMessage() {
       if (leadError || !leadData) throw new Error('Lead não encontrado.');
 
       try {
-        const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-odontonova', {
+        const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-vivianebraga', {
           method: 'POST', 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
