@@ -4,15 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PromptEditor } from "@/components/ai/PromptEditor";
-import { PromptOptimizerChat } from "@/components/ai/PromptOptimizerChat";
 import { useAiPrompt } from "@/hooks/useAiPrompt";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
 import { toast } from "sonner";
 
 const defaultPrompt = `# 1. IDENTIDADE E PAPEL
@@ -65,11 +59,6 @@ export default function AiSettings() {
     toast.info("Alterações descartadas.");
   };
 
-  const handleAiUpdate = (newPrompt: string) => {
-    setLocalPrompt(newPrompt);
-    setHasChanges(true);
-  };
-
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col gap-4">
       {/* Header */}
@@ -79,7 +68,7 @@ export default function AiSettings() {
             <Bot className="h-8 w-8 text-primary" />
             Inteligência Artificial
           </h1>
-          <p className="text-muted-foreground mt-1">Configure e otimize o cérebro da sua assistente virtual.</p>
+          <p className="text-muted-foreground mt-1">Configure o comportamento e as regras da sua assistente virtual.</p>
         </div>
         <div className="flex items-center gap-3">
           {hasChanges && (
@@ -106,50 +95,31 @@ export default function AiSettings() {
         </div>
       </div>
 
-      {/* Main Content with Resizable Panels */}
-      <Card className="flex-1 overflow-hidden border-sidebar-border shadow-sm bg-background">
-        <ResizablePanelGroup direction="horizontal" className="h-full rounded-lg border">
-          
-          {/* Left Panel: Editor */}
-          <ResizablePanel defaultSize={65} minSize={30}>
-            <div className="flex flex-col h-full">
-              <div className="flex flex-row items-center justify-between py-3 px-4 border-b bg-muted/20 flex-shrink-0">
-                <div className="space-y-1">
-                  <div className="text-sm font-semibold flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-accent" />
-                    Editor de Sistema
-                  </div>
-                </div>
-                <Badge variant="outline" className="font-mono text-xs bg-background">prompt.system.md</Badge>
-              </div>
-              
-              <div className="flex-1 overflow-hidden relative">
-                {isLoading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  </div>
-                ) : (
-                  <PromptEditor 
-                    value={localPrompt} 
-                    onChange={handlePromptChange} 
-                    disabled={isLoading || isSaving}
-                  />
-                )}
-              </div>
+      {/* Main Content - Full Editor */}
+      <Card className="flex-1 overflow-hidden border-sidebar-border shadow-sm bg-background flex flex-col">
+        <div className="flex flex-row items-center justify-between py-3 px-4 border-b bg-muted/20 flex-shrink-0">
+          <div className="space-y-1">
+            <div className="text-sm font-semibold flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-accent" />
+              Editor de Sistema
             </div>
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          {/* Right Panel: AI Chat */}
-          <ResizablePanel defaultSize={35} minSize={20} maxSize={50}>
-            <PromptOptimizerChat 
-              currentPrompt={localPrompt} 
-              onPromptUpdate={handleAiUpdate} 
+          </div>
+          <Badge variant="outline" className="font-mono text-xs bg-background">prompt.system.md</Badge>
+        </div>
+        
+        <div className="flex-1 overflow-hidden relative">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            <PromptEditor 
+              value={localPrompt} 
+              onChange={handlePromptChange} 
+              disabled={isLoading || isSaving}
             />
-          </ResizablePanel>
-
-        </ResizablePanelGroup>
+          )}
+        </div>
       </Card>
     </div>
   );
