@@ -1,28 +1,29 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
+// Headers de CORS completos para evitar bloqueios no navegador
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// URL do webhook no N8N
 const N8N_WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/assistente-prompt-viviane';
 
 serve(async (req) => {
-  // Tratamento de CORS (Preflight)
+  // 1. Tratamento de Preflight (OPTIONS) - Resposta imediata
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // 1. Autenticação
+    // 2. Validação da Autenticação
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      throw new Error('Missing Authorization header')
+      throw new Error('Cabeçalho de autorização ausente')
     }
 
-    // Cliente para autenticação
+    // Cliente Supabase para Auth
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -31,16 +32,19 @@ serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
     if (authError || !user) {
-      throw new Error('Unauthorized')
+      return new Response(JSON.stringify({ error: 'Usuário não autenticado' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
-    // Cliente Admin para banco
+    // 3. Cliente Admin para Banco de Dados
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 2. Busca Organização
+    // 4. Busca Perfil/Organização
     const { data: profile } = await supabaseAdmin
       .from('perfis')
       .select('organization_id')
@@ -48,26 +52,36 @@ serve(async (req) => {
       .single()
 
     if (!profile?.organization_id) {
-      throw new Error('Organization not found')
+      throw new Error('Organização não encontrada')
     }
 
-    // 3. Lê Body da Requisição
-    const { message, currentPrompt } = await req.json().catch(() => ({ message: '', currentPrompt: '' }));
-    if (!message) throw new Error('Message is required')
+    // 5. Parse do Body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      throw new Error('Corpo da requisição inválido (JSON esperado)');
+    }
+    
+    const { message, currentPrompt } = body;
+    if (!message) throw new Error('Mensagem é obrigatória')
 
-    // 4. Salva mensagem do usuário
-    await supabaseAdmin.from('ai_prompt_chat_history').insert({
+    // 6. Registro no Histórico (Usuário)
+    // Não bloqueia o fluxo principal se falhar, apenas loga o erro
+    supabaseAdmin.from('ai_prompt_chat_history').insert({
       organization_id: profile.organization_id,
       role: 'user',
       content: message
+    }).then(({ error }) => {
+      if (error) console.error('Erro ao salvar histórico (user):', error)
     });
 
-    // 5. Chama N8N com Timeout Controlado
-    // Edge Functions gratuitas têm limite de 10s (ou mais dependendo do plano), mas é seguro abortar antes.
+    // 7. Chamada ao N8N com Timeout Controlado
+    // Definimos 25 segundos para dar tempo ao N8N, mas cortar antes do limite da Edge Function matar o processo
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout (seguro para limite de 60s, ajuste se necessário)
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-    console.log(`Calling N8N: ${N8N_WEBHOOK_URL}`);
+    console.log(`Chamando N8N: ${N8N_WEBHOOK_URL}`);
     
     let response;
     try {
@@ -84,7 +98,7 @@ serve(async (req) => {
       });
     } catch (fetchError) {
       if (fetchError.name === 'AbortError') {
-        throw new Error('A IA demorou muito para responder (Timeout). Tente novamente.');
+        throw new Error('A IA demorou muito para responder (Timeout). Tente novamente ou simplifique a solicitação.');
       }
       throw fetchError;
     } finally {
@@ -93,7 +107,7 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`N8N Error (${response.status}): ${errText.substring(0, 200)}`);
+      throw new Error(`Erro no N8N (${response.status}): ${errText.substring(0, 100)}`);
     }
 
     const responseText = await response.text();
@@ -101,19 +115,19 @@ serve(async (req) => {
     try {
       aiResponse = JSON.parse(responseText);
     } catch {
-      // Se não for JSON, usa o texto puro se houver
+      // Se não for JSON, usa o texto puro se houver conteúdo
       if (responseText && responseText.trim().length > 0) {
         aiResponse = { message: responseText };
       } else {
-        throw new Error('Resposta inválida da IA (Vazia ou não-JSON).');
+        throw new Error('Resposta inválida da IA (Vazia ou formato incorreto).');
       }
     }
 
-    // 6. Parsing da Resposta
+    // 8. Processamento da Resposta
     let outputItem = Array.isArray(aiResponse) ? aiResponse[0] : aiResponse;
     if (!outputItem) outputItem = {};
 
-    // Procura mensagem em chaves comuns
+    // Busca inteligente da mensagem em várias chaves possíveis
     let aiMessage = 
       outputItem.output || 
       outputItem.message || 
@@ -121,12 +135,11 @@ serve(async (req) => {
       outputItem.text || 
       outputItem.content;
 
-    // Procura dentro de 'data' se existir
+    // Busca aninhada em 'data' ou 'body'
     if (!aiMessage && outputItem.data) {
-      aiMessage = 
-        outputItem.data.output || 
-        outputItem.data.message || 
-        outputItem.data.response;
+      aiMessage = outputItem.data.output || outputItem.data.message || outputItem.data.response;
+    } else if (!aiMessage && outputItem.body) {
+      aiMessage = outputItem.body.output || outputItem.body.message || outputItem.body.response;
     }
 
     // Se o item for string pura
@@ -135,17 +148,16 @@ serve(async (req) => {
     }
 
     if (!aiMessage) {
-      console.warn('AI Response Structure:', JSON.stringify(outputItem));
-      aiMessage = "A IA processou, mas não retornou texto visível. Verifique o prompt.";
+      console.warn('Estrutura recebida do N8N:', JSON.stringify(outputItem).substring(0, 500));
+      aiMessage = "A IA processou, mas não retornou texto visível. Verifique o prompt no N8N.";
     }
 
-    // Novo Prompt (se houver)
     const newPrompt = 
       outputItem.new_prompt || 
       outputItem.newPrompt || 
       (outputItem.data ? outputItem.data.new_prompt : null);
 
-    // 7. Salva resposta da IA
+    // 9. Registro no Histórico (IA)
     await supabaseAdmin.from('ai_prompt_chat_history').insert({
       organization_id: profile.organization_id,
       role: 'assistant',
@@ -164,14 +176,13 @@ serve(async (req) => {
   } catch (error) {
     console.error('Edge Function Error:', error);
     
-    // Retorna 200 com erro no corpo para que o frontend possa exibir o toast,
-    // em vez de falhar a requisição HTTP (o que causaria erro de CORS se não tratado).
-    // Ou retorna 500 mas COM os headers CORS garantidos.
+    // Retorna 500 com JSON e Headers CORS corretos.
+    // Isso evita o erro de CORS no navegador ("No 'Access-Control-Allow-Origin' header").
     return new Response(JSON.stringify({ 
       error: error.message || 'Erro interno no servidor.' 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500, // Mantendo 500 para semântica correta, mas com headers.
+      status: 500,
     });
   }
 })
