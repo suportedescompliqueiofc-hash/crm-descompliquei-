@@ -6,7 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// URL corrigida conforme solicitado
 const N8N_WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/excluir-mensagem-viviane';
 
 serve(async (req) => {
@@ -24,33 +23,37 @@ serve(async (req) => {
 
     console.log(`[delete-message] Iniciando. MsgID: ${messageId}, WAMID: ${id_mensagem || 'N/A'}`);
 
-    // 1. Acionar o Webhook do n8n para exclusão no WhatsApp
-    if (id_mensagem) {
-      try {
-        console.log(`[delete-message] Enviando webhook para: ${N8N_WEBHOOK_URL}`);
-        
-        const response = await fetch(N8N_WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            id_mensagem: id_mensagem,
-            lead_id: leadId,
-            internal_message_id: messageId
-          }),
-        });
+    // --- DISPARO DO WEBHOOK ---
+    // Removemos a verificação 'if (id_mensagem)' para garantir que o webhook
+    // chegue no n8n independentemente de termos o ID externo ou não.
+    try {
+      console.log(`[delete-message] Disparando webhook para: ${N8N_WEBHOOK_URL}`);
+      
+      const payload = { 
+        id_mensagem: id_mensagem || null, // Garante que envie null se for undefined
+        lead_id: leadId,
+        internal_message_id: messageId,
+        timestamp: new Date().toISOString()
+      };
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`[delete-message] Erro no n8n (${response.status}):`, errorText);
-          // Não interrompemos a exclusão do banco se o n8n falhar, mas registramos o erro.
-        } else {
-          console.log('[delete-message] Webhook enviado com sucesso para o n8n');
-        }
-      } catch (webhookError) {
-        console.error('[delete-message] Falha de conexão com n8n:', webhookError);
+      const response = await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'User-Agent': 'Supabase-Edge-Function/1.0' // Alguns firewalls exigem User-Agent
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[delete-message] N8N respondeu com erro (${response.status}):`, errorText);
+      } else {
+        console.log('[delete-message] Webhook entregue com sucesso ao n8n');
       }
-    } else {
-      console.log('[delete-message] Mensagem sem id_mensagem (WAMID), pulando webhook do n8n.');
+    } catch (webhookError) {
+      console.error('[delete-message] Falha crítica ao conectar com n8n:', webhookError);
+      // Não interrompemos o fluxo para garantir que a exclusão no banco ocorra
     }
 
     // 2. Excluir do Banco de Dados (Supabase)
