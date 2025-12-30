@@ -56,7 +56,7 @@ export function useConversationsList() {
           queryClient.invalidateQueries({ queryKey });
         }
       )
-      .on( // Adiciona um listener para mudanças nas tags dos leads
+      .on( 
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads_tags' },
         () => {
@@ -365,6 +365,11 @@ export function useDeleteMessage() {
 
   return useMutation({
     mutationFn: async ({ messageId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
+      // Se for uma mensagem otimista (ID temporário), não tentamos excluir no banco de dados
+      // pois o ID 'temp-...' não é um UUID válido e causaria erro de sintaxe.
+      if (messageId.startsWith('temp-')) {
+        return messageId;
+      }
       
       if (id_mensagem) {
         try {
