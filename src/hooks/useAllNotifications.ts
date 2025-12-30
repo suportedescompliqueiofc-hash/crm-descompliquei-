@@ -38,37 +38,34 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      // MUDANÇA: Busca notificações baseadas nos leads da organização
-      // Primeiro, pegamos todos os IDs de leads da organização (query simplificada)
-      const { data: leadsData, error: leadsError } = await supabase
-        .from('leads')
-        .select('id')
-        .eq('organization_id', orgId);
-        
-      if (leadsError) throw leadsError;
-      
-      const leadIds = leadsData.map(l => l.id);
-
-      if (leadIds.length === 0) return [];
-
+      // MUDANÇA: Consulta otimizada usando !inner para filtrar pela organização na relação
+      // Isso elimina a necessidade de buscar IDs de leads separadamente
       let query = supabase
         .from('notificacoes')
         .select(`
           *,
-          leads (
+          leads!inner (
             id,
             nome,
-            telefone
+            telefone,
+            organization_id
           )
         `)
-        .in('lead_id', leadIds); // Filtra por lista de leads da org
+        .eq('leads.organization_id', orgId);
 
+      // Filtros de Data
       if (dateRange?.from) {
         query = query.gte('criado_em', format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss'));
       }
+      
       if (dateRange?.to) {
         query = query.lte('criado_em', format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss'));
+      } else if (dateRange?.from && !dateRange.to) {
+        // Se tiver apenas data inicial (seleção de um dia), considera até o fim desse dia
+        query = query.lte('criado_em', format(endOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss'));
       }
+
+      // Filtro de Lead específico
       if (leadId && leadId !== 'todos') {
         query = query.eq('lead_id', leadId);
       }
