@@ -297,7 +297,33 @@ export function useSendAudioMessage() {
 
       if (!leadData) throw new Error('Lead não encontrado');
 
-      // 4. Enviar para o Webhook
+      // 4. Salvar mensagem no banco (para consistência imediata)
+      const { data: message, error: dbError } = await supabase
+        .from('mensagens')
+        .insert({
+          lead_id: leadId,
+          user_id: user.id,
+          conteudo: '', 
+          direcao: 'saida',
+          remetente: 'agente',
+          tipo_conteudo: 'audio',
+          media_path: filePath 
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      // 5. Criar anexo
+      await supabase
+        .from('message_attachments')
+        .insert({
+          message_id: message.id,
+          file_path: filePath,
+          file_type: 'audio'
+        });
+
+      // 6. Enviar para o Webhook e TENTAR recuperar o ID
       try {
         const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-vivianebraga', {
           method: 'POST', 
@@ -305,7 +331,7 @@ export function useSendAudioMessage() {
           body: JSON.stringify({ 
             lead_id: leadId, 
             user_id: user.id,
-            conteudo_mensagem: '', // Mensagem de texto vazia
+            conteudo_mensagem: '', 
             tipo: 'audio',
             url_midia: publicUrl,
             telefone: leadData.telefone 
@@ -315,36 +341,27 @@ export function useSendAudioMessage() {
         if (!response.ok) {
           throw new Error('Falha ao enviar para o WhatsApp');
         }
+
+        // Tenta ler a resposta para pegar o ID da mensagem (wamid) se o n8n retornar
+        const responseData = await response.json().catch(() => null);
+        
+        // Se houver um ID retornado pelo n8n, atualizamos a mensagem no banco
+        // O n8n precisa retornar algo como { "id": "wamid..." } ou { "data": { "id": "..." } }
+        const whatsappId = responseData?.id || responseData?.id_mensagem || responseData?.key?.id;
+
+        if (whatsappId && message.id) {
+          await supabase
+            .from('mensagens')
+            .update({ id_mensagem: whatsappId })
+            .eq('id', message.id);
+        }
+
       } catch (webhookError) {
         console.error('Erro no webhook de áudio:', webhookError);
-        throw webhookError;
+        // Não lançamos erro aqui para não "desfazer" a mensagem salva no banco,
+        // apenas avisamos que o envio para o zap pode ter falhado.
+        toast.error('Áudio salvo, mas houve erro no envio para o WhatsApp.');
       }
-
-      // 5. Salvar mensagem no banco (para consistência imediata, embora o webhook possa tratar isso)
-      const { data: message, error: dbError } = await supabase
-        .from('mensagens')
-        .insert({
-          lead_id: leadId,
-          user_id: user.id,
-          conteudo: '', // Áudio não tem texto no corpo principal
-          direcao: 'saida',
-          remetente: 'agente',
-          tipo_conteudo: 'audio',
-          media_path: filePath // Caminho interno
-        })
-        .select()
-        .single();
-
-      if (dbError) throw dbError;
-
-      // 6. Criar anexo
-      await supabase
-        .from('message_attachments')
-        .insert({
-          message_id: message.id,
-          file_path: filePath,
-          file_type: 'audio'
-        });
 
       return message;
     },
@@ -354,7 +371,7 @@ export function useSendAudioMessage() {
       toast.success('Áudio enviado!');
     },
     onError: (err: any) => {
-      toast.error('Erro ao enviar áudio', { description: err.message });
+      toast.error('Erro ao processar áudio', { description: err.message });
     }
   });
 }

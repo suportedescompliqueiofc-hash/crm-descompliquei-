@@ -37,6 +37,9 @@ serve(async (req) => {
     const body = payload.body || payload.caption || '';
     const mediaUrl = payload.mediaUrl || payload.media?.url;
     const mediaType = payload.mediaType || payload.media?.type || payload.media?.mimetype;
+    
+    // Captura o ID da mensagem de várias fontes possíveis no payload
+    const externalId = payload.id || payload.id_mensagem || payload.messageId || payload.wamid || null;
 
     if (!from) throw new Error('O número do remetente (from) é obrigatório.');
 
@@ -83,7 +86,7 @@ serve(async (req) => {
       finalFileType = mediaType.startsWith('image') ? 'imagem' : mediaType.startsWith('video') ? 'video' : mediaType.startsWith('audio') ? 'audio' : 'arquivo';
     }
 
-    // 3. Inserir a mensagem base
+    // 3. Inserir a mensagem base COM o id_mensagem
     const { data: message, error: messageError } = await supabaseAdmin
       .from('mensagens')
       .insert({
@@ -92,6 +95,7 @@ serve(async (req) => {
         direcao: 'entrada',
         remetente: 'lead',
         tipo_conteudo: uploadedFilePath ? finalFileType : 'texto',
+        id_mensagem: externalId, // Agora estamos salvando o ID externo
       })
       .select('id')
       .single();
