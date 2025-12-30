@@ -30,22 +30,56 @@ export function PromptOptimizerChat({ currentPrompt, onPromptUpdate }: PromptOpt
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Carregar histórico inicial
+  // 1. Carregar histórico inicial e configurar Realtime
   useEffect(() => {
-    if (profile?.organization_id) {
-      const fetchHistory = async () => {
-        const { data } = await supabase
-          .from('ai_prompt_chat_history')
-          .select('*')
-          .eq('organization_id', profile.organization_id)
-          .order('created_at', { ascending: true });
-        
-        if (data) {
-          setMessages(data.map(m => ({ id: m.id, role: m.role as 'user' | 'assistant', content: m.content })));
+    if (!profile?.organization_id) return;
+
+    const fetchHistory = async () => {
+      const { data } = await supabase
+        .from('ai_prompt_chat_history')
+        .select('*')
+        .eq('organization_id', profile.organization_id)
+        .order('created_at', { ascending: true });
+      
+      if (data) {
+        setMessages(data.map(m => ({ id: m.id, role: m.role as 'user' | 'assistant', content: m.content })));
+      }
+    };
+
+    fetchHistory();
+
+    // Configura o Realtime para escutar novas mensagens
+    const channel = supabase
+      .channel('ai-chat-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'ai_prompt_chat_history',
+          filter: `organization_id=eq.${profile.organization_id}`,
+        },
+        (payload) => {
+          const newMsg = payload.new;
+          // Adiciona a mensagem apenas se ela ainda não estiver na lista (evita duplicatas do envio otimista)
+          setMessages((prev) => {
+            if (prev.some(m => m.id === newMsg.id || (m.content === newMsg.content && m.role === newMsg.role))) {
+              return prev;
+            }
+            return [...prev, { id: newMsg.id, role: newMsg.role as 'user' | 'assistant', content: newMsg.content }];
+          });
+          
+          // Se for uma mensagem da IA, paramos o loading
+          if (newMsg.role === 'assistant') {
+            setIsLoading(false);
+          }
         }
-      };
-      fetchHistory();
-    }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [profile?.organization_id]);
 
   // Auto-scroll
@@ -53,36 +87,30 @@ export function PromptOptimizerChat({ currentPrompt, onPromptUpdate }: PromptOpt
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!inputValue.trim() || isLoading) return;
 
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: inputValue };
-    setMessages(prev => [...prev, userMsg]);
+    // Não adicionamos otimistamente aqui para evitar duplicidade com o Realtime, 
+    // ou gerenciamos IDs temporários. Vamos confiar no Realtime para consistência.
+    // Mas para UX imediata, podemos adicionar e o useEffect do realtime filtra duplicatas.
+    const userContent = inputValue;
     setInputValue("");
     setIsLoading(true);
 
     try {
       const { data, error } = await supabase.functions.invoke('optimize-prompt', {
         body: { 
-          message: userMsg.content,
+          message: userContent,
           currentPrompt: currentPrompt
         }
       });
 
       if (error) throw new Error(error.message);
 
-      const aiMsg: Message = { 
-        id: (Date.now() + 1).toString(), 
-        role: 'assistant', 
-        content: data.message 
-      };
-      
-      setMessages(prev => [...prev, aiMsg]);
-
-      if (data.newPrompt) {
+      if (data && data.newPrompt) {
         onPromptUpdate(data.newPrompt);
         toast.success("Prompt atualizado pela IA!", {
           description: "Revise as alterações e clique em salvar.",
@@ -92,8 +120,7 @@ export function PromptOptimizerChat({ currentPrompt, onPromptUpdate }: PromptOpt
 
     } catch (error: any) {
       console.error(error);
-      toast.error("Erro ao processar solicitação.", { description: error.message });
-    } finally {
+      toast.error("Erro na comunicação.", { description: error.message });
       setIsLoading(false);
     }
   };
@@ -131,7 +158,7 @@ export function PromptOptimizerChat({ currentPrompt, onPromptUpdate }: PromptOpt
             <div
               key={msg.id}
               className={cn(
-                "flex w-full gap-2 max-w-[85%]", // Reduzi para 85% para evitar colar na borda
+                "flex w-full gap-2 max-w-[90%]",
                 msg.role === "user" ? "ml-auto flex-row-reverse" : ""
               )}
             >
@@ -142,10 +169,10 @@ export function PromptOptimizerChat({ currentPrompt, onPromptUpdate }: PromptOpt
               </Avatar>
               <div
                 className={cn(
-                  "p-3 rounded-lg text-sm overflow-hidden", // Adicionei overflow-hidden para garantir que o conteúdo não vaze
+                  "p-3 rounded-lg text-sm overflow-hidden shadow-sm",
                   msg.role === "user"
                     ? "bg-primary text-primary-foreground rounded-tr-none"
-                    : "bg-muted text-foreground rounded-tl-none"
+                    : "bg-muted text-foreground rounded-tl-none border"
                 )}
               >
                 <div className={cn(
@@ -161,8 +188,6 @@ export function PromptOptimizerChat({ currentPrompt, onPromptUpdate }: PromptOpt
                       ol: ({node, ...props}) => <ol className="list-decimal ml-4 mb-2" {...props} />,
                       li: ({node, ...props}) => <li className="mb-1" {...props} />,
                       code: ({node, ...props}) => <code className="bg-black/10 dark:bg-white/10 rounded px-1 py-0.5 font-mono text-xs break-all" {...props} />,
-                      // Alterado 'pre' para usar whitespace-pre-wrap e break-words em vez de overflow-x-auto
-                      // Isso faz com que blocos de código quebrem linha em vez de rolar ou cortar
                       pre: ({node, ...props}) => <pre className="bg-black/10 dark:bg-white/10 rounded p-2 my-2 font-mono text-xs whitespace-pre-wrap break-words" {...props} />,
                       strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
                     }}
@@ -177,7 +202,7 @@ export function PromptOptimizerChat({ currentPrompt, onPromptUpdate }: PromptOpt
           {isLoading && (
             <div className="flex w-full gap-2">
               <Avatar className="h-8 w-8"><AvatarFallback><Bot className="h-4 w-4" /></AvatarFallback></Avatar>
-              <div className="bg-muted p-3 rounded-lg rounded-tl-none flex items-center gap-2">
+              <div className="bg-muted p-3 rounded-lg rounded-tl-none flex items-center gap-2 border">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 <span className="text-xs text-muted-foreground">Analisando e otimizando...</span>
               </div>

@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
-// Headers CORS permissivos para evitar bloqueios no front-end
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -11,15 +10,12 @@ const corsHeaders = {
 const N8N_WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/assistente-prompt-viviane';
 
 serve(async (req) => {
-  // 1. Preflight CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    console.log("[optimize-prompt] Iniciando função...");
-
-    // 2. Validação de Auth
+    // 1. Configuração do Cliente Supabase
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) throw new Error('Authorization header missing')
 
@@ -31,47 +27,40 @@ serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
     if (authError || !user) {
-      console.error("[optimize-prompt] Erro de Auth:", authError);
-      return new Response(JSON.stringify({ error: 'Usuário não autenticado' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // 3. Cliente Admin
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 4. Dados da Organização
     const { data: profile } = await supabaseAdmin
       .from('perfis')
       .select('organization_id')
       .eq('id', user.id)
       .single()
 
-    if (!profile?.organization_id) throw new Error('Organização não encontrada')
+    if (!profile?.organization_id) throw new Error('Organization not found')
 
-    // 5. Parse Body
+    // 2. Parse da Requisição
     const { message, currentPrompt } = await req.json().catch(() => ({}));
-    if (!message) throw new Error('Mensagem obrigatória não fornecida')
+    if (!message) throw new Error('Message is required')
 
-    // 6. Salvar Histórico (User) - Sem await para não bloquear
+    // 3. Salvar mensagem do usuário (Fire and forget para não bloquear)
     supabaseAdmin.from('ai_prompt_chat_history').insert({
       organization_id: profile.organization_id,
       role: 'user',
       content: message
-    }).then(({ error }) => {
-      if (error) console.error('[optimize-prompt] Erro ao salvar histórico user:', error)
-    });
+    }).then();
 
-    // 7. Chamada ao N8N com Timeout Estendido (50 segundos)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 50000); // 50s Timeout
-
-    console.log(`[optimize-prompt] Chamando N8N (${N8N_WEBHOOK_URL})...`);
+    // 4. Chamada ao N8N
+    console.log(`Calling N8N: ${N8N_WEBHOOK_URL}`);
     
+    // Timeout de 55s (perto do limite de 60s das edge functions)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
+
     let response;
     try {
       response = await fetch(N8N_WEBHOOK_URL, {
@@ -86,74 +75,71 @@ serve(async (req) => {
         signal: controller.signal
       });
     } catch (fetchError) {
-      console.error("[optimize-prompt] Erro no fetch:", fetchError);
-      if (fetchError.name === 'AbortError') {
-        throw new Error('A IA demorou mais de 50 segundos para responder. Tente uma solicitação mais simples.');
-      }
-      throw fetchError;
+      console.error("N8N Fetch Error:", fetchError);
+      throw new Error(fetchError.name === 'AbortError' ? 'N8N Timeout (55s)' : `Connection Failed: ${fetchError.message}`);
     } finally {
       clearTimeout(timeoutId);
     }
 
-    // 8. Processamento da Resposta
-    const responseText = await response.text();
-    console.log(`[optimize-prompt] Status N8N: ${response.status}. Tamanho resp: ${responseText.length}`);
-
     if (!response.ok) {
-      throw new Error(`N8N retornou erro ${response.status}: ${responseText.substring(0, 200)}`);
+      const errText = await response.text();
+      throw new Error(`N8N Error ${response.status}: ${errText.substring(0, 200)}`);
     }
 
-    let aiResponse;
+    // 5. Processamento Robusto da Resposta
+    const responseText = await response.text();
+    console.log("N8N Response Length:", responseText.length);
+
+    let aiMessage = "";
+    let newPrompt = null;
+
     try {
-      aiResponse = JSON.parse(responseText);
+      // Tenta parsear JSON
+      const jsonResponse = JSON.parse(responseText);
+      
+      // Normaliza se for array
+      const data = Array.isArray(jsonResponse) ? jsonResponse[0] : jsonResponse;
+
+      // Busca conteúdo em todas as propriedades possíveis
+      aiMessage = 
+        data.output || 
+        data.message || 
+        data.response || 
+        data.text || 
+        data.content ||
+        (data.data && (data.data.output || data.data.message)) ||
+        (data.body && (data.body.output || data.body.message));
+
+      // Se não achou em nenhuma propriedade conhecida, mas é um objeto, stringify ele todo
+      if (!aiMessage && typeof data === 'object') {
+        console.warn("JSON structure unknown, saving full object.");
+        aiMessage = JSON.stringify(data, null, 2);
+      }
+
+      // Extrai novo prompt
+      newPrompt = data.new_prompt || data.newPrompt || (data.data && data.data.new_prompt);
+
     } catch (e) {
-      // Fallback para texto plano se não for JSON
+      // Se falhar o parse JSON, usa o texto puro se não for vazio
+      console.log("Not a JSON response, using raw text.");
       if (responseText && responseText.trim().length > 0) {
-        aiResponse = { message: responseText };
+        aiMessage = responseText;
       } else {
-        throw new Error('Resposta vazia ou inválida do N8N.');
+        aiMessage = "Erro: A IA retornou uma resposta vazia.";
       }
     }
 
-    // Normaliza array/objeto
-    let outputItem = Array.isArray(aiResponse) ? aiResponse[0] : aiResponse;
-    if (!outputItem) outputItem = {};
-
-    // Estratégia de busca da mensagem (várias chaves possíveis)
-    let aiMessage = 
-      outputItem.output || 
-      outputItem.message || 
-      outputItem.response || 
-      outputItem.text || 
-      outputItem.content ||
-      (outputItem.data ? (outputItem.data.output || outputItem.data.message) : null) ||
-      (outputItem.body ? (outputItem.body.output || outputItem.body.message) : null);
-
-    // Se for string direta
-    if (!aiMessage && typeof outputItem === 'string') {
-      aiMessage = outputItem;
-    }
-
-    if (!aiMessage) {
-      console.warn('[optimize-prompt] JSON recebido sem campo de mensagem conhecido:', JSON.stringify(outputItem).substring(0, 500));
-      aiMessage = "A IA processou a requisição mas não retornou texto. Verifique o fluxo no N8N.";
-    }
-
-    // Extrai novo prompt se houver
-    const newPrompt = 
-      outputItem.new_prompt || 
-      outputItem.newPrompt || 
-      (outputItem.data ? outputItem.data.new_prompt : null);
-
-    // 9. Salvar Histórico (IA)
-    await supabaseAdmin.from('ai_prompt_chat_history').insert({
+    // 6. Salva a resposta da IA no banco (CRUCIAL)
+    // Usamos await aqui para garantir que salve antes de retornar
+    const { error: saveError } = await supabaseAdmin.from('ai_prompt_chat_history').insert({
       organization_id: profile.organization_id,
       role: 'assistant',
-      content: typeof aiMessage === 'string' ? aiMessage : JSON.stringify(aiMessage)
+      content: aiMessage
     });
 
-    console.log("[optimize-prompt] Sucesso. Retornando resposta.");
+    if (saveError) console.error("Error saving AI response:", saveError);
 
+    // 7. Retorno para o frontend
     return new Response(JSON.stringify({ 
       success: true, 
       message: aiMessage,
@@ -164,12 +150,9 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[optimize-prompt] ERRO FATAL:', error);
-    
-    // Retorna 200 com flag de erro no JSON para o frontend tratar sem quebrar (evita CORS error do browser)
-    // ou 500 com headers CORS explícitos. Preferível 500 com headers.
+    console.error('Fatal Error:', error);
     return new Response(JSON.stringify({ 
-      error: error.message || 'Erro interno desconhecido.' 
+      error: error.message || 'Internal Server Error' 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
