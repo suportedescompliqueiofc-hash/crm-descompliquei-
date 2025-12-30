@@ -368,7 +368,7 @@ export function useDeleteMessage() {
       
       if (id_mensagem) {
         try {
-          await fetch('https://webhook.orbevision.shop/webhook/excluir-mensagem-odontonova', {
+          await fetch('', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
