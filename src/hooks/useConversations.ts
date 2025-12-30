@@ -364,28 +364,31 @@ export function useDeleteMessage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ messageId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
+    mutationFn: async ({ messageId, leadId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
       // Se for uma mensagem otimista (ID temporário), não tentamos excluir no banco de dados
-      // pois o ID 'temp-...' não é um UUID válido e causaria erro de sintaxe.
       if (messageId.startsWith('temp-')) {
         return messageId;
       }
       
+      // Chamar o webhook para excluir no WhatsApp via n8n
       if (id_mensagem) {
-        try {
-          await fetch('https://webhook.orbevision.shop/webhook/excluir-mensagem-viviane', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              id_mensagem: id_mensagem 
-            }),
-          });
-        } catch (webhookError) {
-          console.error('Falha ao enviar webhook de exclusão:', webhookError);
-          toast.warning('Mensagem excluída do sistema, mas pode não ter sido removida do WhatsApp.');
+        const response = await fetch('https://webhook.orbevision.shop/webhook/excluir-mensagem-viviane', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            id_mensagem: id_mensagem,
+            lead_id: leadId,
+            internal_message_id: messageId
+          }),
+        });
+
+        if (!response.ok) {
+          const errorMsg = await response.text();
+          throw new Error(`Falha ao excluir no WhatsApp: ${errorMsg}`);
         }
       }
 
+      // Excluir do banco de dados local
       const { error } = await supabase
         .from('mensagens')
         .delete()
