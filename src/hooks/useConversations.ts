@@ -365,36 +365,29 @@ export function useDeleteMessage() {
 
   return useMutation({
     mutationFn: async ({ messageId, leadId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
-      // Se for uma mensagem otimista (ID temporário), não tentamos excluir no banco de dados
+      // Se for uma mensagem otimista (ID temporário), não faz nada no backend
       if (messageId.startsWith('temp-')) {
         return messageId;
       }
       
-      // Chamar o webhook para excluir no WhatsApp via n8n
-      if (id_mensagem) {
-        const response = await fetch('https://webhook.orbevision.shop/webhook/excluir-mensagem-viviane', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            id_mensagem: id_mensagem,
-            lead_id: leadId,
-            internal_message_id: messageId
-          }),
-        });
-
-        if (!response.ok) {
-          const errorMsg = await response.text();
-          throw new Error(`Falha ao excluir no WhatsApp: ${errorMsg}`);
+      // Chama a Edge Function que lida com o webhook do n8n e a exclusão no banco
+      // Isso evita problemas de CORS que ocorrem ao chamar o n8n direto do browser
+      const { data, error } = await supabase.functions.invoke('delete-message', {
+        body: { 
+          messageId: messageId,
+          leadId: leadId,
+          id_mensagem: id_mensagem 
         }
+      });
+
+      if (error) {
+        throw new Error(error.message);
       }
 
-      // Excluir do banco de dados local
-      const { error } = await supabase
-        .from('mensagens')
-        .delete()
-        .eq('id', messageId);
+      if (data && data.error) {
+        throw new Error(data.error);
+      }
 
-      if (error) throw error;
       return messageId;
     },
     onMutate: async ({ messageId, leadId }) => {
