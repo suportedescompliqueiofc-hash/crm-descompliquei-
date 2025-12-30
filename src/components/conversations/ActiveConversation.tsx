@@ -145,7 +145,7 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
       }
     );
     try {
-      await fetch('https://webhook.orbevision.shop/webhook/ativar-desativar-odontonova', {
+      await fetch('https://webhook.orbevision.shop/webhook/ativar-desativar-viviane', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
