@@ -56,7 +56,7 @@ export function useConversationsList() {
           queryClient.invalidateQueries({ queryKey });
         }
       )
-      .on( 
+      .on( // Adiciona um listener para mudanças nas tags dos leads
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads_tags' },
         () => {
@@ -364,30 +364,29 @@ export function useDeleteMessage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ messageId, leadId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
-      // Se for uma mensagem otimista (ID temporário), não faz nada no backend
-      if (messageId.startsWith('temp-')) {
-        return messageId;
-      }
+    mutationFn: async ({ messageId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
       
-      // Chama a Edge Function que lida com o webhook do n8n e a exclusão no banco
-      // Isso evita problemas de CORS que ocorrem ao chamar o n8n direto do browser
-      const { data, error } = await supabase.functions.invoke('delete-message', {
-        body: { 
-          messageId: messageId,
-          leadId: leadId,
-          id_mensagem: id_mensagem 
+      if (id_mensagem) {
+        try {
+          await fetch('https://webhook.orbevision.shop/webhook/excluir-mensagem-vivianeteste', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              id_mensagem: id_mensagem 
+            }),
+          });
+        } catch (webhookError) {
+          console.error('Falha ao enviar webhook de exclusão:', webhookError);
+          toast.warning('Mensagem excluída do sistema, mas pode não ter sido removida do WhatsApp.');
         }
-      });
-
-      if (error) {
-        throw new Error(error.message);
       }
 
-      if (data && data.error) {
-        throw new Error(data.error);
-      }
+      const { error } = await supabase
+        .from('mensagens')
+        .delete()
+        .eq('id', messageId);
 
+      if (error) throw error;
       return messageId;
     },
     onMutate: async ({ messageId, leadId }) => {
