@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // URL do seu webhook no N8N
-const N8N_WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/assistente-prompt';
+const N8N_WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/assistente-prompt-viviane';
 
 serve(async (req) => {
   // Tratamento de CORS para requisições do navegador
