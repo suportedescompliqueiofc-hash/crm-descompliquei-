@@ -42,7 +42,6 @@ export function useConversationsList() {
   const orgId = profile?.organization_id;
   const queryKey = ['conversations', orgId];
 
-  // Mantemos um intervalo de segurança, mas aumentamos o tempo já que temos realtime
   const refetchInterval = 30000; 
 
   useEffect(() => {
@@ -50,7 +49,6 @@ export function useConversationsList() {
 
     const channel = supabase
       .channel('public:mensagens_list_realtime')
-      // Escuta novas mensagens para reordenar a lista e atualizar prévias
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'mensagens' }, 
@@ -58,7 +56,6 @@ export function useConversationsList() {
           queryClient.invalidateQueries({ queryKey });
         }
       )
-      // Escuta mudanças nas tags dos leads
       .on( 
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads_tags' },
@@ -66,7 +63,6 @@ export function useConversationsList() {
           queryClient.invalidateQueries({ queryKey });
         }
       )
-      // Escuta mudanças nos dados do lead (nome, telefone)
       .on( 
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads' },
@@ -132,7 +128,7 @@ export function useConversationsList() {
   });
 }
 
-// Hook para buscar mensagens (Já estava bom, mas mantive para consistência do arquivo)
+// Hook para buscar mensagens
 export function useMessages(leadId: string | null) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -319,13 +315,18 @@ export function useSendAudioMessage() {
 
       if (dbError) throw dbError;
 
-      await supabase
+      // Inserir anexo
+      const { data: attachmentData, error: attachmentError } = await supabase
         .from('message_attachments')
         .insert({
           message_id: message.id,
           file_path: filePath,
           file_type: 'audio'
-        });
+        })
+        .select()
+        .single();
+
+      if (attachmentError) throw attachmentError;
 
       try {
         const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-vivianebraga', {
@@ -360,7 +361,11 @@ export function useSendAudioMessage() {
         toast.error('Áudio salvo, mas houve erro no envio para o WhatsApp.');
       }
 
-      return message;
+      // Retorna a mensagem COMPLETA com o anexo para o onSuccess usar
+      return {
+        ...message,
+        message_attachments: [attachmentData]
+      } as Message;
     },
     onMutate: async ({ leadId, audioBlob }) => {
       await queryClient.cancelQueries({ queryKey: ['messages_v6', leadId] });
@@ -384,7 +389,7 @@ export function useSendAudioMessage() {
         message_attachments: [{
           id: `att-${tempId}`,
           message_id: tempId,
-          file_path: blobUrl, // AQUI: Passamos a URL do blob para o AudioMessage
+          file_path: blobUrl,
           file_type: 'audio'
         }]
       };
@@ -393,11 +398,25 @@ export function useSendAudioMessage() {
         old ? [...old, optimisticMessage] : [optimisticMessage]
       );
 
-      return { previousMessages };
+      // Retorna o tempId para o onSuccess poder removê-lo
+      return { previousMessages, tempId };
     },
-    onSuccess: (_, { leadId }) => {
-      // Sucesso garantido pelo realtime, mas invalidamos por segurança
-      // O realtime cuidará de substituir a mensagem temporária pela real
+    onSuccess: (data, { leadId }, context) => {
+      // Atualiza o cache substituindo a mensagem temporária pela real
+      queryClient.setQueryData(['messages_v6', leadId], (old: Message[] | undefined) => {
+        if (!old) return [data];
+        
+        // Remove a mensagem otimista específica usando o tempId do contexto
+        const filtered = old.filter(msg => msg.id !== context?.tempId);
+        
+        // Verifica se a mensagem real já existe (evita duplicação por realtime)
+        const exists = filtered.some(msg => msg.id === data.id);
+        
+        return exists ? filtered : [...filtered, data];
+      });
+      
+      // Invalida para garantir sincronia total
+      queryClient.invalidateQueries({ queryKey: ['messages_v6', leadId] });
     },
     onError: (err: any, variables, context) => {
       if (context?.previousMessages) {
