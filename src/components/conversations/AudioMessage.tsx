@@ -3,12 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { AudioPlayer } from './AudioPlayer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface AudioMessageProps {
   filePath: string;
+  variant?: 'incoming' | 'outgoing';
 }
 
-export function AudioMessage({ filePath }: AudioMessageProps) {
+export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessageProps) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<boolean>(false);
@@ -20,7 +22,7 @@ export function AudioMessage({ filePath }: AudioMessageProps) {
       return;
     }
 
-    // Suporte para Optimistic UI: Se for um blob local, usa diretamente
+    // Suporte para Optimistic UI
     if (filePath.startsWith('blob:')) {
       setAudioUrl(filePath);
       setIsLoading(false);
@@ -66,18 +68,23 @@ export function AudioMessage({ filePath }: AudioMessageProps) {
   }, [filePath]);
 
   if (isLoading) {
-    return <Skeleton className="w-64 h-10 rounded-md" />;
+    return (
+      <div className={cn("w-64 h-12 rounded-md flex items-center px-2", variant === 'outgoing' ? "bg-white/10" : "bg-muted/50")}>
+        <Skeleton className={cn("h-8 w-8 rounded-full mr-2", variant === 'outgoing' ? "bg-white/20" : "bg-muted-foreground/20")} />
+        <Skeleton className={cn("h-2 flex-1 rounded", variant === 'outgoing' ? "bg-white/20" : "bg-muted-foreground/20")} />
+      </div>
+    );
   }
 
   if (error || !audioUrl) {
-    // Fallback discreto em vez de mensagem de erro gigante
     return (
-      <div className="flex items-center gap-2 p-2 w-64 bg-muted/30 rounded-md text-xs text-muted-foreground border border-dashed">
-        <AlertCircle className="h-4 w-4 text-amber-500" />
+      <div className={cn("flex items-center gap-2 p-2 w-64 rounded-md text-xs border border-dashed", 
+        variant === 'outgoing' ? "bg-white/10 text-white/70 border-white/20" : "bg-muted/30 text-muted-foreground")}>
+        <AlertCircle className="h-4 w-4" />
         <span>Áudio indisponível</span>
       </div>
     );
   }
 
-  return <AudioPlayer audioUrl={audioUrl} />;
+  return <AudioPlayer audioUrl={audioUrl} variant={variant} />;
 }

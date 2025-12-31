@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 interface AudioPlayerProps {
   audioUrl: string;
+  variant?: 'incoming' | 'outgoing';
 }
 
 const formatTime = (time: number) => {
@@ -15,13 +16,15 @@ const formatTime = (time: number) => {
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
-export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
+export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [playbackRate, setPlaybackRate] = useState(1);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  const isOutgoing = variant === 'outgoing';
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -61,7 +64,6 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
     }
   }, [audioUrl]);
 
-  // Aplica a velocidade de reprodução sempre que o estado mudar
   useEffect(() => {
     if (audioRef.current) {
         audioRef.current.playbackRate = playbackRate;
@@ -97,7 +99,18 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
   return (
     <div className="flex items-center gap-2 w-64">
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
-      <Button onClick={togglePlay} size="icon" variant="ghost" className="flex-shrink-0 h-8 w-8 hover:bg-black/5 dark:hover:bg-white/10" disabled={isLoading}>
+      <Button 
+        onClick={togglePlay} 
+        size="icon" 
+        variant="ghost" 
+        className={cn(
+          "flex-shrink-0 h-8 w-8 transition-colors",
+          isOutgoing 
+            ? "text-primary-foreground hover:bg-white/20 hover:text-white" 
+            : "text-foreground hover:bg-black/5"
+        )} 
+        disabled={isLoading}
+      >
         {isLoading ? (
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : isPlaying ? (
@@ -106,6 +119,7 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
           <Play className="h-4 w-4 fill-current ml-0.5" />
         )}
       </Button>
+      
       <div className="flex-grow flex items-center gap-2">
         <Slider
           value={[currentTime]}
@@ -114,27 +128,45 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
           onValueChange={handleSliderChange}
           className={cn(
             "w-full",
-            // Estilos da trilha (barra de fundo)
-            "[&>span:first-child]:h-1 [&>span:first-child]:bg-muted-foreground/20",
-            // Estilos do preenchimento (barra de progresso)
-            "[&>span:first-child>span]:bg-destructive",
-            // Estilos do controle deslizante (thumb)
-            "[&>span[role=slider]]:h-3.5 [&>span[role=slider]]:w-3.5 [&>span[role=slider]]:border-2 [&>span[role=slider]]:border-warning [&>span[role=slider]]:bg-white"
+            // Estilização da barra de fundo (Track)
+            "[&>span:first-child]:h-1",
+            isOutgoing 
+              ? "[&>span:first-child]:bg-black/20" 
+              : "[&>span:first-child]:bg-muted-foreground/20",
+            
+            // Estilização do preenchimento (Range)
+            "[&>span:first-child>span]:bg-current",
+            isOutgoing ? "text-white" : "text-primary",
+            
+            // Estilização do botão (Thumb)
+            "[&>span[role=slider]]:h-3 [&>span[role=slider]]:w-3 [&>span[role=slider]]:border-0 [&>span[role=slider]]:shadow-sm",
+            isOutgoing
+               ? "[&>span[role=slider]]:bg-white"
+               : "[&>span[role=slider]]:bg-primary"
           )}
           disabled={isLoading || duration === 0}
         />
         
+        {/* Botão de Velocidade */}
         <Button
             variant="ghost"
             size="sm"
             onClick={toggleSpeed}
             disabled={isLoading}
-            className="h-6 px-2 text-[10px] font-medium rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 text-foreground/80 hover:text-foreground flex-shrink-0 min-w-[2.5rem] transition-all"
+            className={cn(
+                "h-6 px-2 text-[10px] font-medium rounded-full flex-shrink-0 min-w-[2.5rem] transition-all",
+                isOutgoing
+                    ? "bg-black/20 text-white hover:bg-black/30 hover:text-white" 
+                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+            )}
         >
             {playbackRate}x
         </Button>
 
-        <span className="text-[10px] text-muted-foreground font-mono w-9 text-right flex-shrink-0 tabular-nums">
+        <span className={cn(
+            "text-[10px] font-mono w-9 text-right flex-shrink-0 tabular-nums",
+            isOutgoing ? "text-white/80" : "text-muted-foreground"
+        )}>
             {formatTime(duration)}
         </span>
       </div>

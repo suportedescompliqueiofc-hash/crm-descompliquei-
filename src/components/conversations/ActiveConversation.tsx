@@ -18,7 +18,7 @@ import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AudioMessage } from "./AudioMessage";
 import { MediaMessage } from "./MediaMessage";
-import { FileMessage } from "./FileMessage"; // Importando o novo componente
+import { FileMessage } from "./FileMessage";
 import { NotificationMessage } from "./NotificationMessage";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -47,18 +47,17 @@ const DateSeparator = ({ dateString }: { dateString: string }) => {
   );
 };
 
-const AttachmentRenderer = ({ attachment }: { attachment: Attachment }) => {
+const AttachmentRenderer = ({ attachment, isOutgoing }: { attachment: Attachment; isOutgoing: boolean }) => {
   const type = attachment.file_type?.toLowerCase() || 'arquivo';
   const path = attachment.file_path;
   
-  if (type.includes('audio') || type.includes('áudio')) return <AudioMessage filePath={path} />;
+  if (type.includes('audio') || type.includes('áudio')) return <AudioMessage filePath={path} variant={isOutgoing ? 'outgoing' : 'incoming'} />;
   
   if (type.includes('imagem') || type.includes('image') || type.includes('foto') || type.includes('video')) {
     const mediaType = type.includes('video') ? 'video' : 'imagem';
     return <MediaMessage path={path} type={mediaType} />;
   }
 
-  // Tratamento específico para PDF e documentos
   if (type.includes('pdf') || type.includes('document') || type.includes('application')) {
     return <FileMessage path={path} fileName="Documento PDF" />;
   }
@@ -66,7 +65,7 @@ const AttachmentRenderer = ({ attachment }: { attachment: Attachment }) => {
   return <div className="p-2 bg-muted/20 border rounded text-xs text-muted-foreground mb-1 break-all">Anexo: {path}</div>;
 };
 
-const LegacyAttachmentRenderer = ({ content }: { content: string }) => {
+const LegacyAttachmentRenderer = ({ content, isOutgoing }: { content: string; isOutgoing: boolean }) => {
   const attachmentBlockIndex = content.toLowerCase().indexOf('attachments:');
   if (attachmentBlockIndex === -1) return null;
 
@@ -86,7 +85,7 @@ const LegacyAttachmentRenderer = ({ content }: { content: string }) => {
         const path = pathMatch[1].trim();
         const type = typeMatch[1].trim();
         const attachment: Attachment = { id: `legacy-${index}`, file_path: path, file_type: type as any };
-        return <AttachmentRenderer key={attachment.id} attachment={attachment} />;
+        return <AttachmentRenderer key={attachment.id} attachment={attachment} isOutgoing={isOutgoing} />;
       })}
     </div>
   );
@@ -135,7 +134,7 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
 
   useLayoutEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [messages, isRecordingMode]); // Scroll quando entrar no modo gravação também
+  }, [messages, isRecordingMode]);
 
   const handleAiToggle = async (checked: boolean) => {
     if (!lead) return;
@@ -206,7 +205,6 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
               <p className="font-semibold truncate">{lead?.nome || 'Carregando...'}</p>
               <p className="text-xs text-muted-foreground flex items-center gap-1 flex-shrink-0"><Phone className="h-3 w-3" />{lead?.telefone}</p>
             </div>
-            {/* Tag Manager Integrado */}
             {lead && <TagManager leadId={lead.id} />}
           </div>
         </div>
@@ -249,13 +247,12 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
               const msg = item as Message;
               const isOutgoing = msg.remetente === 'agente' || msg.remetente === 'bot';
               
-              // Lógica para áudios no formato antigo (caminho no 'conteudo')
               if (msg.tipo_conteudo === 'audio' && msg.conteudo && (!msg.message_attachments || msg.message_attachments.length === 0)) {
                 return (
                   <div key={msg.id} className={cn("group relative flex flex-col gap-1 py-1", isOutgoing ? "items-end" : "items-start")}>
                     <div className={cn("flex items-end gap-2", isOutgoing ? "flex-row-reverse" : "flex-row")}>
                       <div className={cn("max-w-[85%] md:max-w-md p-3 rounded-2xl relative", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border rounded-bl-none")}>
-                        <AudioMessage filePath={msg.conteudo} />
+                        <AudioMessage filePath={msg.conteudo} variant={isOutgoing ? 'outgoing' : 'incoming'} />
                         <p className="text-[10px] opacity-70 mt-1 text-right">{format(new Date(msg.criado_em), 'HH:mm')}</p>
                       </div>
                       {!isOutgoing ? (
@@ -294,8 +291,8 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
                 <div key={msg.id} className={cn("group relative flex flex-col gap-1 py-1", isOutgoing ? "items-end" : "items-start")}>
                   <div className={cn("flex items-end gap-2", isOutgoing ? "flex-row-reverse" : "flex-row")}>
                     <div className={cn("max-w-[85%] md:max-w-md p-3 rounded-2xl relative", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border rounded-bl-none")}>
-                      {hasNewAttachments && msg.message_attachments!.map(att => <AttachmentRenderer key={att.id} attachment={att} />)}
-                      {hasLegacyAttachments && <LegacyAttachmentRenderer content={msg.conteudo} />}
+                      {hasNewAttachments && msg.message_attachments!.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}
+                      {hasLegacyAttachments && <LegacyAttachmentRenderer content={msg.conteudo} isOutgoing={isOutgoing} />}
                       
                       {caption && <p className="text-sm whitespace-pre-wrap">{caption}</p>}
                       
