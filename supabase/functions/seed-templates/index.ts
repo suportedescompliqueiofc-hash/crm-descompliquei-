@@ -10,62 +10,62 @@ const templates = [
   { 
     nome: 'Confirmação de Consulta Jurídica', 
     categoria: 'Agendamento', 
-    conteudo: 'Prezado(a) {{nome_paciente}}, confirmamos sua consulta agendada com a Dra. Viviane Braga. Por favor, responda SIM para confirmar sua presença. Caso precise reagendar, nos avise com antecedência.', 
-    variaveis: ['nome_paciente'] 
+    conteudo: 'Prezado(a) {{nome_lead}}, confirmamos sua consulta agendada com a Dra. Viviane Braga. Por favor, responda SIM para confirmar sua presença. Caso precise reagendar, nos avise com antecedência.', 
+    variaveis: ['nome_lead'] 
   },
   { 
     nome: 'Solicitação de Documentos', 
     categoria: 'Andamento Processual', 
-    conteudo: 'Olá, {{nome_paciente}}. Para darmos continuidade à análise do seu caso, precisamos que nos envie foto ou PDF dos seguintes documentos: RG, CPF e Comprovante de Residência. Pode enviar por aqui mesmo?', 
-    variaveis: ['nome_paciente'] 
+    conteudo: 'Olá, {{nome_lead}}. Para darmos continuidade à análise do seu caso, precisamos que nos envie foto ou PDF dos seguintes documentos: RG, CPF e Comprovante de Residência. Pode enviar por aqui mesmo?', 
+    variaveis: ['nome_lead'] 
   },
   { 
     nome: 'Atualização do Processo', 
     categoria: 'Andamento Processual', 
-    conteudo: 'Olá, {{nome_paciente}}. Temos uma atualização importante sobre o andamento do seu processo. Gostaria de agendar uma breve ligação ou visita ao escritório para explicarmos os detalhes?', 
-    variaveis: ['nome_paciente'] 
+    conteudo: 'Olá, {{nome_lead}}. Temos uma atualização importante sobre o andamento do seu processo. Gostaria de agendar uma breve ligação ou visita ao escritório para explicarmos os detalhes?', 
+    variaveis: ['nome_lead'] 
   },
   { 
     nome: 'Boas-vindas ao Escritório', 
     categoria: 'Boas-vindas', 
-    conteudo: 'Seja bem-vindo(a) à {{nome_clinica}}. Agradecemos a confiança. Nossa equipe já está analisando o seu caso e entraremos em contato em breve com os próximos passos.', 
-    variaveis: ['nome_clinica'] 
+    conteudo: 'Seja bem-vindo(a) à {{nome_escritorio}}. Agradecemos a confiança. Nossa equipe já está analisando o seu caso e entraremos em contato em breve com os próximos passos.', 
+    variaveis: ['nome_escritorio'] 
   },
   { 
     nome: 'Proposta de Honorários', 
     categoria: 'Comercial', 
-    conteudo: 'Olá, {{nome_paciente}}. Conforme conversamos, segue em anexo a proposta de honorários advocatícios para sua apreciação. Estamos à disposição para esclarecer qualquer dúvida.', 
-    variaveis: ['nome_paciente'] 
+    conteudo: 'Olá, {{nome_lead}}. Conforme conversamos, segue em anexo a proposta de honorários advocatícios para sua apreciação. Estamos à disposição para esclarecer qualquer dúvida.', 
+    variaveis: ['nome_lead'] 
   },
   { 
     nome: 'Retorno sobre Contato', 
     categoria: 'Comercial', 
-    conteudo: 'Olá, {{nome_paciente}}. Recebemos seu contato sobre {{queixa_principal}} e gostaríamos de entender melhor sua situação para orientá-lo(a) juridicamente. Qual o melhor horário para falarmos?', 
-    variaveis: ['nome_paciente', 'queixa_principal'] 
+    conteudo: 'Olá, {{nome_lead}}. Recebemos seu contato sobre {{queixa_principal}} e gostaríamos de entender melhor sua situação para orientá-lo(a) juridicamente. Qual o melhor horário para falarmos?', 
+    variaveis: ['nome_lead', 'queixa_principal'] 
   },
   { 
     nome: 'Lembrete de Vencimento', 
     categoria: 'Financeiro', 
-    conteudo: 'Prezado(a) {{nome_paciente}}, este é um lembrete cordial sobre o vencimento da parcela dos honorários amanhã. Caso já tenha efetuado o pagamento, por favor, desconsidere esta mensagem.', 
-    variaveis: ['nome_paciente'] 
+    conteudo: 'Prezado(a) {{nome_lead}}, este é um lembrete cordial sobre o vencimento da parcela dos honorários amanhã. Caso já tenha efetuado o pagamento, por favor, desconsidere esta mensagem.', 
+    variaveis: ['nome_lead'] 
   },
   { 
     nome: 'Aniversário do Cliente', 
     categoria: 'Relacionamento', 
-    conteudo: 'Feliz aniversário, {{nome_paciente}}! A equipe da {{nome_clinica}} deseja a você um novo ciclo repleto de saúde, paz e justiça. Parabéns!', 
-    variaveis: ['nome_paciente', 'nome_clinica'] 
+    conteudo: 'Feliz aniversário, {{nome_lead}}! A equipe da {{nome_escritorio}} deseja a você um novo ciclo repleto de saúde, paz e justiça. Parabéns!', 
+    variaveis: ['nome_lead', 'nome_escritorio'] 
   },
   { 
     nome: 'Reativação de Contato', 
     categoria: 'Retenção', 
-    conteudo: 'Olá, {{nome_paciente}}. Faz {{dias_sem_contato}} dias que não nos falamos. Gostaria de saber se ainda precisa de assistência jurídica em relação ao seu caso. Estamos à disposição.', 
-    variaveis: ['nome_paciente', 'dias_sem_contato'] 
+    conteudo: 'Olá, {{nome_lead}}. Faz {{dias_sem_contato}} dias que não nos falamos. Gostaria de saber se ainda precisa de assistência jurídica em relação ao seu caso. Estamos à disposição.', 
+    variaveis: ['nome_lead', 'dias_sem_contato'] 
   },
   { 
     nome: 'Pesquisa de Satisfação', 
     categoria: 'Qualidade', 
-    conteudo: 'Olá, {{nome_paciente}}. Sua opinião é fundamental para aprimorarmos nosso atendimento jurídico. Em uma escala de 0 a 10, como você avalia nossos serviços até o momento?', 
-    variaveis: ['nome_paciente'] 
+    conteudo: 'Olá, {{nome_lead}}. Sua opinião é fundamental para aprimorarmos nosso atendimento jurídico. Em uma escala de 0 a 10, como você avalia nossos serviços até o momento?', 
+    variaveis: ['nome_lead'] 
   }
 ];
 
@@ -84,7 +84,6 @@ serve(async (req) => {
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (!user) throw new Error('Usuário não encontrado');
 
-    // Busca o perfil do usuário para obter o ID da organização
     const { data: profile, error: profileError } = await supabaseClient
       .from('perfis')
       .select('organization_id')
@@ -96,7 +95,6 @@ serve(async (req) => {
 
     const orgId = profile.organization_id;
 
-    // Adiciona o ID do usuário e da organização a cada template
     const templatesWithIds = templates.map(t => ({ 
       ...t, 
       usuario_id: user.id,

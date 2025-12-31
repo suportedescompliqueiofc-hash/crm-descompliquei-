@@ -26,7 +26,7 @@ const personalizeMessage = (template: string, lead: any, clinicName: string): st
 
   const variables = {
     primeiro_nome: lead.nome ? lead.nome.split(' ')[0] : '',
-    nome_paciente: lead.nome,
+    nome_lead: lead.nome,
     telefone: lead.telefone,
     email: lead.email,
     queixa_principal: lead.queixa_principal,
@@ -34,14 +34,23 @@ const personalizeMessage = (template: string, lead: any, clinicName: string): st
     data_ultimo_contato: lastContactDate,
     idade: lead.idade,
     genero: lead.genero,
-    nome_clinica: clinicName,
+    nome_escritorio: clinicName,
     dias_sem_contato: daysSinceLastContact.toString(),
   };
 
-  for (const key in variables) {
-    if (variables[key] !== null && variables[key] !== undefined) {
+  // Suporte a nomes antigos para retrocompatibilidade temporária se necessário
+  // mas aqui focamos no novo padrão
+  const legacyVariables = {
+      nome_paciente: lead.nome,
+      nome_clinica: clinicName
+  };
+
+  const allVars = { ...legacyVariables, ...variables };
+
+  for (const key in allVars) {
+    if (allVars[key] !== null && allVars[key] !== undefined) {
       const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-      message = message.replace(regex, String(variables[key]));
+      message = message.replace(regex, String(allVars[key]));
     }
   }
   return message;
@@ -85,13 +94,12 @@ serve(async (req) => {
     if (settingsError) {
       console.warn('Could not fetch clinic name. Using default.');
     }
-    const clinicName = clinicSettings?.nome || 'sua clínica';
+    const clinicName = clinicSettings?.nome || 'seu escritório';
 
     let targetedLeads = [];
 
     // 2. Determina os leads alvo
     if (campaign.targeted_lead_ids && Array.isArray(campaign.targeted_lead_ids) && campaign.targeted_lead_ids.length > 0) {
-      // Lógica nova: Usa a lista explícita de IDs
       const { data, error } = await supabaseAdmin
         .from('leads')
         .select('*')
@@ -99,7 +107,6 @@ serve(async (req) => {
       if (error) throw error;
       targetedLeads = data;
     } else {
-      // Lógica de fallback: Filtra com base na configuração de segmento
       const { data: allLeads, error: leadsError } = await supabaseAdmin.from('leads').select('*');
       if (leadsError) throw leadsError;
       const { data: allStages, error: stagesError } = await supabaseAdmin.from('etapas').select('*');
@@ -162,7 +169,6 @@ serve(async (req) => {
         whatsapp: lead.telefone,
         message: message,
         mediaUrl: mediaPublicUrl,
-        // Dados extras para salvar a mensagem no banco de dados via n8n
         lead_id: lead.id,
         user_id: campaign.usuario_id,
         media_path: campaign.media_url,
@@ -180,13 +186,11 @@ serve(async (req) => {
         console.error(`Falha ao enviar webhook para o lead ${lead.id}:`, e.message);
       }
       
-      // Atualiza a contagem de envios em tempo real
       await supabaseAdmin
         .from('campanhas')
         .update({ contagem_enviados: sentCount })
         .eq('id', campaignId);
 
-      // Aguarda 1 segundo
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
 

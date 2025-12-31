@@ -21,7 +21,7 @@ import { toast } from "sonner";
 
 const availableVariables = [
   "primeiro_nome",
-  "nome_paciente",
+  "nome_lead",
   "telefone",
   "email",
   "queixa_principal",
@@ -29,7 +29,7 @@ const availableVariables = [
   "data_ultimo_contato",
   "idade",
   "genero",
-  "nome_clinica",
+  "nome_escritorio",
   "dias_sem_contato",
 ];
 
@@ -233,7 +233,7 @@ export function TemplateManager() {
               <Textarea
                 value={formData.conteudo}
                 onChange={(e) => setFormData({ ...formData, conteudo: e.target.value })}
-                placeholder="Digite a mensagem usando variáveis como {{nome_paciente}}..."
+                placeholder="Digite a mensagem usando variáveis como {{nome_lead}}..."
                 rows={8}
                 className="font-mono text-sm"
               />

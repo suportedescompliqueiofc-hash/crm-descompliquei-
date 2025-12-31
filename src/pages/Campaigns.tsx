@@ -58,7 +58,7 @@ import { DateRangePicker } from "@/components/reports/DateRangePicker";
 
 const availableVariables = [
   "primeiro_nome",
-  "nome_paciente",
+  "nome_lead",
   "telefone",
   "email",
   "queixa_principal",
@@ -66,7 +66,7 @@ const availableVariables = [
   "data_ultimo_contato",
   "idade",
   "genero",
-  "nome_clinica",
+  "nome_escritorio",
   "dias_sem_contato",
 ];
 
@@ -342,7 +342,7 @@ export default function Campaigns() {
                       <Label htmlFor="message">Mensagem da Campanha (Legenda) *</Label>
                       <Textarea 
                         id="message" 
-                        placeholder="Digite sua mensagem aqui. Use variáveis como {{nome_paciente}}..."
+                        placeholder="Digite sua mensagem aqui. Use variáveis como {{nome_lead}}..."
                         className="mt-1.5 min-h-[150px]"
                         value={newCampaign.template_mensagem}
                         onChange={e => setNewCampaign({...newCampaign, template_mensagem: e.target.value})}
