@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -126,7 +126,61 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
   const [isRecordingMode, setIsRecordingMode] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const groupedMessages = messages ? groupMessagesByDay(messages) : [];
+
+  // Lógica de Desduplicação de Mensagens
+  const processedMessages = useMemo(() => {
+    if (!messages) return [];
+    
+    const res: Message[] = [];
+    const seenIds = new Set<string>();
+    
+    // Ordena para garantir sequência temporal correta (antigas primeiro)
+    const sorted = [...messages].sort((a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime());
+
+    for (let i = 0; i < sorted.length; i++) {
+      const msg = sorted[i];
+      
+      // 1. Verificação básica de ID duplicado
+      if (seenIds.has(msg.id)) continue;
+      
+      // 2. Lógica específica para desduplicar áudios próximos (Optimistic vs Real ou Duplicatas do Banco)
+      if (msg.tipo_conteudo === 'audio') {
+        const lastMsg = res[res.length - 1];
+        
+        // Se a mensagem anterior for um áudio do mesmo remetente
+        if (lastMsg && 
+            lastMsg.tipo_conteudo === 'audio' && 
+            lastMsg.remetente === msg.remetente) {
+            
+            const t1 = new Date(lastMsg.criado_em).getTime();
+            const t2 = new Date(msg.criado_em).getTime();
+            
+            // Se a diferença for menor que 3 segundos, consideramos duplicata
+            if (Math.abs(t2 - t1) < 3000) {
+               // Prioridade: Manter a mensagem Real (ID UUID) sobre a Temporária (ID 'temp-')
+               if (lastMsg.id.startsWith('temp-') && !msg.id.startsWith('temp-')) {
+                   // Remove a anterior (temp) e adiciona a atual (real)
+                   res.pop();
+                   seenIds.delete(lastMsg.id); // Opcional, já que não vamos reprocessar
+                   res.push(msg);
+                   seenIds.add(msg.id);
+                   continue;
+               }
+               
+               // Se ambas são reais ou ambas temp, ignora a segunda (atual)
+               continue;
+            }
+        }
+      }
+      
+      seenIds.add(msg.id);
+      res.push(msg);
+    }
+    
+    return res;
+  }, [messages]);
+
+  const groupedMessages = processedMessages.length > 0 ? groupMessagesByDay(processedMessages) : [];
 
   useEffect(() => {
     if (lead) setIsAiActive(lead.ia_ativa ?? true);
@@ -134,7 +188,7 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
 
   useLayoutEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [messages, isRecordingMode]);
+  }, [processedMessages, isRecordingMode]); // Atualizado para observar processedMessages
 
   const handleAiToggle = async (checked: boolean) => {
     if (!lead) return;
