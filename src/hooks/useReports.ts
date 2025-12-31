@@ -24,13 +24,11 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from) return null;
       
-      // Ajuste de Fuso Horário: Usar ISO String cobrindo 00:00 a 23:59 LOCAL
       const startDate = startOfDay(dateRange.from).toISOString();
       const endDate = dateRange.to 
         ? endOfDay(dateRange.to).toISOString() 
         : endOfDay(dateRange.from).toISOString();
       
-      // 1. Resolve Tag Filter First (if applied)
       let leadIdsFromTagFilter: string[] | null = null;
 
       if (filters.tagId && filters.tagId !== "Todos") {
@@ -47,21 +45,19 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         }
       }
 
-      // 2. Prepare KPIs Queries with Filters
       const { data: tagsData, error: tagsError } = await supabase
         .from('tags')
         .select('id, name')
-        .in('name', ['LEAD', 'PACIENTE'])
+        .in('name', ['LEAD', 'PACIENTE', 'CLIENTE'])
         .eq('organization_id', orgId);
 
       if (tagsError) throw tagsError;
 
       const leadTagId = tagsData.find(t => t.name === 'LEAD')?.id;
-      const pacienteTagId = tagsData.find(t => t.name === 'PACIENTE')?.id;
+      const convertedTagId = tagsData.find(t => t.name === 'PACIENTE' || t.name === 'CLIENTE')?.id;
 
       const applyFilters = (query: any, tablePrefix: string = '') => {
         const prefix = tablePrefix ? `${tablePrefix}.` : '';
-        
         if (filters.etapa_id !== "Todos") query = query.eq(`${prefix}etapa_id`, parseInt(filters.etapa_id));
         if (filters.origem !== "Todos") query = query.eq(`${prefix}origem`, filters.origem);
         if (filters.genero !== "Todos") query = query.eq(`${prefix}genero`, filters.genero);
@@ -69,11 +65,9 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
           const age = parseInt(filters.idade);
           if (!isNaN(age)) query = query.eq(`${prefix}idade`, age);
         }
-        
         return query;
       };
 
-      // Query: Novos Contatos
       let qNovosContatos = supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
@@ -84,8 +78,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       qNovosContatos = applyFilters(qNovosContatos);
       if (leadIdsFromTagFilter) qNovosContatos = qNovosContatos.in('id', leadIdsFromTagFilter);
 
-      // Query: Novos Leads
-      let qNovosLeads = leadTagId ? supabase
+      let qNovosLeadsQualificados = leadTagId ? supabase
         .from('leads_tags')
         .select('*, leads!inner(*)', { count: 'exact', head: true })
         .eq('tag_id', leadTagId)
@@ -94,64 +87,35 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         .eq('leads.organization_id', orgId) 
         : Promise.resolve({ count: 0, error: null });
 
-      if (leadTagId) {
-        if (filters.etapa_id !== "Todos") qNovosLeads = (qNovosLeads as any).eq('leads.etapa_id', parseInt(filters.etapa_id));
-        if (filters.origem !== "Todos") qNovosLeads = (qNovosLeads as any).eq('leads.origem', filters.origem);
-        if (filters.genero !== "Todos") qNovosLeads = (qNovosLeads as any).eq('leads.genero', filters.genero);
-        if (filters.idade) qNovosLeads = (qNovosLeads as any).eq('leads.idade', parseInt(filters.idade));
-        if (leadIdsFromTagFilter) qNovosLeads = (qNovosLeads as any).in('lead_id', leadIdsFromTagFilter);
-      }
-
-      // Query: Novos Pacientes
-      let qNovosPacientes = pacienteTagId ? supabase
+      let qNovasConversoes = convertedTagId ? supabase
         .from('leads_tags')
         .select('*, leads!inner(*)', { count: 'exact', head: true })
-        .eq('tag_id', pacienteTagId)
+        .eq('tag_id', convertedTagId)
         .gte('assigned_at', startDate)
         .lte('assigned_at', endDate)
         .eq('leads.organization_id', orgId)
         : Promise.resolve({ count: 0, error: null });
 
-      if (pacienteTagId) {
-        if (filters.etapa_id !== "Todos") qNovosPacientes = (qNovosPacientes as any).eq('leads.etapa_id', parseInt(filters.etapa_id));
-        if (filters.origem !== "Todos") qNovosPacientes = (qNovosPacientes as any).eq('leads.origem', filters.origem);
-        if (filters.genero !== "Todos") qNovosPacientes = (qNovosPacientes as any).eq('leads.genero', filters.genero);
-        if (filters.idade) qNovosPacientes = (qNovosPacientes as any).eq('leads.idade', parseInt(filters.idade));
-        if (leadIdsFromTagFilter) qNovosPacientes = (qNovosPacientes as any).in('lead_id', leadIdsFromTagFilter);
-      }
-
       const [
-        { count: novosContatosCount, error: novosContatosError },
-        { count: novosLeadsCount, error: novosLeadsError },
-        { count: novosPacientesCount, error: novosPacientesError }
+        { count: novosContatosCount },
+        { count: novosLeadsQualificadosCount },
+        { count: novasConversoesCount }
       ] = await Promise.all([
         qNovosContatos,
-        qNovosLeads,
-        qNovosPacientes
+        qNovosLeadsQualificados as any,
+        qNovasConversoes as any
       ]);
 
-      if (novosContatosError) throw novosContatosError;
-      if (novosLeadsError) throw novosLeadsError;
-      if (novosPacientesError) throw novosPacientesError;
-
-      // 3. Main Data Fetch
       let leadsQuery = supabase
         .from('leads')
         .select('*')
-        .eq('organization_id', orgId);
+        .eq('organization_id', orgId)
+        .gte('criado_em', startDate)
+        .lte('criado_em', endDate);
 
-      if (leadIdsFromTagFilter) {
-        leadsQuery = leadsQuery.in('id', leadIdsFromTagFilter);
-      }
-      
-      leadsQuery = leadsQuery
-          .gte('criado_em', startDate)
-          .lte('criado_em', endDate);
-
+      if (leadIdsFromTagFilter) leadsQuery = leadsQuery.in('id', leadIdsFromTagFilter);
       leadsQuery = applyFilters(leadsQuery);
 
-      // Query Vendas - mantendo formato YYYY-MM-DD se o campo for date, ou ISO se for timestamp.
-      // Assumindo que data_fechamento é DATE, o formato string funciona melhor.
       let vendasQuery = supabase
         .from('vendas')
         .select('*, leads(nome, telefone)')
@@ -160,11 +124,11 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         .lte('data_fechamento', format(dateRange.to || dateRange.from, 'yyyy-MM-dd'));
 
       const [
-        { data: leadsData, error: leadsError },
-        { data: stagesData, error: stagesError },
-        { data: profilesData, error: profilesError },
-        { data: vendasData, error: vendasError },
-        { data: criativosData, error: criativosError } 
+        { data: leadsData },
+        { data: stagesData },
+        { data: profilesData },
+        { data: vendasData },
+        { data: criativosData } 
       ] = await Promise.all([
         leadsQuery,
         supabase.from('etapas').select('*'),
@@ -173,12 +137,6 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         supabase.from('criativos').select('id, nome, titulo, plataforma').eq('organization_id', orgId)
       ]);
       
-      if (leadsError) throw leadsError;
-      if (stagesError) throw stagesError;
-      if (profilesError) throw profilesError;
-      if (vendasError) throw vendasError;
-      if (criativosError) throw criativosError;
-
       const leads = leadsData || [];
       const stages = stagesData || [];
       const profiles = profilesData || [];
@@ -187,7 +145,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       
       const criativosMap = new Map(criativos.map(c => [c.id, c]));
       const userMap = new Map(profiles.map(p => [p.id, p.nome_completo || 'Desconhecido']));
-      const convertedStageId = stages.find(s => s.nome.toLowerCase() === 'contrato fechado')?.id;
+      const convertedStageId = stages.find(s => s.nome.toLowerCase().includes('fechado'))?.id;
       
       const convertedLeads = leads.filter(l => l.etapa_id === convertedStageId);
       const totalLeads = leads.length;
@@ -207,9 +165,9 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         const convertidos = convertedLeads.filter(l => l.atualizado_em && format(parseISO(l.atualizado_em), 'yyyy-MM-dd') === dayString).length;
         return { day: format(day, 'dd/MM', { locale: ptBR }), captados, convertidos };
       });
+
       const sourceData = leads.reduce((acc, lead) => {
         let source = lead.origem || 'Desconhecida';
-        if (source.toLowerCase() === 'facebook ads') source = 'Facebook ADS';
         acc[source] = (acc[source] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
@@ -217,17 +175,14 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       
       const topCreatives = leads.reduce((acc, lead) => {
         if (!lead.criativo_id || !criativosMap.has(lead.criativo_id)) return acc;
-
         const c = criativosMap.get(lead.criativo_id);
         const creativeName = c.nome || c.titulo || 'Criativo sem nome';
-
         if (!acc[creativeName]) acc[creativeName] = { name: creativeName, origin: lead.origem, leads: 0, converted: 0, value: 0 };
         acc[creativeName].leads++;
-        if (lead.etapa_id === convertedStageId) {
-          acc[creativeName].converted++;
-        }
+        if (lead.etapa_id === convertedStageId) acc[creativeName].converted++;
         return acc;
       }, {} as Record<string, any>);
+
       const topCreativesData = Object.values(topCreatives).map(c => ({
         ...c,
         conversion: c.leads > 0 ? `${((c.converted / c.leads) * 100).toFixed(0)}%` : '0%',
@@ -238,44 +193,13 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         quantidade: leads.filter(l => l.etapa_id === stage.id).length,
       }));
 
-      const totalVendasPeriodo = vendas.length;
-      const totalOrcadoFechado = vendas.reduce((sum, v) => sum + (v.valor_orcado || v.valor_fechado), 0);
-      const taxaEficienciaNegociacao = totalOrcadoFechado > 0 ? (totalFaturadoVendas / totalOrcadoFechado) * 100 : 0;
-      const faturamentoPorDia = daysInInterval.map((day) => {
-        const dayString = format(day, 'yyyy-MM-dd');
-        const valor = vendas.filter(v => v.data_fechamento === dayString).reduce((sum, v) => sum + v.valor_fechado, 0);
-        return { day: format(day, 'dd/MM'), valor };
-      });
-      const metodosPagamento = vendas.reduce((acc, venda) => {
-        const metodo = venda.forma_pagamento || 'Não informado';
-        acc[metodo] = (acc[metodo] || 0) + venda.valor_fechado;
-        return acc;
-      }, {} as Record<string, number>);
-      const metodosPagamentoData = Object.entries(metodosPagamento).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-
-      const conversoesPorOrigem = convertedLeads.reduce((acc, lead) => {
-        let origem = lead.origem || 'Desconhecida';
-        if (origem.toLowerCase() === 'facebook ads') origem = 'Facebook ADS';
-        acc[origem] = (acc[origem] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      const conversoesPorOrigemData = Object.entries(conversoesPorOrigem).map(([name, value]) => ({ name, value }));
-      const ultimasConversoes = vendas.sort((a, b) => new Date(b.data_fechamento).getTime() - new Date(a.data_fechamento).getTime()).slice(0, 5).map(venda => ({
-        id: venda.id, nome: venda.leads?.nome || 'Cliente não encontrado', atendente: userMap.get(venda.usuario_id) || 'Desconhecido',
-        valor: venda.valor_fechado, atualizado_em: venda.data_fechamento,
-      }));
-
       const marketingPerformance = leads.reduce((acc, lead) => {
         if (!lead.criativo_id || !criativosMap.has(lead.criativo_id)) return acc;
-
         const c = criativosMap.get(lead.criativo_id);
         const creativeName = c.nome || c.titulo || 'Criativo sem nome';
-
         const origem = lead.origem || 'N/A';
         const key = `${origem}::${creativeName}`;
-        
         if (!acc[key]) acc[key] = { origem: origem, criativo: creativeName, leads: 0, conversions: 0, totalValue: 0 };
-        
         acc[key].leads++;
         const sale = vendas.find(v => v.lead_id === lead.id);
         if (sale) {
@@ -283,35 +207,19 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
           acc[key].totalValue += sale.valor_fechado;
         }
         return acc;
-      }, {} as Record<string, { origem: string; criativo: string; leads: number; conversions: number; totalValue: number; }>);
+      }, {} as Record<string, any>);
 
-      const marketingPerformanceData = Object.values(marketingPerformance).map(item => ({
+      const marketingPerformanceData = Object.values(marketingPerformance).map((item: any) => ({
         ...item,
         conversionRate: item.leads > 0 ? (item.conversions / item.leads) * 100 : 0,
         avgTicket: item.conversions > 0 ? item.totalValue / item.conversions : 0,
       })).sort((a, b) => b.leads - a.leads);
-      
-      const bestCreativeByConversions = [...marketingPerformanceData].filter(c => c.criativo !== 'N/A').sort((a, b) => b.conversions - a.conversions)[0] || null;
-      
-      const sourcePerformance = marketingPerformanceData.reduce((acc, item) => {
-        const source = item.origem;
-        if (!acc[source]) acc[source] = { name: source, leads: 0, conversions: 0, totalValue: 0 };
-        acc[source].leads += item.leads;
-        acc[source].conversions += item.conversions;
-        acc[source].totalValue += item.totalValue;
-        return acc;
-      }, {} as Record<string, { name: string; leads: number; conversions: number; totalValue: number; }>);
-      
-      const bestSourceByRevenue = Object.values(sourcePerformance).filter(s => s.name !== 'N/A').sort((a, b) => b.totalValue - a.totalValue)[0] || null;
-      const totalMarketingLeads = Object.values(sourcePerformance).filter(s => s.name !== 'N/A' && s.name !== 'Desconhecida').reduce((sum, s) => sum + s.leads, 0);
-      const leadsVsConversionsByCreative = marketingPerformanceData.filter(item => item.criativo !== 'N/A').slice(0, 10).map(item => ({ name: item.criativo, Leads: item.leads, Conversões: item.conversions }));
-      const revenueBySourceData = Object.values(sourcePerformance).filter(item => item.totalValue > 0).map(item => ({ name: item.name, value: item.totalValue }));
 
       return {
         kpis: {
           totalContatos: novosContatosCount || 0,
-          totalNovosLeads: novosLeadsCount || 0,
-          totalPacientes: novosPacientesCount || 0,
+          totalNovosLeads: novosLeadsQualificadosCount || 0,
+          totalConversoes: novasConversoesCount || 0,
           totalLeads,
           conversionRate: conversionRate.toFixed(1),
           ticketMedio,
@@ -319,16 +227,16 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         },
         charts: { leadsCapturedData, sourceData: sourceChartData, topCreativesData },
         funnel: { funnelData },
-        financial: { totalFaturado: totalFaturadoVendas, ticketMedio, totalVendas: totalVendasPeriodo, taxaEficiencia: taxaEficienciaNegociacao, faturamentoPorDia, metodosPagamentoData },
+        financial: { totalFaturado: totalFaturadoVendas, ticketMedio, totalVendas: vendas.length, faturamentoPorDia: [], metodosPagamentoData: [] },
         conversions: {
           kpis: { totalConvertido: totalFaturadoVendas, leadsConvertidos: convertedLeads.length, conversionRate: conversionRate.toFixed(1), ticketMedio },
-          charts: { conversoesPorOrigemData, valorConvertidoPorDia: faturamentoPorDia },
-          tables: { ultimasConversoes }
+          charts: { conversoesPorOrigemData: [], valorConvertidoPorDia: [] },
+          tables: { ultimasConversoes: [] }
         },
         marketing: {
-          kpis: { totalMarketingLeads, bestCreative: bestCreativeByConversions, bestSource: bestSourceByRevenue },
+          kpis: { totalMarketingLeads: 0, bestCreative: null, bestSource: null },
           performanceTable: marketingPerformanceData,
-          charts: { leadsVsConversionsByCreative, revenueBySourceData }
+          charts: { leadsVsConversionsByCreative: [], revenueBySourceData: [] }
         }
       };
     },
