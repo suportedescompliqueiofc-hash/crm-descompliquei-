@@ -62,7 +62,7 @@ const toSupabaseTimestamp = (displayDate: string): string | undefined => {
 const cleanPhoneNumber = (phone: string): string => phone.replace(/\D/g, '');
 
 const initialFormData = {
-  nome: "", telefone: "", queixa_principal: "", resumo: "", origem: "",
+  nome: "", telefone: "", resumo: "", origem: "",
   etapa_id: 1, status: "Ativo", email: "", cpf: "", idade: "",
   genero: "", endereco: "", 
   criativo_id: "none", // ID do criativo selecionado
@@ -89,7 +89,6 @@ const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[
           {lead.email && <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /><span>{lead.email}</span></div>}
           {lead.origem && <div className="flex items-center gap-2"><Tag className="h-4 w-4 text-muted-foreground" /><span>{lead.origem}</span></div>}
           {creativeName && <div className="flex items-center gap-2 col-span-2 md:col-span-1"><Tag className="h-4 w-4 text-muted-foreground" /><span className="truncate" title={creativeName}>{creativeName}</span></div>}
-          {lead.queixa_principal && <div className="col-span-2 flex items-center gap-2"><MessageSquare className="h-4 w-4 text-muted-foreground" /><span>Queixa Principal: {lead.queixa_principal}</span></div>}
         </CardContent>
       </Card>
       <Card className="shadow-md border-l-4 border-l-accent">
@@ -136,7 +135,6 @@ const FormContent = ({ formData, handleInputChange, handleSubmit, stages, handle
         </div>
         <div><Label>Endereço</Label><Input value={formData.endereco} onChange={(e) => handleInputChange('endereco', e.target.value)} /></div>
       </div>
-      <div><Label>Queixa Principal</Label><Textarea value={formData.queixa_principal} onChange={(e) => handleInputChange('queixa_principal', e.target.value)} /></div>
       <div><Label>Resumo do Atendimento (IA)</Label><Textarea value={formData.resumo} onChange={(e) => handleInputChange('resumo', e.target.value)} placeholder="Resumo gerado pela IA..." /></div>
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -216,7 +214,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
       setCurrentMode(mode);
       if (lead) {
         setFormData({
-          nome: lead.nome || "", telefone: lead.telefone || "", queixa_principal: lead.queixa_principal || "",
+          nome: lead.nome || "", telefone: lead.telefone || "",
           resumo: lead.resumo || "", origem: lead.origem || "", etapa_id: lead.etapa_id || 1,
           status: lead.status || "Ativo", email: lead.email || "", cpf: lead.cpf || "",
           idade: lead.idade?.toString() || "", genero: lead.genero || "", endereco: lead.endereco || "",
@@ -267,7 +265,6 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
       criado_em: toSupabaseTimestamp(formData.criado_em_display),
       // Campos opcionais
       nome: formData.nome || undefined, 
-      queixa_principal: formData.queixa_principal || undefined,
       origem: formData.origem || undefined, 
       resumo: formData.resumo || undefined,
       email: formData.email || undefined, 

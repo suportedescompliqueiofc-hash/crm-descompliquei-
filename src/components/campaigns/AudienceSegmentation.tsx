@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/group-radio';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -33,20 +33,13 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
   const [selectedPredefined, setSelectedPredefined] = useState<string[]>([]);
   const [advancedFilters, setAdvancedFilters] = useState({
     lastContact: '',
-    procedure: 'Todos',
     gender: 'Todos',
     ageRange: 'Todos',
     stageId: 'Todos',
-    registrationDateRange: undefined as DateRange | undefined, // Novo filtro
+    registrationDateRange: undefined as DateRange | undefined,
   });
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(() => new Set(initialSelectedIds));
   const [searchTerm, setSearchTerm] = useState(''); // Usado para pesquisa no modo 'all'
-
-  const uniqueProcedures = useMemo(() => {
-    if (!leads) return [];
-    const procedures = leads.map(lead => lead.queixa_principal).filter(Boolean);
-    return ['Todos', ...Array.from(new Set(procedures))];
-  }, [leads]);
 
   // 1. Lógica de Filtragem Principal (para todos os modos)
   const filteredLeads = useMemo(() => {
@@ -72,7 +65,7 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
         });
       });
     } else if (segmentType === 'advanced') {
-      const { lastContact, procedure, gender, ageRange, stageId, registrationDateRange } = advancedFilters;
+      const { lastContact, gender, ageRange, stageId, registrationDateRange } = advancedFilters;
       
       filtered = leads.filter(lead => {
         // Filtro: Último contato
@@ -80,8 +73,6 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
           const days = parseInt(lastContact);
           if (!isNaN(days) && isBefore(new Date(lead.ultimo_contato), subDays(new Date(), days))) return false;
         }
-        // Filtro: Procedimento
-        if (procedure !== 'Todos' && lead.queixa_principal !== procedure) return false;
         // Filtro: Gênero
         if (gender !== 'Todos' && lead.genero !== gender) return false;
         // Filtro: Etapa
@@ -250,15 +241,6 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
           <div>
             <Label>Último contato há mais de (dias)</Label>
             <Input type="number" value={advancedFilters.lastContact} onChange={e => setAdvancedFilters({...advancedFilters, lastContact: e.target.value})} />
-          </div>
-          <div>
-            <Label>Tipo de Procedimento</Label>
-            <Select value={advancedFilters.procedure} onValueChange={v => setAdvancedFilters({...advancedFilters, procedure: v})}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {uniqueProcedures.map(proc => <SelectItem key={proc} value={proc}>{proc}</SelectItem>)}
-              </SelectContent>
-            </Select>
           </div>
           
           <div>

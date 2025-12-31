@@ -281,7 +281,7 @@ export default function Leads() {
                 <Select value={filters.tagId} onValueChange={(v) => handleFilterChange('tagId', v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Todos">Todas</SelectItem>
+                    <SelectItem value="Todos">Todas as Etiquetas</SelectItem>
                     {availableTags.map(tag => (
                       <SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>
                     ))}
@@ -305,7 +305,6 @@ export default function Leads() {
                 <TableHead>Nome</TableHead>
                 <TableHead>Telefone</TableHead>
                 <TableHead>Idade/Gênero</TableHead>
-                <TableHead>Queixa Principal</TableHead>
                 <TableHead>Captação</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Etapa</TableHead>
@@ -317,7 +316,7 @@ export default function Leads() {
             <TableBody>
               {filteredLeads.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-12">
+                  <TableCell colSpan={10} className="text-center py-12">
                     <p className="text-muted-foreground">Nenhum lead encontrado com os filtros aplicados</p>
                   </TableCell>
                 </TableRow>
@@ -337,9 +336,6 @@ export default function Leads() {
                       </TableCell>
                       <TableCell>
                         <span className="text-sm">{lead.idade || '-'} anos, {lead.genero || '-'}</span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">{lead.queixa_principal}</span>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-normal">

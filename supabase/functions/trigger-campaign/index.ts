@@ -29,7 +29,6 @@ const personalizeMessage = (template: string, lead: any, clinicName: string): st
     nome_lead: lead.nome,
     telefone: lead.telefone,
     email: lead.email,
-    queixa_principal: lead.queixa_principal,
     origem: lead.origem,
     data_ultimo_contato: lastContactDate,
     idade: lead.idade,
@@ -39,7 +38,6 @@ const personalizeMessage = (template: string, lead: any, clinicName: string): st
   };
 
   // Suporte a nomes antigos para retrocompatibilidade temporária se necessário
-  // mas aqui focamos no novo padrão
   const legacyVariables = {
       nome_paciente: lead.nome,
       nome_clinica: clinicName
@@ -87,7 +85,7 @@ serve(async (req) => {
     const { data: clinicSettings, error: settingsError } = await supabaseAdmin
       .from('configuracoes_clinica')
       .select('nome')
-      .eq('usuario_id', campaign.usuario_id) // Filter by the user who created the campaign
+      .eq('usuario_id', campaign.usuario_id) 
       .limit(1)
       .single();
       
@@ -131,13 +129,12 @@ serve(async (req) => {
               });
           });
       } else if (config.type === 'advanced') {
-          const { lastContact, procedure, gender, ageRange } = config.advanced;
+          const { lastContact, gender, ageRange } = config.advanced;
           targetedLeads = allLeads.filter(lead => {
               if (lastContact && lead.ultimo_contato) {
                   const days = parseInt(lastContact);
                   if (!isNaN(days) && isBefore(new Date(lead.ultimo_contato), subDays(new Date(), days))) return false;
               }
-              if (procedure !== 'Todos' && lead.queixa_principal !== procedure) return false;
               if (gender !== 'Todos' && lead.genero !== gender) return false;
               if (ageRange !== 'Todos') {
                   const [min, max] = ageRange.split('-').map(Number);

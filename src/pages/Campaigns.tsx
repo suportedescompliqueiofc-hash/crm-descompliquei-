@@ -61,7 +61,6 @@ const availableVariables = [
   "nome_lead",
   "telefone",
   "email",
-  "queixa_principal",
   "origem",
   "data_ultimo_contato",
   "idade",

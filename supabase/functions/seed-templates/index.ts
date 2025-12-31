@@ -40,8 +40,8 @@ const templates = [
   { 
     nome: 'Retorno sobre Contato', 
     categoria: 'Comercial', 
-    conteudo: 'Olá, {{nome_lead}}. Recebemos seu contato sobre {{queixa_principal}} e gostaríamos de entender melhor sua situação para orientá-lo(a) juridicamente. Qual o melhor horário para falarmos?', 
-    variaveis: ['nome_lead', 'queixa_principal'] 
+    conteudo: 'Olá, {{nome_lead}}. Recebemos seu contato e gostaríamos de entender melhor sua situação para orientá-lo(a) juridicamente. Qual o melhor horário para falarmos?', 
+    variaveis: ['nome_lead'] 
   },
   { 
     nome: 'Lembrete de Vencimento', 
