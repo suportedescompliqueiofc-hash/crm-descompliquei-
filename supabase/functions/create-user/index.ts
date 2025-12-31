@@ -14,7 +14,6 @@ serve(async (req) => {
 
   try {
     // Inicializa o cliente Admin (Service Role) para ter poder total de leitura/escrita
-    // Isso evita problemas de RLS ao tentar corrigir o perfil do admin
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -64,7 +63,7 @@ serve(async (req) => {
     if (!organizationId) {
       console.log(`Admin ${user.id} sem organização. Iniciando auto-correção...`)
       
-      const orgName = (adminProfile?.nome_completo || 'Minha') + ' Clínica'
+      const orgName = (adminProfile?.nome_completo || 'Meu') + ' Escritório'
       
       const { data: newOrg, error: createOrgError } = await supabaseAdmin
         .from('organizations')
@@ -107,7 +106,7 @@ serve(async (req) => {
       email_confirm: true,
       user_metadata: { 
         full_name: fullName,
-        organization_id: organizationId, // Agora garantimos que isso existe
+        organization_id: organizationId, 
         role: role
       }
     })

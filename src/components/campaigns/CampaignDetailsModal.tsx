@@ -63,7 +63,7 @@ export function CampaignDetailsModal({ campaign, open, onOpenChange }: CampaignD
             </CardHeader>
             <CardContent>
               <p className="text-sm">
-                Esta campanha foi segmentada para alcançar aproximadamente <span className="font-bold text-primary">{campaign.contagem_destinatarios}</span> pacientes.
+                Esta campanha foi segmentada para alcançar aproximadamente <span className="font-bold text-primary">{campaign.contagem_destinatarios}</span> leads.
               </p>
               {/* Aqui poderíamos mostrar os detalhes da segmentação se estivessem salvos */}
             </CardContent>

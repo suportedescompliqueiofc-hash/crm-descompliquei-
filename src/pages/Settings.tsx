@@ -63,7 +63,7 @@ export default function Settings() {
 
   const menuItems = [
     { id: "profile", label: "Perfil", icon: User },
-    { id: "clinic", label: "Dados da Clínica", icon: Building2 },
+    { id: "clinic", label: "Dados do Escritório", icon: Building2 },
     { id: "team", label: "Equipe", icon: Users, hidden: role !== 'admin' },
     { id: "pipeline", label: "Etapas do Pipeline", icon: GitBranch, hidden: role !== 'admin' },
     { id: "sources", label: "Fontes", icon: Radio, hidden: role !== 'admin' },
@@ -149,13 +149,13 @@ export default function Settings() {
           {activeSection === "clinic" && (
             <Card>
               <CardHeader>
-                <CardTitle>Dados da Clínica</CardTitle>
-                <CardDescription>Informações da sua clínica odontológica</CardDescription>
+                <CardTitle>Dados do Escritório de Advocacia</CardTitle>
+                <CardDescription>Informações do seu escritório</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="clinic-name">Nome da Clínica</Label>
+                    <Label htmlFor="clinic-name">Nome do Escritório</Label>
                     <Input id="clinic-name" value={clinicForm.nome} onChange={e => setClinicForm({...clinicForm, nome: e.target.value})} className="mt-1.5" />
                   </div>
                   <div>

@@ -18,7 +18,7 @@ export function useClinicSettings() {
       const { data, error } = await supabase
         .from('configuracoes_clinica')
         .select('*')
-        .eq('organization_id', orgId) // MUDANÇA: Filtra por org
+        .eq('organization_id', orgId)
         .maybeSingle();
 
       if (error) throw error;
@@ -54,7 +54,7 @@ export function useClinicSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clinic_settings', orgId] });
-      toast.success('Configurações da clínica atualizadas!', { closeButton: true });
+      toast.success('Configurações do escritório atualizadas!', { closeButton: true });
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao atualizar configurações', { closeButton: true });

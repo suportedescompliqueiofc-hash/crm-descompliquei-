@@ -152,7 +152,7 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
       <RadioGroup value={segmentType} onValueChange={setSegmentType} className="flex flex-wrap items-center gap-6">
         <div className="flex items-center space-x-2">
           <RadioGroupItem value="all" id="all" />
-          <Label htmlFor="all">Todos os Pacientes</Label>
+          <Label htmlFor="all">Todos os Leads</Label>
         </div>
         <div className="flex items-center space-x-2">
           <RadioGroupItem value="advanced" id="advanced" />
@@ -234,7 +234,7 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
 
       <div className="pt-4 border-t mt-4">
         <div className="flex items-center justify-between mb-2">
-          <h4 className="font-semibold">Pacientes Selecionados ({selectedCount})</h4>
+          <h4 className="font-semibold">Leads Selecionados ({selectedCount})</h4>
           {filteredLeads.length > 0 && (
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -268,7 +268,7 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
             ))
           ) : (
             <p className="text-sm text-muted-foreground text-center py-4">
-              {searchTerm ? 'Nenhum paciente encontrado com este termo.' : 'Nenhum paciente encontrado para esta segmentação.'}
+              {searchTerm ? 'Nenhum lead encontrado com este termo.' : 'Nenhum lead encontrado para esta segmentação.'}
             </p>
           )}
         </div>

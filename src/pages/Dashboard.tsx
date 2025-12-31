@@ -77,15 +77,9 @@ export default function Dashboard() {
     },
     {
       title: "Novos Leads",
-      value: metrics.totalNovosLeads.toString(),
-      description: "Contatos etiquetados como 'LEAD'",
+      value: (metrics.totalNovosLeads + metrics.totalPacientes).toString(),
+      description: "Total de leads qualificados",
       icon: Tag,
-    },
-    {
-      title: "Pacientes",
-      value: metrics.totalPacientes.toString(),
-      description: "Contatos etiquetados como 'PACIENTE'",
-      icon: UserCheck,
     },
     {
       title: "Taxa de Conversão",
