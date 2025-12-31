@@ -168,7 +168,7 @@ export default function Reports() {
             <Card className="border-l-4 border-l-primary">
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><Tag className="h-4 w-4" />Novos Leads</CardDescription>
-                <CardTitle className="text-3xl font-bold">{reports.kpis.totalNovosLeads + reports.kpis.totalPacientes}</CardTitle>
+                <CardTitle className="text-3xl font-bold">{reports.kpis.totalNovosLeads}</CardTitle>
               </CardHeader>
             </Card>
             <Card className="border-l-4 border-l-primary">
@@ -181,7 +181,7 @@ export default function Reports() {
             <Card className="border-l-4 border-l-secondary">
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Ticket Médio</CardDescription>
-                <CardTitle className="text-3xl font-bold">R$ {reports.kpis.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
+                <CardTitle className="text-3xl font-bold">R$ {(reports.kpis.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
               </CardHeader>
               <CardContent><p className="text-xs text-muted-foreground">Vendas realizadas no período</p></CardContent>
             </Card>
@@ -290,7 +290,7 @@ export default function Reports() {
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Total Convertido</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {reports.conversions.kpis.totalConvertido.toLocaleString('pt-BR')}</CardTitle>
+                <CardTitle className="text-2xl font-bold">R$ {(reports.conversions.kpis.totalConvertido || 0).toLocaleString('pt-BR')}</CardTitle>
               </CardHeader>
             </Card>
             <Card>
@@ -308,7 +308,7 @@ export default function Reports() {
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Ticket Médio</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {reports.conversions.kpis.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
+                <CardTitle className="text-2xl font-bold">R$ {(reports.conversions.kpis.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
               </CardHeader>
             </Card>
           </div>
@@ -319,10 +319,9 @@ export default function Reports() {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie data={reports.conversions.charts.conversoesPorOrigemData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                      <Cell fill="hsl(var(--primary))" />
-                      <Cell fill="hsl(var(--secondary))" />
-                      <Cell fill="hsl(var(--accent))" />
-                      <Cell fill="hsl(var(--muted))" />
+                      {reports.conversions.charts.conversoesPorOrigemData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
                     </Pie>
                     <Tooltip contentStyle={chartTooltipStyle} />
                     <Legend />
@@ -361,11 +360,11 @@ export default function Reports() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {reports.conversions.tables.ultimasConversoes.map((lead) => (
+                  {reports.conversions.tables.ultimasConversoes.map((lead: any) => (
                     <TableRow key={lead.id}>
                       <TableCell className="font-medium">{lead.nome}</TableCell>
                       <TableCell>{lead.atendente}</TableCell>
-                      <TableCell>R$ {lead.valor?.toLocaleString('pt-BR')}</TableCell>
+                      <TableCell>R$ {(lead.valor || 0).toLocaleString('pt-BR')}</TableCell>
                       <TableCell>{format(parseISO(lead.atualizado_em), 'dd/MM/yyyy')}</TableCell>
                     </TableRow>
                   ))}
@@ -380,21 +379,21 @@ export default function Reports() {
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4"/> Faturamento Total</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {reports.financial.totalFaturado.toLocaleString('pt-BR')}</CardTitle>
+                <CardTitle className="text-2xl font-bold">R$ {(reports.financial.totalFaturado || 0).toLocaleString('pt-BR')}</CardTitle>
               </CardHeader>
               <CardContent><p className="text-xs text-muted-foreground">Valor total de contratos fechados no período</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><CreditCard className="h-4 w-4"/> Ticket Médio Real</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {reports.financial.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
+                <CardTitle className="text-2xl font-bold">R$ {(reports.financial.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
               </CardHeader>
               <CardContent><p className="text-xs text-muted-foreground">Faturamento / Total de Vendas ({reports.financial.totalVendas})</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><BarChart2 className="h-4 w-4"/> Eficiência Negociação</CardDescription>
-                <CardTitle className="text-2xl font-bold">{reports.financial.taxaEficiencia.toFixed(1)}%</CardTitle>
+                <CardTitle className="text-2xl font-bold">{(reports.financial.taxaEficiencia || 0).toFixed(1)}%</CardTitle>
               </CardHeader>
               <CardContent><p className="text-xs text-muted-foreground">% do valor orçado que foi efetivamente fechado</p></CardContent>
             </Card>
@@ -433,7 +432,7 @@ export default function Reports() {
                 <ResponsiveContainer width="100%" height={350}>
                   <PieChart>
                     <Pie data={reports.financial.metodosPagamentoData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5}>
-                      {reports.financial.metodosPagamentoData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      {reports.financial.metodosPagamentoData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                     </Pie>
                     <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} contentStyle={chartTooltipStyle} />
                     <Legend verticalAlign="bottom" height={36}/>
