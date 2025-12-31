@@ -114,32 +114,32 @@ export default function Marketing() {
         </TabsContent>
 
         <TabsContent value="reports" className="space-y-6 animate-fade-in">
-          {isLoadingReports || !reports ? (
+          {isLoadingReports ? (
              <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="relative overflow-hidden border-l-4 border-l-primary">
-                  <CardHeader className="pb-2"><CardDescription className="flex items-center gap-2 font-medium text-primary"><Users className="h-4 w-4" /> Volume de Leads</CardDescription><CardTitle className="text-3xl font-bold">{reports.marketing.kpis.totalMarketingLeads || 0}</CardTitle></CardHeader>
+                  <CardHeader className="pb-2"><CardDescription className="flex items-center gap-2 font-medium text-primary"><Users className="h-4 w-4" /> Volume de Leads</CardDescription><CardTitle className="text-3xl font-bold">{reports?.marketing?.kpis?.totalMarketingLeads ?? 0}</CardTitle></CardHeader>
                 </Card>
 
                 <Card className="relative overflow-hidden border-l-4 border-l-accent">
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-2 font-medium text-accent"><Trophy className="h-4 w-4" /> Melhor Criativo</CardDescription>
-                    <CardTitle className="text-xl font-bold truncate">{reports.marketing.kpis.bestCreative?.criativo || 'N/A'}</CardTitle>
+                    <CardTitle className="text-xl font-bold truncate">{reports?.marketing?.kpis?.bestCreative?.criativo || 'N/A'}</CardTitle>
                   </CardHeader>
                   <CardContent className="flex items-center gap-4">
-                    <div className="flex flex-col"><span className="text-xs text-muted-foreground">Vendas</span><span className="font-bold text-lg">{reports.marketing.kpis.bestCreative?.conversions || 0}</span></div>
-                    <div className="flex flex-col"><span className="text-xs text-muted-foreground">Taxa</span><span className="font-bold text-lg text-emerald-600">{(reports.marketing.kpis.bestCreative?.conversionRate || 0).toFixed(1)}%</span></div>
+                    <div className="flex flex-col"><span className="text-xs text-muted-foreground">Vendas</span><span className="font-bold text-lg">{reports?.marketing?.kpis?.bestCreative?.conversions ?? 0}</span></div>
+                    <div className="flex flex-col"><span className="text-xs text-muted-foreground">Taxa</span><span className="font-bold text-lg text-emerald-600">{(reports?.marketing?.kpis?.bestCreative?.conversionRate || 0).toFixed(1)}%</span></div>
                   </CardContent>
                 </Card>
 
                 <Card className="relative overflow-hidden border-l-4 border-l-secondary">
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-2 font-medium text-secondary"><DollarSign className="h-4 w-4" /> Canal Mais Rentável</CardDescription>
-                    <CardTitle className="text-xl font-bold truncate">{reports.marketing.kpis.bestSource?.name || 'N/A'}</CardTitle>
+                    <CardTitle className="text-xl font-bold truncate">{reports?.marketing?.kpis?.bestSource?.name || 'N/A'}</CardTitle>
                   </CardHeader>
-                  <CardContent><div className="flex items-end gap-2"><span className="text-2xl font-bold text-foreground">R$ {formatValue(reports.marketing.kpis.bestSource?.totalValue)}</span></div></CardContent>
+                  <CardContent><div className="flex items-end gap-2"><span className="text-2xl font-bold text-foreground">R$ {formatValue(reports?.marketing?.kpis?.bestSource?.totalValue)}</span></div></CardContent>
                 </Card>
               </div>
 
@@ -148,7 +148,7 @@ export default function Marketing() {
                   <CardHeader><CardTitle>Performance por Criativo</CardTitle></CardHeader>
                   <CardContent className="h-[350px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={reports.marketing.charts.leadsVsConversionsByCreative} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                      <BarChart data={reports?.marketing?.charts?.leadsVsConversionsByCreative || []} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" className="text-[10px]" />
                         <YAxis stroke="hsl(var(--muted-foreground))" className="text-xs" />
@@ -166,8 +166,8 @@ export default function Marketing() {
                   <CardContent className="h-[350px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={reports.marketing.charts.revenueBySourceData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2}>
-                          {reports.marketing.charts.revenueBySourceData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                        <Pie data={reports?.marketing?.charts?.revenueBySourceData || []} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2}>
+                          {(reports?.marketing?.charts?.revenueBySourceData || []).map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                         </Pie>
                         <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} />
                         <Legend verticalAlign="bottom" height={36}/>
@@ -183,10 +183,10 @@ export default function Marketing() {
                   <Table>
                     <TableHeader><TableRow><TableHead>Origem</TableHead><TableHead>Criativo</TableHead><TableHead className="text-right">Leads</TableHead><TableHead className="text-right">Vendas</TableHead><TableHead>Conversão</TableHead><TableHead className="text-right">Faturamento</TableHead></TableRow></TableHeader>
                     <TableBody>
-                      {reports.marketing.performanceTable.length === 0 ? (
+                      {(reports?.marketing?.performanceTable || []).length === 0 ? (
                         <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">Nenhum dado disponível.</TableCell></TableRow>
                       ) : (
-                        reports.marketing.performanceTable.map((item, i) => (
+                        reports?.marketing?.performanceTable.map((item, i) => (
                           <TableRow key={i}>
                             <TableCell><Badge variant="outline">{item.origem}</Badge></TableCell>
                             <TableCell className="font-medium max-w-[200px] truncate">{item.criativo}</TableCell>

@@ -59,7 +59,7 @@ export default function Reports() {
     toast({ title: "Relatório exportado", description: "O arquivo CSV foi baixado com sucesso!", closeButton: true });
   };
 
-  if (isLoading || !reports) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
@@ -70,6 +70,9 @@ export default function Reports() {
     );
   }
   
+  // Proteção extra: se reports for null/undefined mesmo não carregando
+  if (!reports) return null;
+
   const periodDisplay = dateRange?.from && dateRange.to ? `${format(dateRange.from, 'dd/MM/yyyy')} a ${format(dateRange.to, 'dd/MM/yyyy')}` : 'Período Selecionado';
   const chartTooltipStyle = { backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', color: 'hsl(var(--foreground))' };
   const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', 'hsl(var(--muted-foreground))', '#FF8042'];
@@ -162,33 +165,33 @@ export default function Reports() {
             <Card className="border-l-4 border-l-accent">
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><Users className="h-4 w-4" />Novos Contatos</CardDescription>
-                <CardTitle className="text-3xl font-bold">{reports.kpis.totalContatos}</CardTitle>
+                <CardTitle className="text-3xl font-bold">{reports?.kpis?.totalContatos ?? 0}</CardTitle>
               </CardHeader>
             </Card>
             <Card className="border-l-4 border-l-primary">
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><Tag className="h-4 w-4" />Novos Leads</CardDescription>
-                <CardTitle className="text-3xl font-bold">{reports.kpis.totalNovosLeads}</CardTitle>
+                <CardTitle className="text-3xl font-bold">{reports?.kpis?.totalNovosLeads ?? 0}</CardTitle>
               </CardHeader>
             </Card>
             <Card className="border-l-4 border-l-primary">
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><TrendingUp className="h-4 w-4" />Taxa de Conversão</CardDescription>
-                <CardTitle className="text-3xl font-bold">{reports.kpis.conversionRate}%</CardTitle>
+                <CardTitle className="text-3xl font-bold">{reports?.kpis?.conversionRate ?? 0}%</CardTitle>
               </CardHeader>
               <CardContent><p className="text-xs text-muted-foreground">Baseado nos dados filtrados</p></CardContent>
             </Card>
             <Card className="border-l-4 border-l-secondary">
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Ticket Médio</CardDescription>
-                <CardTitle className="text-3xl font-bold">R$ {(reports.kpis.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
+                <CardTitle className="text-3xl font-bold">R$ {(reports?.kpis?.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
               </CardHeader>
               <CardContent><p className="text-xs text-muted-foreground">Vendas realizadas no período</p></CardContent>
             </Card>
             <Card className="border-l-4 border-l-accent">
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><Clock className="h-4 w-4" />Tempo Médio no Funil</CardDescription>
-                <CardTitle className="text-3xl font-bold">{reports.kpis.tempoMedioFunil} dias</CardTitle>
+                <CardTitle className="text-3xl font-bold">{reports?.kpis?.tempoMedioFunil ?? 0} dias</CardTitle>
               </CardHeader>
               <CardContent><p className="text-xs text-muted-foreground">Para leads convertidos (filtrados)</p></CardContent>
             </Card>
@@ -202,7 +205,7 @@ export default function Reports() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={reports.charts.leadsCapturedData}>
+                  <LineChart data={reports?.charts?.leadsCapturedData || []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                     <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
@@ -222,7 +225,7 @@ export default function Reports() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={reports.charts.sourceData} layout="vertical">
+                  <BarChart data={reports?.charts?.sourceData || []} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis type="number" stroke="hsl(var(--muted-foreground))" className="text-xs" />
                     <YAxis dataKey="source" type="category" stroke="hsl(var(--muted-foreground))" className="text-xs" width={100} />
@@ -250,7 +253,7 @@ export default function Reports() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {reports.charts.topCreativesData.map((item, i) => (
+                  {(reports?.charts?.topCreativesData || []).map((item, i) => (
                     <TableRow key={i}>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell><Badge variant="outline">{item.origin}</Badge></TableCell>
@@ -272,7 +275,7 @@ export default function Reports() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={reports.funnel.funnelData} layout="vertical">
+                <BarChart data={reports?.funnel?.funnelData || []} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis type="number" stroke="hsl(var(--muted-foreground))" className="text-xs" />
                   <YAxis dataKey="etapa" type="category" stroke="hsl(var(--muted-foreground))" className="text-xs" width={150} />
@@ -290,25 +293,25 @@ export default function Reports() {
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Total Convertido</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {(reports.conversions.kpis.totalConvertido || 0).toLocaleString('pt-BR')}</CardTitle>
+                <CardTitle className="text-2xl font-bold">R$ {(reports?.conversions?.kpis?.totalConvertido || 0).toLocaleString('pt-BR')}</CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><Target className="h-4 w-4" />Leads Convertidos</CardDescription>
-                <CardTitle className="text-2xl font-bold">{reports.conversions.kpis.leadsConvertidos}</CardTitle>
+                <CardTitle className="text-2xl font-bold">{reports?.conversions?.kpis?.leadsConvertidos ?? 0}</CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><TrendingUp className="h-4 w-4" />Taxa de Conversão</CardDescription>
-                <CardTitle className="text-2xl font-bold">{reports.conversions.kpis.conversionRate}%</CardTitle>
+                <CardTitle className="text-2xl font-bold">{reports?.conversions?.kpis?.conversionRate ?? 0}%</CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Ticket Médio</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {(reports.conversions.kpis.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
+                <CardTitle className="text-2xl font-bold">R$ {(reports?.conversions?.kpis?.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
               </CardHeader>
             </Card>
           </div>
@@ -318,8 +321,8 @@ export default function Reports() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
-                    <Pie data={reports.conversions.charts.conversoesPorOrigemData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                      {reports.conversions.charts.conversoesPorOrigemData.map((_, index) => (
+                    <Pie data={reports?.conversions?.charts?.conversoesPorOrigemData || []} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                      {(reports?.conversions?.charts?.conversoesPorOrigemData || []).map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
@@ -336,7 +339,7 @@ export default function Reports() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={reports.conversions.charts.valorConvertidoPorDia}>
+                  <BarChart data={reports?.conversions?.charts?.valorConvertidoPorDia || []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" className="text-xs" />
                     <YAxis stroke="hsl(var(--muted-foreground))" className="text-xs" />
@@ -360,7 +363,7 @@ export default function Reports() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {reports.conversions.tables.ultimasConversoes.map((lead: any) => (
+                  {(reports?.conversions?.tables?.ultimasConversoes || []).map((lead: any) => (
                     <TableRow key={lead.id}>
                       <TableCell className="font-medium">{lead.nome}</TableCell>
                       <TableCell>{lead.atendente}</TableCell>
@@ -379,28 +382,28 @@ export default function Reports() {
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4"/> Faturamento Total</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {(reports.financial.totalFaturado || 0).toLocaleString('pt-BR')}</CardTitle>
+                <CardTitle className="text-2xl font-bold">R$ {(reports?.financial?.totalFaturado || 0).toLocaleString('pt-BR')}</CardTitle>
               </CardHeader>
               <CardContent><p className="text-xs text-muted-foreground">Valor total de contratos fechados no período</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><CreditCard className="h-4 w-4"/> Ticket Médio Real</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {(reports.financial.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
+                <CardTitle className="text-2xl font-bold">R$ {(reports?.financial?.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
               </CardHeader>
-              <CardContent><p className="text-xs text-muted-foreground">Faturamento / Total de Vendas ({reports.financial.totalVendas})</p></CardContent>
+              <CardContent><p className="text-xs text-muted-foreground">Faturamento / Total de Vendas ({reports?.financial?.totalVendas ?? 0})</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><BarChart2 className="h-4 w-4"/> Eficiência Negociação</CardDescription>
-                <CardTitle className="text-2xl font-bold">{(reports.financial.taxaEficiencia || 0).toFixed(1)}%</CardTitle>
+                <CardTitle className="text-2xl font-bold">{(reports?.financial?.taxaEficiencia || 0).toFixed(1)}%</CardTitle>
               </CardHeader>
               <CardContent><p className="text-xs text-muted-foreground">% do valor orçado que foi efetivamente fechado</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-3">
                 <CardDescription className="flex items-center gap-2"><TrendingUp className="h-4 w-4"/> Vendas Realizadas</CardDescription>
-                <CardTitle className="text-2xl font-bold">{reports.financial.totalVendas}</CardTitle>
+                <CardTitle className="text-2xl font-bold">{reports?.financial?.totalVendas ?? 0}</CardTitle>
               </CardHeader>
               <CardContent><p className="text-xs text-muted-foreground">Contratos assinados no período</p></CardContent>
             </Card>
@@ -413,7 +416,7 @@ export default function Reports() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={reports.financial.faturamentoPorDia}>
+                  <BarChart data={reports?.financial?.faturamentoPorDia || []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" className="text-xs" />
                     <YAxis stroke="hsl(var(--muted-foreground))" className="text-xs" tickFormatter={(value) => `R$${value/1000}k`} />
@@ -431,8 +434,8 @@ export default function Reports() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>
                   <PieChart>
-                    <Pie data={reports.financial.metodosPagamentoData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5}>
-                      {reports.financial.metodosPagamentoData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                    <Pie data={reports?.financial?.metodosPagamentoData || []} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5}>
+                      {(reports?.financial?.metodosPagamentoData || []).map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                     </Pie>
                     <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} contentStyle={chartTooltipStyle} />
                     <Legend verticalAlign="bottom" height={36}/>
