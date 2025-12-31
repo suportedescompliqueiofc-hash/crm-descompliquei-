@@ -220,25 +220,18 @@ export function useLeadTags(leadId: string | undefined) {
 
       // 2. Dispara o Webhook com dados do Lead e da Tag
       try {
-        // Busca telefone do lead
-        const { data: leadData, error: leadError } = await supabase
+        const { data: leadData } = await supabase
           .from('leads')
           .select('telefone')
           .eq('id', leadId)
           .single();
 
-        if (leadError) console.error("Erro ao buscar dados do lead para webhook:", leadError);
-
-        // Busca label_lid da tag
-        const { data: tagData, error: tagError } = await supabase
+        const { data: tagData } = await supabase
           .from('tags')
           .select('label_lid')
           .eq('id', tagId)
           .single();
 
-        if (tagError) console.error("Erro ao buscar dados da tag para webhook:", tagError);
-
-        // Envia apenas se tivermos os dados necessários (especialmente label_lid)
         if (leadData?.telefone && tagData?.label_lid) {
           await fetch('https://webhook.orbevision.shop/webhook/adiciona-etiqueta-viviane', {
             method: 'POST',
@@ -250,7 +243,6 @@ export function useLeadTags(leadId: string | undefined) {
           });
         }
       } catch (err) {
-        // Não lançamos erro aqui para não falhar a operação visual caso o webhook falhe
         console.error("Falha silenciosa ao enviar webhook de etiqueta:", err);
       }
     },
@@ -263,12 +255,46 @@ export function useLeadTags(leadId: string | undefined) {
   const removeTagFromLead = useMutation({
     mutationFn: async (tagId: string) => {
       if (!leadId) throw new Error("Lead não definido");
-      const { error } = await supabase
-        .from('leads_tags')
-        .delete()
-        .eq('lead_id', leadId)
-        .eq('tag_id', tagId);
-      if (error) throw error;
+      
+      // 1. Busca dados ANTES de remover
+      try {
+        const { data: leadData } = await supabase
+          .from('leads')
+          .select('telefone')
+          .eq('id', leadId)
+          .single();
+
+        const { data: tagData } = await supabase
+          .from('tags')
+          .select('label_lid')
+          .eq('id', tagId)
+          .single();
+
+        // 2. Remove do banco de dados
+        const { error } = await supabase
+          .from('leads_tags')
+          .delete()
+          .eq('lead_id', leadId)
+          .eq('tag_id', tagId);
+        
+        if (error) throw error;
+
+        // 3. Dispara o Webhook de retirada
+        if (leadData?.telefone && tagData?.label_lid) {
+          await fetch('https://webhook.orbevision.shop/webhook/retira-etiqueta-viviane', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              telefone: leadData.telefone,
+              label_lid: tagData.label_lid
+            })
+          });
+        }
+      } catch (err) {
+        console.error("Erro na operação de remoção ou webhook:", err);
+        // Se for erro de banco, relança para o onError tratar
+        if ((err as any).code) throw err;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lead_tags', leadId] });
