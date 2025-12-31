@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLeads } from '@/hooks/useLeads';
 import { useStages } from '@/hooks/useStages';
-import { subMonths, subDays, isAfter, isBefore, format, startOfDay, endOfDay } from 'date-fns';
+import { subDays, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
 import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
@@ -18,19 +18,11 @@ interface AudienceSegmentationProps {
   initialSelectedIds?: string[];
 }
 
-const predefinedSegments = [
-  { id: 'active', label: '✅ Ativos (consulta nos últimos 6 meses)' },
-  { id: 'inactive', label: '💤 Inativos (sem consulta há 6+ meses)' },
-  { id: 'new', label: '🆕 Novos (primeira consulta há menos de 3 meses)' },
-  { id: 'in_treatment', label: '🎯 Em tratamento' },
-];
-
 export function AudienceSegmentation({ onConfigChange, onSelectionChange, initialSelectedIds = [] }: AudienceSegmentationProps) {
   const { leads, isLoading: leadsLoading } = useLeads();
   const { stages, isLoading: stagesLoading } = useStages();
   
   const [segmentType, setSegmentType] = useState('all');
-  const [selectedPredefined, setSelectedPredefined] = useState<string[]>([]);
   const [advancedFilters, setAdvancedFilters] = useState({
     lastContact: '',
     gender: 'Todos',
@@ -39,32 +31,15 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
     registrationDateRange: undefined as DateRange | undefined,
   });
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(() => new Set(initialSelectedIds));
-  const [searchTerm, setSearchTerm] = useState(''); // Usado para pesquisa no modo 'all'
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // 1. Lógica de Filtragem Principal (para todos os modos)
+  // 1. Lógica de Filtragem Principal
   const filteredLeads = useMemo(() => {
     if (leadsLoading || stagesLoading || !leads || !stages) return [];
 
     let filtered = [...leads];
 
-    if (segmentType === 'predefined') {
-      if (selectedPredefined.length === 0) return [];
-      
-      const now = new Date();
-      const sixMonthsAgo = subMonths(now, 6);
-      const threeMonthsAgo = subMonths(now, 3);
-      const finalStageIds = stages.filter(s => ['Convertido', 'Perdido'].includes(s.nome)).map(s => s.id);
-
-      filtered = leads.filter(lead => {
-        return selectedPredefined.some(segment => {
-          if (segment === 'active') return lead.ultimo_contato && isAfter(new Date(lead.ultimo_contato), sixMonthsAgo);
-          if (segment === 'inactive') return !lead.ultimo_contato || isBefore(new Date(lead.ultimo_contato), sixMonthsAgo);
-          if (segment === 'new') return isAfter(new Date(lead.criado_em), threeMonthsAgo);
-          if (segment === 'in_treatment') return !finalStageIds.includes(lead.etapa_id);
-          return false;
-        });
-      });
-    } else if (segmentType === 'advanced') {
+    if (segmentType === 'advanced') {
       const { lastContact, gender, ageRange, stageId, registrationDateRange } = advancedFilters;
       
       filtered = leads.filter(lead => {
@@ -84,7 +59,7 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
           if (!lead.idade || lead.idade < min || lead.idade > max) return false;
         }
 
-        // NOVO FILTRO: Data de Cadastro
+        // Filtro: Data de Cadastro
         if (registrationDateRange?.from) {
           const leadCreatedDate = startOfDay(new Date(lead.criado_em));
           const filterStart = startOfDay(registrationDateRange.from);
@@ -112,9 +87,9 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
     }
 
     return filtered;
-  }, [leads, stages, segmentType, selectedPredefined, advancedFilters, leadsLoading, stagesLoading, searchTerm]);
+  }, [leads, stages, segmentType, advancedFilters, leadsLoading, stagesLoading, searchTerm]);
 
-  // 2. Efeito para sincronizar a seleção de IDs com base no tipo de segmento
+  // 2. Sincronização de Seleção
   useEffect(() => {
     if (segmentType !== 'all') {
       setSelectedLeadIds(new Set(filteredLeads.map(lead => lead.id)));
@@ -128,11 +103,10 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
     
     const config = {
       type: segmentType,
-      predefined: selectedPredefined,
       advanced: advancedFilters,
     };
     onConfigChange(config);
-  }, [segmentType, filteredLeads, selectedPredefined, advancedFilters, onSelectionChange, onConfigChange, leads, initialSelectedIds, searchTerm]);
+  }, [segmentType, filteredLeads, advancedFilters, onSelectionChange, onConfigChange, leads, searchTerm]);
 
 
   const handleLeadSelection = (leadId: string, isSelected: boolean) => {
@@ -161,14 +135,6 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
     });
   };
 
-  const handlePredefinedChange = (segmentId: string) => {
-    setSelectedPredefined(prev => 
-      prev.includes(segmentId) 
-        ? prev.filter(id => id !== segmentId) 
-        : [...prev, segmentId]
-    );
-  };
-
   if (leadsLoading || stagesLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -189,10 +155,6 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
           <Label htmlFor="all">Todos os Pacientes</Label>
         </div>
         <div className="flex items-center space-x-2">
-          <RadioGroupItem value="predefined" id="predefined" />
-          <Label htmlFor="predefined">Segmento Pré-definido</Label>
-        </div>
-        <div className="flex items-center space-x-2">
           <RadioGroupItem value="advanced" id="advanced" />
           <Label htmlFor="advanced">Filtros Avançados</Label>
         </div>
@@ -209,21 +171,6 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-        </div>
-      )}
-
-      {segmentType === 'predefined' && (
-        <div className="pt-4 border-t mt-4 grid grid-cols-2 gap-4 animate-fade-in">
-          {predefinedSegments.map(segment => (
-            <div key={segment.id} className="flex items-center space-x-2">
-              <Checkbox 
-                id={segment.id} 
-                checked={selectedPredefined.includes(segment.id)}
-                onCheckedChange={() => handlePredefinedChange(segment.id)}
-              />
-              <Label htmlFor={segment.id} className="font-normal">{segment.label}</Label>
-            </div>
-          ))}
         </div>
       )}
 
