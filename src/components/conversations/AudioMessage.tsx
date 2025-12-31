@@ -19,6 +19,14 @@ export function AudioMessage({ filePath }: AudioMessageProps) {
       return;
     }
 
+    // Suporte para Optimistic UI: Se for um blob local, usa diretamente sem chamar o servidor
+    if (filePath.startsWith('blob:')) {
+      setAudioUrl(filePath);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
     const getSignedUrlViaFunction = async () => {
       setIsLoading(true);
       setError(null);

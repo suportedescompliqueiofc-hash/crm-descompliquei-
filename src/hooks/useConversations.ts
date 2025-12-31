@@ -362,11 +362,47 @@ export function useSendAudioMessage() {
 
       return message;
     },
-    onSuccess: (_, { leadId }) => {
-      queryClient.invalidateQueries({ queryKey: ['messages_v6', leadId] });
-      toast.success('Áudio enviado!');
+    onMutate: async ({ leadId, audioBlob }) => {
+      await queryClient.cancelQueries({ queryKey: ['messages_v6', leadId] });
+      const previousMessages = queryClient.getQueryData<Message[]>(['messages_v6', leadId]);
+
+      // Cria uma URL temporária para o blob para tocar imediatamente
+      const blobUrl = URL.createObjectURL(audioBlob);
+      const tempId = `temp-${Date.now()}`;
+
+      const optimisticMessage: Message = {
+        id: tempId,
+        lead_id: leadId,
+        user_id: user.id,
+        conteudo: '',
+        direcao: 'saida',
+        remetente: 'agente',
+        tipo_conteudo: 'audio',
+        criado_em: new Date().toISOString(),
+        media_path: null,
+        id_mensagem: null,
+        message_attachments: [{
+          id: `att-${tempId}`,
+          message_id: tempId,
+          file_path: blobUrl, // AQUI: Passamos a URL do blob para o AudioMessage
+          file_type: 'audio'
+        }]
+      };
+
+      queryClient.setQueryData(['messages_v6', leadId], (old: Message[] | undefined) => 
+        old ? [...old, optimisticMessage] : [optimisticMessage]
+      );
+
+      return { previousMessages };
     },
-    onError: (err: any) => {
+    onSuccess: (_, { leadId }) => {
+      // Sucesso garantido pelo realtime, mas invalidamos por segurança
+      // O realtime cuidará de substituir a mensagem temporária pela real
+    },
+    onError: (err: any, variables, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData(['messages_v6', variables.leadId], context.previousMessages);
+      }
       toast.error('Erro ao processar áudio', { description: err.message });
     }
   });

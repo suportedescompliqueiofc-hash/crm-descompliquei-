@@ -38,11 +38,16 @@ serve(async (req) => {
     }
 
     // --- CORREÇÃO ---
-    // Limpa o caminho do arquivo para garantir que não inclua o nome do bucket
-    const bucketName = 'audio-mensagens';
+    // O bucket correto usado no upload é 'media-mensagens'
+    const bucketName = 'media-mensagens';
     let cleanPath = filePath;
+    
+    // Remove o nome do bucket se ele vier duplicado no path
     if (cleanPath.startsWith(`${bucketName}/`)) {
       cleanPath = cleanPath.substring(bucketName.length + 1);
+    } else if (cleanPath.startsWith('audio-mensagens/')) {
+        // Fallback caso algum legado envie com o nome antigo
+        cleanPath = cleanPath.substring('audio-mensagens/'.length);
     }
     // --- FIM DA CORREÇÃO ---
 
@@ -54,10 +59,9 @@ serve(async (req) => {
     const { data, error } = await supabaseAdmin
       .storage
       .from(bucketName)
-      .createSignedUrl(cleanPath, 300); // URL válida por 5 minutos
+      .createSignedUrl(cleanPath, 3600); // Aumentado para 1 hora para evitar expiração rápida
 
     if (error) {
-      // Lança o erro do storage para ser capturado pelo bloco catch
       throw error;
     }
 
