@@ -8,106 +8,106 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 180 5% 15%;
+    --background: 30 10% 98%; /* Fundo levemente aquecido (papel) */
+    --foreground: 0 0% 10%; /* Texto quase preto */
 
     --card: 0 0% 100%;
-    --card-foreground: 180 5% 15%;
+    --card-foreground: 0 0% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 180 5% 15%;
+    --popover-foreground: 0 0% 10%;
 
-    /* Primary: Verde Escuro da Clínica */
-    --primary: 180 60% 13%;
+    /* Primary: Dourado/Bronze do Logo (VB) */
+    /* Ajustado para ter bom contraste em fundo claro */
+    --primary: 37 43% 45%; 
     --primary-foreground: 0 0% 100%;
     
-    /* Secondary: Verde Médio */
-    --secondary: 180 52% 22%;
-    --secondary-foreground: 0 0% 100%;
+    /* Secondary: Rose-Gold/Mauve do texto "Viviane Braga" */
+    --secondary: 350 10% 85%;
+    --secondary-foreground: 350 20% 30%;
 
-    --muted: 210 20% 95%;
-    --muted-foreground: 180 5% 45%;
+    --muted: 30 10% 96%;
+    --muted-foreground: 0 0% 40%;
 
-    /* Accent: Turquesa */
-    --accent: 174 72% 56%;
-    --accent-foreground: 180 60% 13%;
+    /* Accent: Dourado mais claro para detalhes */
+    --accent: 37 43% 90%;
+    --accent-foreground: 37 43% 30%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Aumentando o contraste da borda e input no tema claro */
-    --border: 214 15% 85%; /* De 91% para 85% (mais escuro) */
-    --input: 210 20% 95%; /* Usando a cor muted para o fundo do input */
-    --ring: 174 72% 56%;
+    --border: 30 10% 85%;
+    --input: 30 10% 96%;
+    --ring: 37 43% 50%;
 
     --radius: 0.5rem;
 
-    /* Success */
-    --success: 142 71% 45%;
+    /* Success: Verde mais sóbrio */
+    --success: 142 30% 40%;
     --success-foreground: 0 0% 100%;
 
-    /* Warning */
-    --warning: 38 92% 50%;
+    /* Warning: Dourado Alerta */
+    --warning: 40 80% 50%;
     --warning-foreground: 0 0% 100%;
 
     /* Info */
-    --info: 199 89% 48%;
+    --info: 210 20% 40%;
     --info-foreground: 0 0% 100%;
 
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(180 60% 13%) 0%, hsl(180 52% 22%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(174 72% 56%) 0%, hsl(180 52% 22%) 100%);
+    /* Gradients - Premium Black/Gold feel */
+    --gradient-primary: linear-gradient(135deg, hsl(0 0% 5%) 0%, hsl(0 0% 15%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(37 43% 50%) 0%, hsl(350 20% 60%) 100%);
 
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 
-    /* Sidebar */
-    --sidebar-background: 180 60% 13%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 180 60% 13%;
+    /* Sidebar - Premium Dark Theme (Baseado no fundo preto do logo) */
+    --sidebar-background: 0 0% 8%; /* Preto Suave */
+    --sidebar-foreground: 30 20% 90%; /* Off-white */
+    --sidebar-primary: 37 43% 50%; /* Dourado */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 180 52% 22%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 180 52% 22%;
-    --sidebar-ring: 174 72% 56%;
+    --sidebar-accent: 0 0% 15%; /* Cinza escuro para hover */
+    --sidebar-accent-foreground: 37 43% 60%; /* Dourado claro no hover */
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 37 43% 50%;
   }
 
   :root.dark {
-    --background: 210 20% 10%; /* Fundo escuro */
-    --foreground: 210 20% 90%; /* Texto claro */
+    --background: 0 0% 5%; /* Preto absoluto */
+    --foreground: 30 10% 90%;
 
-    --card: 210 20% 15%; /* Fundo de cards escuro */
-    --card-foreground: 210 20% 90%;
+    --card: 0 0% 8%;
+    --card-foreground: 30 10% 90%;
 
-    --popover: 210 20% 15%;
-    --popover-foreground: 210 20% 90%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 30 10% 90%;
 
-    /* Primary: Mantém a cor, mas ajusta o contraste se necessário */
-    --primary: 174 72% 56%; /* Usando o Accent como Primary no Dark Mode para destaque */
-    --primary-foreground: 180 60% 13%; /* Texto escuro sobre o primary */
+    /* Primary: Dourado Vibrante para Dark Mode */
+    --primary: 37 43% 60%; 
+    --primary-foreground: 0 0% 10%;
     
-    /* Secondary: Verde Médio */
-    --secondary: 180 52% 22%;
-    --secondary-foreground: 0 0% 100%;
+    /* Secondary: Rose-Gold escuro */
+    --secondary: 350 10% 20%;
+    --secondary-foreground: 350 10% 90%;
 
-    --muted: 210 20% 20%; /* Fundo de elementos muted escuro */
-    --muted-foreground: 210 20% 60%; /* Texto muted claro */
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
 
-    /* Accent: Turquesa */
-    --accent: 174 72% 56%;
-    --accent-foreground: 180 60% 13%;
+    /* Accent */
+    --accent: 0 0% 15%;
+    --accent-foreground: 37 43% 60%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 60% 30%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 20% 25%; /* Borda escura */
-    --input: 210 20% 20%; /* Input escuro (de 20% para 20% - mantido) */
-    --ring: 174 72% 56%;
+    --border: 0 0% 20%;
+    --input: 0 0% 15%;
+    --ring: 37 43% 60%;
 
     /* Success */
-    --success: 142 71% 45%;
+    --success: 142 50% 30%;
     --success-foreground: 0 0% 100%;
 
     /* Warning */
@@ -115,27 +115,22 @@ All colors MUST be HSL.
     --warning-foreground: 0 0% 100%;
 
     /* Info */
-    --info: 199 89% 48%;
+    --info: 210 40% 40%;
     --info-foreground: 0 0% 100%;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(180 60% 13%) 0%, hsl(180 52% 22%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(174 72% 56%) 0%, hsl(180 52% 22%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(0 0% 5%) 0%, hsl(0 0% 15%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(37 43% 40%) 0%, hsl(350 20% 40%) 100%);
 
-    /* Shadows - Mantemos as sombras, mas elas serão menos visíveis no fundo escuro */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
-
-    /* Sidebar - Mantemos o sidebar escuro para contraste */
-    --sidebar-background: 180 60% 13%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 180 60% 13%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 180 52% 22%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 180 52% 22%;
-    --sidebar-ring: 174 72% 56%;
+    /* Sidebar - Mantém consistência */
+    --sidebar-background: 0 0% 5%;
+    --sidebar-foreground: 30 20% 90%;
+    --sidebar-primary: 37 43% 60%;
+    --sidebar-primary-foreground: 0 0% 10%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 37 43% 60%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 37 43% 60%;
   }
 }
 

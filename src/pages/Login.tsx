@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Sparkles } from "lucide-react";
+import { Eye, EyeOff, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,8 +34,6 @@ export default function Login() {
         if (error) {
           toast.error(error.message || 'Erro ao criar conta', { closeButton: true });
         } else {
-          // Se o cadastro for bem-sucedido, o Supabase faz o login automaticamente
-          // e o useEffect acima redireciona.
           toast.success('Conta criada com sucesso! Você já pode acessar o sistema.', { closeButton: true });
         }
       } else {
@@ -50,30 +48,38 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex bg-background">
       {/* Left Side - Brand */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-primary items-center justify-center p-12">
-        <div className="max-w-md text-center">
-          <div className="mb-8">
-            <Sparkles className="h-16 w-16 text-accent mx-auto mb-4" />
-            <h1 className="text-4xl font-bold text-white mb-2">Odontonova</h1>
-            <div className="h-1 w-24 bg-accent mx-auto rounded-full" />
+      <div className="hidden lg:flex lg:w-1/2 bg-[#0a0a0a] items-center justify-center p-12 relative overflow-hidden">
+        {/* Background Accent */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
+
+        <div className="max-w-md text-center relative z-10">
+          <div className="mb-10 flex flex-col items-center">
+            <img 
+              src="https://okvkszwzivjsqagisltm.supabase.co/storage/v1/object/public/uploads/Teste/Logo%20Viviane%20Braga%20adv.webp" 
+              alt="Logo Viviane Braga" 
+              className="h-32 w-auto mb-6 object-contain opacity-90"
+            />
+            <div className="h-[1px] w-24 bg-gradient-to-r from-transparent via-primary to-transparent mx-auto rounded-full mb-6" />
           </div>
-          <p className="text-xl text-white/90 leading-relaxed">
-            Gerencie seu atendimento odontológico com inteligência
+          <p className="text-2xl text-white/90 leading-relaxed font-light tracking-wide">
+            Excelência e compromisso na<br/>
+            <span className="text-primary font-medium">gestão jurídica</span>
           </p>
-          <div className="mt-12 space-y-4 text-white/80">
-            <div className="flex items-center gap-3">
-              <div className="h-2 w-2 rounded-full bg-accent" />
-              <span>Automatize seu WhatsApp</span>
+          <div className="mt-12 space-y-5 text-white/70 text-left pl-8 border-l border-white/10">
+            <div className="flex items-center gap-4">
+              <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+              <span>Controle processual inteligente</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="h-2 w-2 rounded-full bg-accent" />
-              <span>Aumente suas conversões</span>
+            <div className="flex items-center gap-4">
+              <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+              <span>Gestão eficiente de clientes</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="h-2 w-2 rounded-full bg-accent" />
-              <span>Organize seus leads</span>
+            <div className="flex items-center gap-4">
+              <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+              <span>Automação de atendimento</span>
             </div>
           </div>
         </div>
@@ -83,11 +89,11 @@ export default function Login() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-foreground">
-              {isSignUp ? 'Criar conta' : 'Bem-vindo de volta'}
+            <h2 className="text-3xl font-bold text-foreground font-serif tracking-tight">
+              {isSignUp ? 'Criar conta' : 'Acesso ao Sistema'}
             </h2>
             <p className="text-muted-foreground mt-2">
-              {isSignUp ? 'Preencha os dados para criar sua conta' : 'Entre com suas credenciais'}
+              {isSignUp ? 'Preencha os dados para criar sua conta profissional' : 'Entre com suas credenciais de acesso'}
             </p>
           </div>
 
@@ -99,7 +105,7 @@ export default function Login() {
                   id="fullName"
                   type="text"
                   placeholder="Seu nome"
-                  className="h-11"
+                  className="h-12 border-muted-foreground/20 focus:border-primary"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   required
@@ -108,12 +114,12 @@ export default function Login() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email corporativo</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="seu@email.com"
-                className="h-11"
+                placeholder="advogado@vivianebraga.com"
+                className="h-12 border-muted-foreground/20 focus:border-primary"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -127,7 +133,7 @@ export default function Login() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
-                  className="h-11 pr-10"
+                  className="h-12 pr-10 border-muted-foreground/20 focus:border-primary"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -146,7 +152,7 @@ export default function Login() {
             {!isSignUp && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="remember" />
+                  <Checkbox id="remember" className="data-[state=checked]:bg-primary data-[state=checked]:border-primary" />
                   <label
                     htmlFor="remember"
                     className="text-sm text-muted-foreground cursor-pointer"
@@ -157,18 +163,18 @@ export default function Login() {
               </div>
             )}
 
-            <Button className="w-full h-11" size="lg" type="submit" disabled={loading}>
-              {loading ? 'Carregando...' : (isSignUp ? 'Criar conta' : 'Entrar')}
+            <Button className="w-full h-12 text-base bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all shadow-md hover:shadow-lg" size="lg" type="submit" disabled={loading}>
+              {loading ? 'Processando...' : (isSignUp ? 'Criar conta' : 'Entrar')}
             </Button>
           </form>
 
           <p className="text-center text-sm text-muted-foreground">
-            {isSignUp ? 'Já tem uma conta?' : 'Não tem uma conta?'}{" "}
+            {isSignUp ? 'Já possui acesso?' : 'Não possui acesso?'}{" "}
             <button
               onClick={() => setIsSignUp(!isSignUp)}
-              className="text-accent hover:text-accent/90 font-medium"
+              className="text-primary hover:text-primary/80 font-medium underline-offset-4 hover:underline"
             >
-              {isSignUp ? 'Fazer login' : 'Criar conta'}
+              {isSignUp ? 'Fazer login' : 'Solicitar conta'}
             </button>
           </p>
         </div>

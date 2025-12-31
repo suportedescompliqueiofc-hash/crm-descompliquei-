@@ -8,7 +8,6 @@ import {
   Settings,
   LogOut,
   ChevronLeft,
-  Sparkles,
   FileText,
   MessageSquare,
   Bell,
@@ -28,7 +27,7 @@ const menuItems = [
   { title: "Pipeline", icon: GitBranch, path: "/pipeline" },
   { title: "Conversas", icon: MessageSquare, path: "/conversas" },
   { title: "Notificações", icon: Bell, path: "/notificacoes" },
-  { title: "Vendas", icon: ShoppingCart, path: "/vendas" },
+  { title: "Contratos", icon: ShoppingCart, path: "/vendas" }, // Mudado de Vendas para Contratos (contexto jurídico)
   { title: "Relatórios", icon: BarChart3, path: "/reports" },
   { title: "Marketing", icon: Target, path: "/marketing" },
   { title: "Campanhas", icon: Megaphone, path: "/campaigns" },
@@ -56,12 +55,16 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     <TooltipProvider>
       <div className="flex flex-col h-full bg-sidebar">
         {/* Logo & Toggle */}
-        <div className={`flex items-center transition-all h-16 flex-shrink-0 ${isCollapsed ? 'px-2 justify-center' : 'px-6'}`}>
+        <div className={`flex items-center transition-all h-20 flex-shrink-0 ${isCollapsed ? 'px-2 justify-center' : 'px-6'}`}>
           <div className={`flex items-center gap-3 whitespace-nowrap overflow-hidden transition-all ${isCollapsed ? 'w-0' : 'w-full'}`}>
-            <Sparkles className="h-6 w-6 text-accent flex-shrink-0" />
-            <div>
-              <h1 className="text-xl font-bold text-sidebar-foreground">Odontonova</h1>
-              <p className="text-xs text-sidebar-foreground/70 mt-1">Gestão Inteligente</p>
+            <img 
+              src="https://okvkszwzivjsqagisltm.supabase.co/storage/v1/object/public/uploads/Teste/Logo%20Viviane%20Braga%20adv.webp" 
+              alt="Logo" 
+              className="h-10 w-auto object-contain"
+            />
+            <div className="flex flex-col">
+              <h1 className="text-sm font-bold text-sidebar-foreground uppercase tracking-wide">Viviane Braga</h1>
+              <p className="text-[10px] text-sidebar-foreground/60 tracking-[0.2em] uppercase">Advocacia</p>
             </div>
           </div>
           {toggleCollapse && (
@@ -77,7 +80,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
             const isActive = location.pathname.startsWith(item.path) && (item.path !== '/' || location.pathname === '/');
             const Icon = item.icon;
             
-            const linkClasses = `flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isCollapsed ? 'justify-center' : ''} ${isActive ? 'bg-sidebar-accent text-sidebar-foreground font-medium' : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'}`;
+            const linkClasses = `flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isCollapsed ? 'justify-center' : ''} ${isActive ? 'bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-sidebar-primary' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/30 hover:text-sidebar-foreground'}`;
 
             return isCollapsed ? (
               <Tooltip key={item.path} delayDuration={0}>
@@ -100,24 +103,24 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
         {/* User Section */}
         <div className="p-4 border-t border-sidebar-border flex-shrink-0">
           <div className={`flex items-center gap-3 mb-3 ${isCollapsed ? 'justify-center' : ''}`}>
-            <Avatar className="h-10 w-10 flex-shrink-0">
+            <Avatar className="h-10 w-10 flex-shrink-0 border border-sidebar-border">
               <AvatarImage src={profile?.url_avatar || ''} />
-              <AvatarFallback className="bg-accent text-accent-foreground">
+              <AvatarFallback className="bg-sidebar-accent text-sidebar-primary font-serif">
                 {getInitials(profile?.nome_completo)}
               </AvatarFallback>
             </Avatar>
             <div className={`flex-1 overflow-hidden whitespace-nowrap transition-all ${isCollapsed ? 'w-0' : 'w-full'}`}>
               <p className="text-sm font-medium text-sidebar-foreground truncate" title={profile?.nome_completo || 'Usuário'}>
-                {profile?.nome_completo || 'Usuário'}
+                {profile?.nome_completo || 'Advogado(a)'}
               </p>
-              <p className="text-xs text-sidebar-foreground/70 truncate" title={user?.email || ''}>
+              <p className="text-xs text-sidebar-foreground/50 truncate" title={user?.email || ''}>
                 {user?.email}
               </p>
             </div>
           </div>
           <Button 
             variant="ghost" 
-            className={`w-full text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ${isCollapsed ? 'justify-center' : 'justify-start'}`}
+            className={`w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ${isCollapsed ? 'justify-center' : 'justify-start'}`}
             onClick={signOut}
           >
             <LogOut className="h-4 w-4 flex-shrink-0" />
