@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AudioPlayer } from './AudioPlayer';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AlertCircle } from 'lucide-react';
 
 interface AudioMessageProps {
   filePath: string;
@@ -10,52 +11,58 @@ interface AudioMessageProps {
 export function AudioMessage({ filePath }: AudioMessageProps) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<boolean>(false);
 
   useEffect(() => {
     if (!filePath) {
       setIsLoading(false);
-      setError("Caminho do arquivo de áudio não fornecido.");
+      setError(true);
       return;
     }
 
-    // Suporte para Optimistic UI: Se for um blob local, usa diretamente sem chamar o servidor
+    // Suporte para Optimistic UI: Se for um blob local, usa diretamente
     if (filePath.startsWith('blob:')) {
       setAudioUrl(filePath);
       setIsLoading(false);
-      setError(null);
+      setError(false);
       return;
     }
 
+    let isMounted = true;
+
     const getSignedUrlViaFunction = async () => {
       setIsLoading(true);
-      setError(null);
+      setError(false);
 
-      const { data, error: functionError } = await supabase.functions.invoke('getSignedAudioUrl', {
-        body: { filePath },
-      });
+      try {
+        const { data, error: functionError } = await supabase.functions.invoke('getSignedAudioUrl', {
+          body: { filePath },
+        });
 
-      if (functionError) {
-        console.error('Erro ao chamar a edge function:', functionError);
-        // Tenta extrair a mensagem de erro específica do corpo da resposta
-        const detailedError = functionError.context?.body?.error || functionError.message;
-        setError(`Falha na comunicação com o servidor: ${detailedError}`);
-        setAudioUrl(null);
-      } else if (data.error) {
-        console.error('Erro retornado pela edge function:', data.error);
-        setError(`Não foi possível carregar o áudio: ${data.error}`);
-        setAudioUrl(null);
-      } else if (!data.signedUrl) {
-        setError('O servidor não retornou uma URL de áudio válida.');
-        setAudioUrl(null);
+        if (!isMounted) return;
+
+        if (functionError) {
+          console.warn('Falha na edge function de áudio:', functionError);
+          setError(true);
+        } else if (data?.error || !data?.signedUrl) {
+          console.warn('Erro retornado pela função de áudio:', data?.error);
+          setError(true);
+        } else {
+          setAudioUrl(data.signedUrl);
+        }
+      } catch (err) {
+        console.error("Exceção ao buscar áudio:", err);
+        if (isMounted) setError(true);
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
-      else {
-        setAudioUrl(data.signedUrl);
-      }
-      setIsLoading(false);
     };
 
     getSignedUrlViaFunction();
+
+    return () => {
+      isMounted = false;
+    };
   }, [filePath]);
 
   if (isLoading) {
@@ -63,7 +70,13 @@ export function AudioMessage({ filePath }: AudioMessageProps) {
   }
 
   if (error || !audioUrl) {
-    return <div className="text-xs text-destructive p-2">{error || 'Não foi possível carregar o áudio.'}</div>;
+    // Fallback discreto em vez de mensagem de erro gigante
+    return (
+      <div className="flex items-center gap-2 p-2 w-64 bg-muted/30 rounded-md text-xs text-muted-foreground border border-dashed">
+        <AlertCircle className="h-4 w-4 text-amber-500" />
+        <span>Áudio indisponível</span>
+      </div>
+    );
   }
 
   return <AudioPlayer audioUrl={audioUrl} />;

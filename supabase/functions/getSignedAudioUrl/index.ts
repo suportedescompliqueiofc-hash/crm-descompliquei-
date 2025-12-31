@@ -37,36 +37,49 @@ serve(async (req) => {
       throw new Error('File path is required in the request body');
     }
 
-    // --- CORREÇÃO ---
-    // O bucket correto usado no upload é 'media-mensagens'
-    const bucketName = 'media-mensagens';
-    let cleanPath = filePath;
-    
-    // Remove o nome do bucket se ele vier duplicado no path
-    if (cleanPath.startsWith(`${bucketName}/`)) {
-      cleanPath = cleanPath.substring(bucketName.length + 1);
-    } else if (cleanPath.startsWith('audio-mensagens/')) {
-        // Fallback caso algum legado envie com o nome antigo
-        cleanPath = cleanPath.substring('audio-mensagens/'.length);
-    }
-    // --- FIM DA CORREÇÃO ---
-
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { data, error } = await supabaseAdmin
-      .storage
-      .from(bucketName)
-      .createSignedUrl(cleanPath, 3600); // Aumentado para 1 hora para evitar expiração rápida
+    // --- LÓGICA DE MULTI-BUCKET ROBUSTA ---
+    // Tenta encontrar o arquivo em diferentes buckets para evitar erros de "arquivo não encontrado"
+    const bucketsToTry = ['media-mensagens', 'audio-mensagens', 'campaign-media'];
+    let signedUrlData = null;
+    let lastError = null;
 
-    if (error) {
-      throw error;
+    for (const bucketName of bucketsToTry) {
+      let cleanPath = filePath;
+      
+      // Remove o nome do bucket se ele vier duplicado no início do path
+      if (cleanPath.startsWith(`${bucketName}/`)) {
+        cleanPath = cleanPath.substring(bucketName.length + 1);
+      } else if (cleanPath.startsWith('audio-mensagens/') && bucketName !== 'audio-mensagens') {
+        // Tenta limpar prefixos de legado se existirem
+        cleanPath = cleanPath.substring('audio-mensagens/'.length);
+      }
+
+      // Tenta gerar a URL assinada neste bucket
+      const { data, error } = await supabaseAdmin
+        .storage
+        .from(bucketName)
+        .createSignedUrl(cleanPath, 60 * 60 * 24); // Validade de 24 horas
+
+      if (!error && data?.signedUrl) {
+        signedUrlData = data;
+        break; // Sucesso! Encontrou o arquivo.
+      } else {
+        lastError = error; // Guarda o erro para log se falhar em todos
+      }
+    }
+
+    if (!signedUrlData) {
+      console.error(`Falha ao encontrar áudio. Path: ${filePath}. Último erro:`, lastError);
+      throw new Error('Arquivo de áudio não encontrado nos buckets de mídia.');
     }
 
     return new Response(
-      JSON.stringify({ signedUrl: data.signedUrl }),
+      JSON.stringify({ signedUrl: signedUrlData.signedUrl }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
@@ -79,7 +92,7 @@ serve(async (req) => {
       JSON.stringify({ error: error.message }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: 400, // Retorna 400 para erros de lógica, mas com mensagem JSON clara
       }
     );
   }
