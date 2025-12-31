@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/group-radio';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -84,12 +84,11 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
           if (!lead.idade || lead.idade < min || lead.idade > max) return false;
         }
 
-        // NOVO FILTRO: Data de Cadastro (CORREÇÃO APLICADA AQUI)
+        // NOVO FILTRO: Data de Cadastro
         if (registrationDateRange?.from) {
           const leadCreatedDate = startOfDay(new Date(lead.criado_em));
           const filterStart = startOfDay(registrationDateRange.from);
           
-          // Se 'to' não estiver definido, trata como um único dia
           const filterEnd = registrationDateRange.to 
             ? endOfDay(registrationDateRange.to) 
             : endOfDay(registrationDateRange.from);
@@ -117,17 +116,14 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
 
   // 2. Efeito para sincronizar a seleção de IDs com base no tipo de segmento
   useEffect(() => {
-    // Se o modo não for 'all', a seleção é automática baseada no filtro
     if (segmentType !== 'all') {
       setSelectedLeadIds(new Set(filteredLeads.map(lead => lead.id)));
     } else {
-      // Se for 'all', a seleção é manual, mas inicializa com todos se não houver pesquisa
       if (!searchTerm && selectedLeadIds.size === 0) {
         setSelectedLeadIds(new Set(leads.map(lead => lead.id)));
       }
     }
     
-    // Garante que a função de callback seja chamada com os IDs corretos
     onSelectionChange(Array.from(selectedLeadIds));
     
     const config = {
@@ -147,7 +143,6 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
       } else {
         newSet.delete(leadId);
       }
-      // Chama onSelectionChange imediatamente para atualizar o contador
       onSelectionChange(Array.from(newSet));
       return newSet;
     });
@@ -159,7 +154,6 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
       if (isSelected) {
         filteredLeads.forEach(lead => newSet.add(lead.id));
       } else {
-        // Desmarca apenas os leads visíveis/filtrados
         filteredLeads.forEach(lead => newSet.delete(lead.id));
       }
       onSelectionChange(Array.from(newSet));
@@ -184,10 +178,7 @@ export function AudienceSegmentation({ onConfigChange, onSelectionChange, initia
     );
   }
 
-  // Determina a lista de leads para o contador
   const selectedCount = Array.from(selectedLeadIds).filter(id => leads.some(l => l.id === id)).length;
-  
-  // Verifica se todos os leads exibidos (filtrados pela pesquisa no modo 'all' ou pelo filtro nos outros modos) estão selecionados
   const isAllDisplayedSelected = filteredLeads.length > 0 && filteredLeads.every(lead => selectedLeadIds.has(lead.id));
 
   return (
