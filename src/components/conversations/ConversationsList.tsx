@@ -14,7 +14,6 @@ import { TAG_COLORS } from "@/hooks/useTags";
 const formatLastMessageTime = (timestamp?: string | null) => {
   if (!timestamp) return '';
   
-  // Cria a data diretamente. O construtor Date() lida bem com strings ISO do Supabase.
   const date = new Date(timestamp);
   
   if (!isValid(date)) return '';
@@ -73,8 +72,18 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             {conversation.tags && conversation.tags.length > 0 && (
               <div className="flex items-center gap-1 flex-shrink-0">
                 {conversation.tags.slice(0, 2).map(tag => {
-                  const color = TAG_COLORS.find(c => c.name === tag.color) || TAG_COLORS[0];
-                  return <div key={tag.id} className={cn("w-2 h-2 rounded-full", color.selector)} title={tag.name} />;
+                  // Lógica para cor: se for hex, usa style, se for nome, usa classe do preset
+                  const preset = TAG_COLORS.find(c => c.name === tag.color);
+                  const isHex = tag.color && tag.color.startsWith('#');
+                  
+                  return (
+                    <div 
+                      key={tag.id} 
+                      className={cn("w-2 h-2 rounded-full", preset?.selector)} 
+                      style={isHex ? { backgroundColor: tag.color } : undefined}
+                      title={tag.name} 
+                    />
+                  );
                 })}
               </div>
             )}
