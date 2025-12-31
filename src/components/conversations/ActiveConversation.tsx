@@ -143,11 +143,11 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
       // 1. Verificação básica de ID duplicado
       if (seenIds.has(msg.id)) continue;
       
-      // 2. Lógica específica para desduplicar áudios próximos (Optimistic vs Real ou Duplicatas do Banco)
+      // 2. Lógica específica para desduplicar áudios
       if (msg.tipo_conteudo === 'audio') {
         const lastMsg = res[res.length - 1];
         
-        // Se a mensagem anterior for um áudio do mesmo remetente
+        // Verifica se a mensagem anterior é um áudio do mesmo remetente
         if (lastMsg && 
             lastMsg.tipo_conteudo === 'audio' && 
             lastMsg.remetente === msg.remetente) {
@@ -155,19 +155,28 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
             const t1 = new Date(lastMsg.criado_em).getTime();
             const t2 = new Date(msg.criado_em).getTime();
             
-            // Se a diferença for menor que 3 segundos, consideramos duplicata
-            if (Math.abs(t2 - t1) < 3000) {
-               // Prioridade: Manter a mensagem Real (ID UUID) sobre a Temporária (ID 'temp-')
-               if (lastMsg.id.startsWith('temp-') && !msg.id.startsWith('temp-')) {
-                   // Remove a anterior (temp) e adiciona a atual (real)
+            // Tolerância de 20 segundos para lidar com diferenças de relógio (client/server)
+            if (Math.abs(t2 - t1) < 20000) {
+               const isLastTemp = lastMsg.id.startsWith('temp-');
+               const isCurrTemp = msg.id.startsWith('temp-');
+
+               // Caso 1: A anterior era Temporária e a Atual é Real -> Substitui a Temporária pela Real
+               if (isLastTemp && !isCurrTemp) {
                    res.pop();
-                   seenIds.delete(lastMsg.id); // Opcional, já que não vamos reprocessar
+                   seenIds.delete(lastMsg.id);
                    res.push(msg);
                    seenIds.add(msg.id);
                    continue;
                }
                
-               // Se ambas são reais ou ambas temp, ignora a segunda (atual)
+               // Caso 2: A anterior era Real e a Atual é Temporária -> Ignora a Temporária
+               // Isso acontece se a ordenação colocar a Real antes da Temp (ex: relógio server atrasado em relação ao client)
+               if (!isLastTemp && isCurrTemp) {
+                   continue;
+               }
+
+               // Caso 3: Ambas Temporárias ou Ambas Reais
+               // Se forem muito próximas, assumimos duplicidade para evitar repetição visual
                continue;
             }
         }
