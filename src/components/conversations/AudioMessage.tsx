@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AudioPlayer } from './AudioPlayer';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface AudioMessageProps {
   filePath: string;
@@ -13,58 +14,50 @@ interface AudioMessageProps {
 export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessageProps) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchAudio = async () => {
     if (!filePath) {
       setIsLoading(false);
-      setError(true);
+      setError("Caminho inválido");
       return;
     }
 
-    // Suporte para Optimistic UI
+    // Suporte para Optimistic UI (blob local)
     if (filePath.startsWith('blob:')) {
       setAudioUrl(filePath);
       setIsLoading(false);
-      setError(false);
+      setError(null);
       return;
     }
 
-    let isMounted = true;
+    setIsLoading(true);
+    setError(null);
 
-    const getSignedUrlViaFunction = async () => {
-      setIsLoading(true);
-      setError(false);
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke('getSignedAudioUrl', {
+        body: { filePath },
+      });
 
-      try {
-        const { data, error: functionError } = await supabase.functions.invoke('getSignedAudioUrl', {
-          body: { filePath },
-        });
-
-        if (!isMounted) return;
-
-        if (functionError) {
-          console.warn('Falha na edge function de áudio:', functionError);
-          setError(true);
-        } else if (data?.error || !data?.signedUrl) {
-          console.warn('Erro retornado pela função de áudio:', data?.error);
-          setError(true);
-        } else {
-          setAudioUrl(data.signedUrl);
-        }
-      } catch (err) {
-        console.error("Exceção ao buscar áudio:", err);
-        if (isMounted) setError(true);
-      } finally {
-        if (isMounted) setIsLoading(false);
+      if (functionError) {
+        console.warn('Falha na edge function de áudio:', functionError);
+        setError("Erro ao carregar");
+      } else if (data?.error || !data?.signedUrl) {
+        console.warn('Erro retornado pela função de áudio:', data?.error);
+        setError(data?.error || "Áudio não encontrado");
+      } else {
+        setAudioUrl(data.signedUrl);
       }
-    };
+    } catch (err) {
+      console.error("Exceção ao buscar áudio:", err);
+      setError("Erro de conexão");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    getSignedUrlViaFunction();
-
-    return () => {
-      isMounted = false;
-    };
+  useEffect(() => {
+    fetchAudio();
   }, [filePath]);
 
   if (isLoading) {
@@ -78,10 +71,21 @@ export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessagePro
 
   if (error || !audioUrl) {
     return (
-      <div className={cn("flex items-center gap-2 p-2 w-64 rounded-md text-xs border border-dashed", 
+      <div className={cn("flex items-center justify-between gap-2 p-2 w-64 rounded-md text-xs border border-dashed", 
         variant === 'outgoing' ? "bg-white/10 text-white/70 border-white/20" : "bg-muted/30 text-muted-foreground")}>
-        <AlertCircle className="h-4 w-4" />
-        <span>Áudio indisponível</span>
+        <div className="flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          <span>{error || "Indisponível"}</span>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-6 w-6 hover:bg-white/20" 
+          onClick={fetchAudio}
+          title="Tentar novamente"
+        >
+          <RefreshCw className="h-3 w-3" />
+        </Button>
       </div>
     );
   }

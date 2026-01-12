@@ -7,43 +7,54 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    // 1. Validate Auth Header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('Missing Authorization header');
+      return new Response(
+        JSON.stringify({ error: 'Missing Authorization header' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
     }
 
+    // 2. Validate User Token
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('Auth failed:', authError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', details: authError }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
     }
 
-    const body = await req.json().catch(() => {
-      throw new Error('Invalid JSON body');
-    });
-
-    const { filePath } = body;
+    // 3. Parse Request Body
+    const { filePath } = await req.json();
     if (!filePath) {
-      throw new Error('File path is required in the request body');
+      return new Response(
+        JSON.stringify({ error: 'filePath is required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
 
+    // 4. Create Admin Client for Storage Access
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // --- LÓGICA DE MULTI-BUCKET ROBUSTA ---
-    // Tenta encontrar o arquivo em diferentes buckets para evitar erros de "arquivo não encontrado"
+    // 5. Try to find the file in multiple buckets (Legacy support + New structure)
     const bucketsToTry = ['media-mensagens', 'audio-mensagens', 'campaign-media'];
     let signedUrlData = null;
     let lastError = null;
@@ -51,49 +62,45 @@ serve(async (req) => {
     for (const bucketName of bucketsToTry) {
       let cleanPath = filePath;
       
-      // Remove o nome do bucket se ele vier duplicado no início do path
+      // Remove bucket name from path if present to avoid duplication
       if (cleanPath.startsWith(`${bucketName}/`)) {
         cleanPath = cleanPath.substring(bucketName.length + 1);
       } else if (cleanPath.startsWith('audio-mensagens/') && bucketName !== 'audio-mensagens') {
-        // Tenta limpar prefixos de legado se existirem
+        // Handle legacy paths
         cleanPath = cleanPath.substring('audio-mensagens/'.length);
       }
 
-      // Tenta gerar a URL assinada neste bucket
       const { data, error } = await supabaseAdmin
         .storage
         .from(bucketName)
-        .createSignedUrl(cleanPath, 60 * 60 * 24); // Validade de 24 horas
+        .createSignedUrl(cleanPath, 60 * 60 * 24); // 24 hours validity
 
       if (!error && data?.signedUrl) {
         signedUrlData = data;
-        break; // Sucesso! Encontrou o arquivo.
+        break; // Found it!
       } else {
-        lastError = error; // Guarda o erro para log se falhar em todos
+        lastError = error;
       }
     }
 
     if (!signedUrlData) {
-      console.error(`Falha ao encontrar áudio. Path: ${filePath}. Último erro:`, lastError);
-      throw new Error('Arquivo de áudio não encontrado nos buckets de mídia.');
+      console.error(`File not found: ${filePath}`, lastError);
+      return new Response(
+        JSON.stringify({ error: 'Audio file not found', details: lastError }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+      );
     }
 
     return new Response(
       JSON.stringify({ signedUrl: signedUrlData.signedUrl }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
 
   } catch (error) {
-    console.error('Error in getSignedAudioUrl function:', error.message);
+    console.error('Unexpected error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400, // Retorna 400 para erros de lógica, mas com mensagem JSON clara
-      }
+      JSON.stringify({ error: 'Internal Server Error', details: error.message }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });

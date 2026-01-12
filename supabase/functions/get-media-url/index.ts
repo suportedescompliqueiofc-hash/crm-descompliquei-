@@ -7,40 +7,62 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // 1. Autenticação do usuário que está pedindo o arquivo
+    // 1. Validate Auth Header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing Authorization header' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
+    // 2. Validate User Token
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      { global: { headers: { Authorization: authHeader } } }
     );
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) throw new Error('Usuário não autenticado');
 
-    // 2. Obtenção do caminho do arquivo do corpo da requisição
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('Auth failed:', authError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', details: authError }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
+    // 3. Parse Request Body
     const { mediaPath } = await req.json();
-    if (!mediaPath) throw new Error('O caminho da mídia é obrigatório.');
+    if (!mediaPath) {
+      return new Response(
+        JSON.stringify({ error: 'mediaPath is required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
 
-    // 3. Criação da URL segura com a chave de administrador
+    // 4. Create Admin Client for Storage Access
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // --- CORREÇÃO ---
-    // Tenta buscar a mídia em múltiplos buckets, começando pelo mais comum.
+    // 5. Try to find the file in multiple buckets
     const bucketsToTry = ['media-mensagens', 'campaign-media'];
     let signedUrlData = null;
-    let lastError: Error | null = null;
+    let lastError = null;
 
     for (const bucketName of bucketsToTry) {
       let cleanPath = mediaPath.trim();
       
-      // Remove o nome do bucket se ele vier duplicado no path
+      // Remove bucket name from path if present
       if (cleanPath.startsWith(`${bucketName}/`)) {
         cleanPath = cleanPath.substring(bucketName.length + 1);
       }
@@ -48,32 +70,34 @@ serve(async (req) => {
       const { data, error } = await supabaseAdmin
         .storage
         .from(bucketName)
-        .createSignedUrl(cleanPath, 3600); // URL válida por 1 hora
+        .createSignedUrl(cleanPath, 60 * 60 * 24); // 24h validity
 
-      if (!error && data.signedUrl) {
+      if (!error && data?.signedUrl) {
         signedUrlData = data;
-        break; // Sucesso, encontrou o arquivo.
+        break;
       } else {
-        lastError = error; // Guarda o erro para o caso de não encontrar em nenhum bucket.
+        lastError = error;
       }
     }
 
     if (!signedUrlData) {
-      // Se não encontrou em nenhum bucket, lança o último erro ocorrido.
-      throw lastError || new Error('Arquivo não encontrado em nenhum dos buckets de mídia.');
+      console.error(`Media not found: ${mediaPath}`, lastError);
+      return new Response(
+        JSON.stringify({ error: 'Media file not found in any bucket' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+      );
     }
-    // --- FIM DA CORREÇÃO ---
 
-    return new Response(JSON.stringify({ signedUrl: signedUrlData.signedUrl }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({ signedUrl: signedUrlData.signedUrl }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+    );
 
   } catch (error) {
-    console.error('Erro na função get-media-url:', error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
-    });
+    console.error('Unexpected error in get-media-url:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal Server Error', details: error.message }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    );
   }
 });
