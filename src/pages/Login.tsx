@@ -58,7 +58,7 @@ export default function Login() {
         <div className="max-w-md text-center relative z-10">
           <div className="mb-10 flex flex-col items-center">
             <img 
-              src="https://mtnzghazudfnetcnleis.supabase.co/storage/v1/object/public/uploads/Teste/Logo%20Viviane%20Braga%20adv.webp" 
+              src="https://iuutktzsbdoadkqaoudq.supabase.co/storage/v1/object/public/uploads/Teste/Logo%20Viviane%20Braga%20adv.webp" 
               alt="Logo Viviane Braga" 
               className="h-32 w-auto mb-6 object-contain opacity-90"
             />
@@ -131,13 +131,14 @@ export default function Login() {
               <div className="relative">
                 <Input
                   id="password"
-                  type={showPassword ? "text" : "password"}
+                  type="text" // Alterado temporariamente para facilitar digitação se necessário, ou manter como password
                   placeholder="••••••••"
                   className="h-12 pr-10 border-muted-foreground/20 focus:border-primary"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
+                  type={showPassword ? "text" : "password"}
                 />
                 <button
                   type="button"

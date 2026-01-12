@@ -2,10 +2,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// Credenciais do NOVO projeto Supabase (mtnzghazudfnetcnleis)
-// Definidas diretamente para garantir que não use env vars antigas
-const SUPABASE_URL = "https://mtnzghazudfnetcnleis.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10bnpnaGF6dWRmbmV0Y25sZWlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxNzk0NDYsImV4cCI6MjA4Mzc1NTQ0Nn0.UphTJO-r5w6lnfPlALtEPdakux3h1FRG1-WAQO8t3lw";
+// Credenciais do NOVO projeto Supabase (iuutktzsbdoadkqaoudq)
+const SUPABASE_URL = "https://iuutktzsbdoadkqaoudq.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1dXRrdHpzYmRvYWRrcWFvdWRxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyMjk3MTgsImV4cCI6MjA4MzgwNTcxOH0.4s806NffcBTIYp6IaZU5IScg07gI4lj7ecSexYMdgHQ";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {

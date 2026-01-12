@@ -58,7 +58,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
         <div className={`flex items-center transition-all h-20 flex-shrink-0 ${isCollapsed ? 'px-2 justify-center' : 'px-6'}`}>
           <div className={`flex items-center gap-3 whitespace-nowrap overflow-hidden transition-all ${isCollapsed ? 'w-0' : 'w-full'}`}>
             <img 
-              src="https://okvkszwzivjsqagisltm.supabase.co/storage/v1/object/public/uploads/Teste/Logo%20Viviane%20Braga%20adv.webp" 
+              src="https://iuutktzsbdoadkqaoudq.supabase.co/storage/v1/object/public/uploads/Teste/Logo%20Viviane%20Braga%20adv.webp" 
               alt="Logo" 
               className="h-10 w-auto object-contain"
             />
