@@ -213,7 +213,7 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
       }
     );
     try {
-      await fetch('https://webhook.orbevision.shop/webhook/ativar-desativar-viviane', {
+      await fetch('https://webhook.orbevision.shop/webhook/ativa-desativa-chat-karoline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

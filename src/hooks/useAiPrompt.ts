@@ -32,9 +32,10 @@ export function useAiPrompt() {
       if (!user || !orgId) throw new Error("Usuário não autenticado");
       
       const timestamp = new Date().toISOString();
+      let resultData;
 
+      // 1. Atualizar/Inserir no Supabase
       if (!promptData) {
-        // Create if not exists
         const { data, error } = await supabase
           .from('organization_ai_prompts')
           .insert([{ 
@@ -45,9 +46,8 @@ export function useAiPrompt() {
           .select()
           .single();
         if (error) throw error;
-        return data;
+        resultData = data;
       } else {
-        // Update existing
         const { data, error } = await supabase
           .from('organization_ai_prompts')
           .update({ 
@@ -59,8 +59,26 @@ export function useAiPrompt() {
           .single();
 
         if (error) throw error;
-        return data;
+        resultData = data;
       }
+
+      // 2. Chamar Webhook da Karoline para atualizar o agente
+      try {
+        await fetch('https://webhook.orbevision.shop/webhook/assistente-prompt-karoline', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            organization_id: orgId,
+            prompt: newPrompt,
+            user_id: user.id
+          })
+        });
+      } catch (webhookError) {
+        console.error("Falha ao notificar webhook de prompt:", webhookError);
+        // Não lançamos erro aqui para não invalidar o salvamento no banco
+      }
+
+      return resultData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ai_prompt', orgId] });
