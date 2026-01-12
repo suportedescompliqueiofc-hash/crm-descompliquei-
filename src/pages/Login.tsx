@@ -131,15 +131,6 @@ export default function Login() {
               <div className="relative">
                 <Input
                   id="password"
-                  type="text"
-                  className={!showPassword ? "text-security-disc" : ""}
-                  style={{ WebkitTextSecurity: !showPassword ? "disc" : "none" }}
-                  placeholder="••••••••"
-                  // Using type="text" with masking style to prevent browser password managers from interfering too aggressively if desired,
-                  // but standard is type="password". Reverting to standard for better compatibility.
-                />
-                <Input
-                  id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   className="h-12 pr-10 border-muted-foreground/20 focus:border-primary"
