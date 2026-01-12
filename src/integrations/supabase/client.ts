@@ -2,14 +2,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// O projeto utiliza VITE, então usamos import.meta.env.VITE_*
-// IMPORTANTE: Se existir um arquivo .env local com VITE_SUPABASE_URL antigo, ele terá prioridade.
-// Verifique se seu .env está apontando para 'mtnzghazudfnetcnleis'.
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://mtnzghazudfnetcnleis.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10bnpnaGF6dWRmbmV0Y25sZWlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxNzk0NDYsImV4cCI6MjA4Mzc1NTQ0Nn0.UphTJO-r5w6lnfPlALtEPdakux3h1FRG1-WAQO8t3lw";
-
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+// Credenciais do NOVO projeto Supabase (mtnzghazudfnetcnleis)
+// Definidas diretamente para garantir que não use env vars antigas
+const SUPABASE_URL = "https://mtnzghazudfnetcnleis.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10bnpnaGF6dWRmbmV0Y25sZWlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxNzk0NDYsImV4cCI6MjA4Mzc1NTQ0Nn0.UphTJO-r5w6lnfPlALtEPdakux3h1FRG1-WAQO8t3lw";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
