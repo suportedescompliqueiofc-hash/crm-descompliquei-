@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Shield, GripVertical } from "lucide-react";
+import { Plus, Edit, Trash2, Shield, GripVertical, Sparkles } from "lucide-react";
 import { useStagesManager } from "@/hooks/useStagesManager";
 import { Stage } from "@/hooks/useStages";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -14,6 +14,9 @@ import { useProfile } from "@/hooks/useProfile";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 const SortableStageRow = ({ stage, onEdit, onDelete }: { stage: Stage; onEdit: (stage: Stage) => void; onDelete: (stage: Stage) => void; }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id });
@@ -60,6 +63,8 @@ export function PipelineSettings() {
   const [isDeleting, setIsDeleting] = useState<Stage | null>(null);
   const [stageName, setStageName] = useState("");
   const [stageColor, setStageColor] = useState("#cccccc");
+  const [isResetting, setIsResetting] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setLocalStages(stages);
@@ -136,6 +141,24 @@ export function PipelineSettings() {
     }
   };
 
+  const handleSeedStages = async () => {
+    if (!confirm("Isso irá redefinir os nomes e cores das suas etapas para o padrão da Clínica Monção. Seus leads serão mantidos, mas as etapas podem mudar de nome. Deseja continuar?")) return;
+
+    setIsResetting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('seed-stages');
+      if (error) throw error;
+      
+      toast.success("Etapas padronizadas com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ['stages'] });
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Erro ao padronizar etapas: " + err.message);
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -143,10 +166,16 @@ export function PipelineSettings() {
           <CardTitle>Etapas do Pipeline</CardTitle>
           <CardDescription>Gerencie as etapas do seu funil de vendas. Arraste para reordenar.</CardDescription>
         </div>
-        <Button className="gap-2" onClick={() => openModal()}>
-          <Plus className="h-4 w-4" />
-          Nova Etapa
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleSeedStages} disabled={isResetting}>
+            <Sparkles className="h-4 w-4 text-primary" />
+            {isResetting ? "Aplicando..." : "Padrão Clínica"}
+          </Button>
+          <Button className="gap-2" onClick={() => openModal()}>
+            <Plus className="h-4 w-4" />
+            Nova Etapa
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
