@@ -8,63 +8,63 @@ const corsHeaders = {
 
 const templates = [
   { 
-    nome: 'Confirmação de Consulta Jurídica', 
+    nome: 'Confirmação de Avaliação', 
     categoria: 'Agendamento', 
-    conteudo: 'Prezado(a) {{nome_lead}}, confirmamos sua consulta agendada com a Dra. Viviane Braga. Por favor, responda SIM para confirmar sua presença. Caso precise reagendar, nos avise com antecedência.', 
+    conteudo: 'Olá {{nome_lead}}, tudo bem? Confirmamos sua avaliação de harmonização facial agendada para amanhã. Por favor, responda SIM para confirmar sua presença.', 
     variaveis: ['nome_lead'] 
   },
   { 
-    nome: 'Solicitação de Documentos', 
-    categoria: 'Andamento Processual', 
-    conteudo: 'Olá, {{nome_lead}}. Para darmos continuidade à análise do seu caso, precisamos que nos envie foto ou PDF dos seguintes documentos: RG, CPF e Comprovante de Residência. Pode enviar por aqui mesmo?', 
+    nome: 'Orientações Pós-Procedimento', 
+    categoria: 'Pós-Venda', 
+    conteudo: 'Oi {{nome_lead}}. Como está se sentindo após o procedimento? Lembre-se de evitar exposição solar e esforço físico hoje. Qualquer dúvida, estamos por aqui!', 
     variaveis: ['nome_lead'] 
   },
   { 
-    nome: 'Atualização do Processo', 
-    categoria: 'Andamento Processual', 
-    conteudo: 'Olá, {{nome_lead}}. Temos uma atualização importante sobre o andamento do seu processo. Gostaria de agendar uma breve ligação ou visita ao escritório para explicarmos os detalhes?', 
+    nome: 'Agendamento de Retorno', 
+    categoria: 'Retorno', 
+    conteudo: 'Olá {{nome_lead}}. Já está na hora do seu retorno para avaliarmos os resultados do seu tratamento. Qual o melhor horário para você vir à clínica?', 
     variaveis: ['nome_lead'] 
   },
   { 
-    nome: 'Boas-vindas ao Escritório', 
+    nome: 'Boas-vindas à Clínica', 
     categoria: 'Boas-vindas', 
-    conteudo: 'Seja bem-vindo(a) à {{nome_escritorio}}. Agradecemos a confiança. Nossa equipe já está analisando o seu caso e entraremos em contato em breve com os próximos passos.', 
+    conteudo: 'Seja bem-vindo(a) à {{nome_escritorio}}. É um prazer cuidar da sua autoestima. Nossa equipe entrará em contato em breve para entender seus objetivos.', 
     variaveis: ['nome_escritorio'] 
   },
   { 
-    nome: 'Proposta de Honorários', 
+    nome: 'Envio de Orçamento', 
     categoria: 'Comercial', 
-    conteudo: 'Olá, {{nome_lead}}. Conforme conversamos, segue em anexo a proposta de honorários advocatícios para sua apreciação. Estamos à disposição para esclarecer qualquer dúvida.', 
+    conteudo: 'Olá {{nome_lead}}. Conforme sua avaliação, segue o orçamento detalhado do seu plano de tratamento. Ficamos à disposição para explicar as formas de pagamento.', 
     variaveis: ['nome_lead'] 
   },
   { 
-    nome: 'Retorno sobre Contato', 
+    nome: 'Contato Inicial - Harmonização', 
     categoria: 'Comercial', 
-    conteudo: 'Olá, {{nome_lead}}. Recebemos seu contato e gostaríamos de entender melhor sua situação para orientá-lo(a) juridicamente. Qual o melhor horário para falarmos?', 
+    conteudo: 'Oi {{nome_lead}}! Vi seu interesse em harmonização facial. Gostaria de agendar uma avaliação gratuita para analisarmos seu perfil e indicarmos o melhor procedimento?', 
     variaveis: ['nome_lead'] 
   },
   { 
-    nome: 'Lembrete de Vencimento', 
+    nome: 'Lembrete de Parcela', 
     categoria: 'Financeiro', 
-    conteudo: 'Prezado(a) {{nome_lead}}, este é um lembrete cordial sobre o vencimento da parcela dos honorários amanhã. Caso já tenha efetuado o pagamento, por favor, desconsidere esta mensagem.', 
+    conteudo: 'Prezado(a) {{nome_lead}}, lembramos que a parcela do seu tratamento vence amanhã. Caso já tenha efetuado o pagamento, por favor, desconsidere.', 
     variaveis: ['nome_lead'] 
   },
   { 
-    nome: 'Aniversário do Cliente', 
+    nome: 'Aniversário do Paciente', 
     categoria: 'Relacionamento', 
-    conteudo: 'Feliz aniversário, {{nome_lead}}! A equipe da {{nome_escritorio}} deseja a você um novo ciclo repleto de saúde, paz e justiça. Parabéns!', 
+    conteudo: 'Parabéns, {{nome_lead}}! A equipe da {{nome_escritorio}} deseja a você um ano repleto de sorrisos e realizações. Conte sempre conosco!', 
     variaveis: ['nome_lead', 'nome_escritorio'] 
   },
   { 
-    nome: 'Reativação de Contato', 
+    nome: 'Reativação - Botox/Preenchimento', 
     categoria: 'Retenção', 
-    conteudo: 'Olá, {{nome_lead}}. Faz {{dias_sem_contato}} dias que não nos falamos. Gostaria de saber se ainda precisa de assistência jurídica em relação ao seu caso. Estamos à disposição.', 
+    conteudo: 'Olá {{nome_lead}}. Faz {{dias_sem_contato}} dias que realizamos seu procedimento. Que tal agendar uma visita para manutenção e garantir que os resultados continuem perfeitos?', 
     variaveis: ['nome_lead', 'dias_sem_contato'] 
   },
   { 
     nome: 'Pesquisa de Satisfação', 
     categoria: 'Qualidade', 
-    conteudo: 'Olá, {{nome_lead}}. Sua opinião é fundamental para aprimorarmos nosso atendimento jurídico. Em uma escala de 0 a 10, como você avalia nossos serviços até o momento?', 
+    conteudo: 'Oi {{nome_lead}}. Adoraríamos saber o que achou do seu atendimento e resultado aqui na clínica. Em uma escala de 0 a 10, qual nota você daria?', 
     variaveis: ['nome_lead'] 
   }
 ];

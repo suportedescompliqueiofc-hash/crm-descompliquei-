@@ -63,7 +63,7 @@ serve(async (req) => {
     if (!organizationId) {
       console.log(`Admin ${user.id} sem organização. Iniciando auto-correção...`)
       
-      const orgName = (adminProfile?.nome_completo || 'Meu') + ' Escritório'
+      const orgName = (adminProfile?.nome_completo || 'Minha') + ' Clínica'
       
       const { data: newOrg, error: createOrgError } = await supabaseAdmin
         .from('organizations')

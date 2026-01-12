@@ -54,7 +54,7 @@ export function useClinicSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clinic_settings', orgId] });
-      toast.success('Configurações do escritório atualizadas!', { closeButton: true });
+      toast.success('Configurações da clínica atualizadas!', { closeButton: true });
     },
     onError: (error: any) => {
       toast.error(error.message || 'Erro ao atualizar configurações', { closeButton: true });

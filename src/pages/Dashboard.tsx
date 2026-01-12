@@ -38,7 +38,7 @@ export default function Dashboard() {
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <div className="bg-destructive/10 p-4 rounded-full"><AlertTriangle className="h-10 w-10 text-destructive" /></div>
         <h3 className="text-xl font-semibold">Erro ao carregar o painel</h3>
-        <p className="text-muted-foreground max-w-md text-center">Verifique sua conexão ou se as configurações do seu escritório estão completas.</p>
+        <p className="text-muted-foreground max-w-md text-center">Verifique sua conexão ou se as configurações da sua clínica estão completas.</p>
         <Button onClick={() => refetch()} variant="outline" className="gap-2"><RefreshCw className="h-4 w-4" /> Tentar Novamente</Button>
       </div>
     );
@@ -60,7 +60,7 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Painel de Controle</h1>
-          <p className="text-muted-foreground mt-1">Performance do seu escritório de advocacia.</p>
+          <p className="text-muted-foreground mt-1">Performance da sua clínica.</p>
         </div>
         <DateRangePicker date={dateRange} setDate={setDateRange} />
       </div>

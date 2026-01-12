@@ -42,7 +42,7 @@ export function useProfile() {
       console.log("Perfil não encontrado. Iniciando auto-criação...");
       
       // A. Cria uma organização para o usuário
-      const orgName = (user.user_metadata?.full_name || 'Meu') + ' Escritório';
+      const orgName = (user.user_metadata?.full_name || 'Minha') + ' Clínica';
       const { data: newOrg, error: orgError } = await supabase
         .from('organizations')
         .insert({ name: orgName })
