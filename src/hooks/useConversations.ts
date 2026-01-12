@@ -31,6 +31,8 @@ export interface Message {
 export interface Conversation extends Lead {
   last_message_content?: string;
   last_message_timestamp?: string;
+  last_message_type?: string;
+  last_message_sender?: string;
   tags: Tag[];
 }
 
@@ -102,7 +104,7 @@ export function useConversationsList() {
         leads.map(async (lead: any) => {
           const { data: lastMessage } = await supabase
             .from('mensagens')
-            .select('conteudo, criado_em')
+            .select('conteudo, criado_em, tipo_conteudo, remetente')
             .eq('lead_id', lead.id)
             .order('criado_em', { ascending: false })
             .limit(1)
@@ -114,6 +116,8 @@ export function useConversationsList() {
             ...lead,
             last_message_content: lastMessage?.conteudo || 'Nenhuma mensagem ainda',
             last_message_timestamp: lastMessage?.criado_em || lead.criado_em,
+            last_message_type: lastMessage?.tipo_conteudo || 'texto',
+            last_message_sender: lastMessage?.remetente,
             tags: tags,
           };
         })

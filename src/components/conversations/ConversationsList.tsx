@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search, Mic, Image as ImageIcon, Video, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,6 +33,33 @@ const formatLastMessageTime = (timestamp?: string | null) => {
   }
   
   return format(date, 'dd/MM/yy');
+};
+
+const MessagePreview = ({ content, type, sender }: { content?: string, type?: string, sender?: string }) => {
+  if (!content && !type) return <span className="italic text-muted-foreground/60">Nenhuma mensagem</span>;
+
+  const isOutgoing = sender === 'agente' || sender === 'bot' || sender === 'agente_crm';
+  const prefix = isOutgoing ? <span className="mr-1">Você:</span> : null;
+
+  if (type === 'audio') {
+    return <div className="flex items-center gap-1 text-primary"><Mic className="h-3 w-3" /> <span>Áudio</span></div>;
+  }
+  if (type === 'imagem') {
+    return <div className="flex items-center gap-1"><ImageIcon className="h-3 w-3" /> <span>Foto</span></div>;
+  }
+  if (type === 'video') {
+    return <div className="flex items-center gap-1"><Video className="h-3 w-3" /> <span>Vídeo</span></div>;
+  }
+  if (type === 'pdf' || type === 'arquivo') {
+    return <div className="flex items-center gap-1"><FileText className="h-3 w-3" /> <span>Arquivo</span></div>;
+  }
+
+  // Fallback para quando o conteúdo é apenas o caminho do arquivo mas o tipo não foi detectado corretamente
+  if (content && (content.includes('audio-mensagens/') || content.includes('media-mensagens/'))) {
+    return <div className="flex items-center gap-1"><FileText className="h-3 w-3" /> <span>Mídia</span></div>;
+  }
+
+  return <span className="truncate flex items-center">{prefix}{content}</span>;
 };
 
 const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
@@ -72,7 +99,6 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             {conversation.tags && conversation.tags.length > 0 && (
               <div className="flex items-center gap-1 flex-shrink-0">
                 {conversation.tags.slice(0, 2).map(tag => {
-                  // Lógica para cor: se for hex, usa style, se for nome, usa classe do preset
                   const preset = TAG_COLORS.find(c => c.name === tag.color);
                   const isHex = tag.color && tag.color.startsWith('#');
                   
@@ -94,10 +120,14 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
           </span>
         </div>
 
-        {/* Linha 2: Última mensagem */}
-        <p className="text-xs text-muted-foreground truncate h-4 leading-4">
-          {conversation.last_message_content}
-        </p>
+        {/* Linha 2: Última mensagem com prévia inteligente */}
+        <div className="text-xs text-muted-foreground truncate h-4 leading-4">
+          <MessagePreview 
+            content={conversation.last_message_content} 
+            type={conversation.last_message_type} 
+            sender={conversation.last_message_sender} 
+          />
+        </div>
       </div>
     </Link>
   );
