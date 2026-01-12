@@ -50,36 +50,36 @@ export default function Login() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Left Side - Brand */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#0a0a0a] items-center justify-center p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-[hsl(339,19%,31%)] items-center justify-center p-12 relative overflow-hidden">
         {/* Background Accent */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[hsl(32,45%,63%)] opacity-20 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[hsl(32,45%,63%)] opacity-10 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
 
         <div className="max-w-md text-center relative z-10">
           <div className="mb-10 flex flex-col items-center">
             <img 
-              src="https://iuutktzsbdoadkqaoudq.supabase.co/storage/v1/object/public/uploads/Teste/Logo%20Viviane%20Braga%20adv.webp" 
-              alt="Logo Viviane Braga" 
-              className="h-32 w-auto mb-6 object-contain opacity-90"
+              src="https://iuutktzsbdoadkqaoudq.supabase.co/storage/v1/object/public/media-mensagens/CRM/logo%20principal%20sem%20fundo%20cor%20original%202.png" 
+              alt="Logo Monção Odontologia" 
+              className="h-40 w-auto mb-6 object-contain"
             />
-            <div className="h-[1px] w-24 bg-gradient-to-r from-transparent via-primary to-transparent mx-auto rounded-full mb-6" />
+            <div className="h-[1px] w-24 bg-gradient-to-r from-transparent via-[hsl(32,45%,63%)] to-transparent mx-auto rounded-full mb-6" />
           </div>
-          <p className="text-2xl text-white/90 leading-relaxed font-light tracking-wide">
-            Excelência e compromisso na<br/>
-            <span className="text-primary font-medium">gestão jurídica</span>
+          <p className="text-2xl text-[hsl(32,40%,95%)] leading-relaxed font-serif tracking-wide">
+            Transformando sorrisos com<br/>
+            <span className="text-[hsl(32,45%,63%)] font-medium">excelência e cuidado</span>
           </p>
-          <div className="mt-12 space-y-5 text-white/70 text-left pl-8 border-l border-white/10">
+          <div className="mt-12 space-y-5 text-[hsl(32,40%,90%)] text-left pl-8 border-l border-[hsl(32,45%,63%)]/30">
             <div className="flex items-center gap-4">
-              <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-              <span>Controle processual inteligente</span>
+              <div className="h-1.5 w-1.5 rounded-full bg-[hsl(32,45%,63%)]" />
+              <span>Gestão de pacientes integrada</span>
             </div>
             <div className="flex items-center gap-4">
-              <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-              <span>Gestão eficiente de clientes</span>
+              <div className="h-1.5 w-1.5 rounded-full bg-[hsl(32,45%,63%)]" />
+              <span>Agendamentos inteligentes</span>
             </div>
             <div className="flex items-center gap-4">
-              <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-              <span>Automação de atendimento</span>
+              <div className="h-1.5 w-1.5 rounded-full bg-[hsl(32,45%,63%)]" />
+              <span>Acompanhamento de tratamentos</span>
             </div>
           </div>
         </div>
@@ -89,8 +89,8 @@ export default function Login() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-foreground font-serif tracking-tight">
-              {isSignUp ? 'Criar conta' : 'Acesso ao Sistema'}
+            <h2 className="text-3xl font-bold text-[hsl(339,19%,31%)] font-serif tracking-tight">
+              {isSignUp ? 'Criar conta' : 'Área Restrita'}
             </h2>
             <p className="text-muted-foreground mt-2">
               {isSignUp ? 'Preencha os dados para criar sua conta profissional' : 'Entre com suas credenciais de acesso'}
@@ -114,11 +114,11 @@ export default function Login() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email corporativo</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="advogado@vivianebraga.com"
+                placeholder="contato@moncao.com.br"
                 className="h-12 border-muted-foreground/20 focus:border-primary"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -131,14 +131,13 @@ export default function Login() {
               <div className="relative">
                 <Input
                   id="password"
-                  type="text" // Alterado temporariamente para facilitar digitação se necessário, ou manter como password
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   className="h-12 pr-10 border-muted-foreground/20 focus:border-primary"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
-                  type={showPassword ? "text" : "password"}
                 />
                 <button
                   type="button"
@@ -164,7 +163,7 @@ export default function Login() {
               </div>
             )}
 
-            <Button className="w-full h-12 text-base bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all shadow-md hover:shadow-lg" size="lg" type="submit" disabled={loading}>
+            <Button className="w-full h-12 text-base bg-[hsl(339,19%,31%)] hover:bg-[hsl(339,19%,25%)] text-white font-medium transition-all shadow-md hover:shadow-lg" size="lg" type="submit" disabled={loading}>
               {loading ? 'Processando...' : (isSignUp ? 'Criar conta' : 'Entrar')}
             </Button>
           </form>
@@ -173,7 +172,7 @@ export default function Login() {
             {isSignUp ? 'Já possui acesso?' : 'Não possui acesso?'}{" "}
             <button
               onClick={() => setIsSignUp(!isSignUp)}
-              className="text-primary hover:text-primary/80 font-medium underline-offset-4 hover:underline"
+              className="text-[hsl(32,45%,55%)] hover:text-[hsl(32,45%,45%)] font-medium underline-offset-4 hover:underline"
             >
               {isSignUp ? 'Fazer login' : 'Solicitar conta'}
             </button>

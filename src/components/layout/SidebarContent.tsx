@@ -27,7 +27,7 @@ const menuItems = [
   { title: "Pipeline", icon: GitBranch, path: "/pipeline" },
   { title: "Conversas", icon: MessageSquare, path: "/conversas" },
   { title: "Notificações", icon: Bell, path: "/notificacoes" },
-  { title: "Contratos", icon: ShoppingCart, path: "/vendas" }, // Mudado de Vendas para Contratos (contexto jurídico)
+  { title: "Vendas", icon: ShoppingCart, path: "/vendas" }, // Voltei para Vendas (padrão comercial) ou mantém Contratos se preferir
   { title: "Relatórios", icon: BarChart3, path: "/reports" },
   { title: "Marketing", icon: Target, path: "/marketing" },
   { title: "Campanhas", icon: Megaphone, path: "/campaigns" },
@@ -55,16 +55,16 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     <TooltipProvider>
       <div className="flex flex-col h-full bg-sidebar">
         {/* Logo & Toggle */}
-        <div className={`flex items-center transition-all h-20 flex-shrink-0 ${isCollapsed ? 'px-2 justify-center' : 'px-6'}`}>
+        <div className={`flex items-center transition-all h-24 flex-shrink-0 ${isCollapsed ? 'px-2 justify-center' : 'px-6'}`}>
           <div className={`flex items-center gap-3 whitespace-nowrap overflow-hidden transition-all ${isCollapsed ? 'w-0' : 'w-full'}`}>
             <img 
-              src="https://iuutktzsbdoadkqaoudq.supabase.co/storage/v1/object/public/uploads/Teste/Logo%20Viviane%20Braga%20adv.webp" 
-              alt="Logo" 
-              className="h-10 w-auto object-contain"
+              src="https://iuutktzsbdoadkqaoudq.supabase.co/storage/v1/object/public/media-mensagens/CRM/logo%20principal%20sem%20fundo%20cor%20original%202.png" 
+              alt="Logo Monção" 
+              className="h-12 w-auto object-contain"
             />
             <div className="flex flex-col">
-              <h1 className="text-sm font-bold text-sidebar-foreground uppercase tracking-wide">Viviane Braga</h1>
-              <p className="text-[10px] text-sidebar-foreground/60 tracking-[0.2em] uppercase">Advocacia</p>
+              <h1 className="text-sm font-bold text-sidebar-foreground uppercase tracking-widest font-serif">MONÇÃO</h1>
+              <p className="text-[9px] text-sidebar-primary tracking-[0.1em] uppercase">Odontologia & Estética</p>
             </div>
           </div>
           {toggleCollapse && (
@@ -111,7 +111,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
             </Avatar>
             <div className={`flex-1 overflow-hidden whitespace-nowrap transition-all ${isCollapsed ? 'w-0' : 'w-full'}`}>
               <p className="text-sm font-medium text-sidebar-foreground truncate" title={profile?.nome_completo || 'Usuário'}>
-                {profile?.nome_completo || 'Advogado(a)'}
+                {profile?.nome_completo || 'Colaborador'}
               </p>
               <p className="text-xs text-sidebar-foreground/50 truncate" title={user?.email || ''}>
                 {user?.email}

@@ -8,129 +8,114 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 30 10% 98%; /* Fundo levemente aquecido (papel) */
-    --foreground: 0 0% 10%; /* Texto quase preto */
+    --background: 30 10% 98%; /* Fundo creme bem suave */
+    --foreground: 339 20% 20%; /* Texto Mauve escuro/marrom */
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 10%;
+    --card-foreground: 339 20% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
+    --popover-foreground: 339 20% 20%;
 
-    /* Primary: Dourado/Bronze do Logo (VB) */
-    /* Ajustado para ter bom contraste em fundo claro */
-    --primary: 37 43% 45%; 
+    /* Primary: Dourado da Logo Monção */
+    /* Baseado em #C5A47E -> HSL(32, 41%, 63%) - Ajustado para contraste */
+    --primary: 32 45% 55%; 
     --primary-foreground: 0 0% 100%;
     
-    /* Secondary: Rose-Gold/Mauve do texto "Viviane Braga" */
-    --secondary: 350 10% 85%;
-    --secondary-foreground: 350 20% 30%;
+    /* Secondary: Mauve/Vinho Suave da Logo */
+    /* Baseado em #5D404A -> HSL(339, 19%, 31%) */
+    --secondary: 339 19% 31%;
+    --secondary-foreground: 32 40% 95%;
 
     --muted: 30 10% 96%;
-    --muted-foreground: 0 0% 40%;
+    --muted-foreground: 339 10% 50%;
 
-    /* Accent: Dourado mais claro para detalhes */
-    --accent: 37 43% 90%;
-    --accent-foreground: 37 43% 30%;
+    /* Accent: Dourado claro para fundos/detalhes */
+    --accent: 32 45% 92%;
+    --accent-foreground: 339 19% 31%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 30 10% 85%;
-    --input: 30 10% 96%;
-    --ring: 37 43% 50%;
+    --border: 339 15% 90%;
+    --input: 339 15% 95%;
+    --ring: 32 45% 55%;
 
     --radius: 0.5rem;
 
-    /* Success: Verde mais sóbrio */
-    --success: 142 30% 40%;
+    /* Success: Verde suave */
+    --success: 142 30% 45%;
     --success-foreground: 0 0% 100%;
 
-    /* Warning: Dourado Alerta */
-    --warning: 40 80% 50%;
+    /* Warning: Dourado/Laranja */
+    --warning: 35 90% 55%;
     --warning-foreground: 0 0% 100%;
 
     /* Info */
-    --info: 210 20% 40%;
+    --info: 210 30% 50%;
     --info-foreground: 0 0% 100%;
 
-    /* Gradients - Premium Black/Gold feel */
-    --gradient-primary: linear-gradient(135deg, hsl(0 0% 5%) 0%, hsl(0 0% 15%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(37 43% 50%) 0%, hsl(350 20% 60%) 100%);
+    /* Gradients - Mauve & Gold */
+    --gradient-primary: linear-gradient(135deg, hsl(339 19% 31%) 0%, hsl(339 19% 45%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(32 45% 55%) 0%, hsl(32 45% 70%) 100%);
 
     /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-sm: 0 1px 2px 0 rgb(93 64 74 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(93 64 74 / 0.1), 0 2px 4px -2px rgb(93 64 74 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(93 64 74 / 0.1), 0 4px 6px -4px rgb(93 64 74 / 0.1);
 
-    /* Sidebar - Premium Dark Theme (Baseado no fundo preto do logo) */
-    --sidebar-background: 0 0% 8%; /* Preto Suave */
-    --sidebar-foreground: 30 20% 90%; /* Off-white */
-    --sidebar-primary: 37 43% 50%; /* Dourado */
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 15%; /* Cinza escuro para hover */
-    --sidebar-accent-foreground: 37 43% 60%; /* Dourado claro no hover */
-    --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 37 43% 50%;
+    /* Sidebar - Baseado no fundo da logo (Mauve Escuro) */
+    --sidebar-background: 339 19% 31%; /* #5D404A */
+    --sidebar-foreground: 32 40% 95%; /* Creme/Dourado muito claro */
+    --sidebar-primary: 32 45% 63%; /* Dourado da Logo */
+    --sidebar-primary-foreground: 339 19% 31%;
+    --sidebar-accent: 339 19% 25%; /* Mauve mais escuro para hover */
+    --sidebar-accent-foreground: 32 45% 63%;
+    --sidebar-border: 339 19% 35%;
+    --sidebar-ring: 32 45% 63%;
   }
 
   :root.dark {
-    --background: 0 0% 5%; /* Preto absoluto */
-    --foreground: 30 10% 90%;
+    --background: 339 20% 10%; /* Mauve quase preto */
+    --foreground: 32 30% 90%;
 
-    --card: 0 0% 8%;
-    --card-foreground: 30 10% 90%;
+    --card: 339 20% 13%;
+    --card-foreground: 32 30% 90%;
 
-    --popover: 0 0% 8%;
-    --popover-foreground: 30 10% 90%;
+    --popover: 339 20% 13%;
+    --popover-foreground: 32 30% 90%;
 
     /* Primary: Dourado Vibrante para Dark Mode */
-    --primary: 37 43% 60%; 
-    --primary-foreground: 0 0% 10%;
+    --primary: 32 45% 63%; 
+    --primary-foreground: 339 19% 20%;
     
-    /* Secondary: Rose-Gold escuro */
-    --secondary: 350 10% 20%;
-    --secondary-foreground: 350 10% 90%;
+    /* Secondary */
+    --secondary: 339 15% 25%;
+    --secondary-foreground: 32 45% 80%;
 
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 60%;
+    --muted: 339 15% 20%;
+    --muted-foreground: 339 10% 60%;
 
     /* Accent */
-    --accent: 0 0% 15%;
-    --accent-foreground: 37 43% 60%;
+    --accent: 339 15% 20%;
+    --accent-foreground: 32 45% 63%;
 
-    --destructive: 0 60% 30%;
+    --destructive: 0 60% 40%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 20%;
-    --input: 0 0% 15%;
-    --ring: 37 43% 60%;
+    --border: 339 15% 20%;
+    --input: 339 15% 20%;
+    --ring: 32 45% 63%;
 
-    /* Success */
-    --success: 142 50% 30%;
-    --success-foreground: 0 0% 100%;
-
-    /* Warning */
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-
-    /* Info */
-    --info: 210 40% 40%;
-    --info-foreground: 0 0% 100%;
-
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(0 0% 5%) 0%, hsl(0 0% 15%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(37 43% 40%) 0%, hsl(350 20% 40%) 100%);
-
-    /* Sidebar - Mantém consistência */
-    --sidebar-background: 0 0% 5%;
-    --sidebar-foreground: 30 20% 90%;
-    --sidebar-primary: 37 43% 60%;
-    --sidebar-primary-foreground: 0 0% 10%;
-    --sidebar-accent: 0 0% 15%;
-    --sidebar-accent-foreground: 37 43% 60%;
-    --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 37 43% 60%;
+    /* Sidebar - Mantém consistência ou ajusta levemente */
+    --sidebar-background: 339 25% 15%; /* Mauve bem escuro */
+    --sidebar-foreground: 32 30% 90%;
+    --sidebar-primary: 32 45% 63%;
+    --sidebar-primary-foreground: 339 25% 15%;
+    --sidebar-accent: 339 25% 20%;
+    --sidebar-accent-foreground: 32 45% 70%;
+    --sidebar-border: 339 25% 20%;
+    --sidebar-ring: 32 45% 63%;
   }
 }
 
