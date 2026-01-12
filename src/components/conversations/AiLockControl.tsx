@@ -13,7 +13,7 @@ interface AiLockControlProps {
   lead: Lead;
 }
 
-const N8N_WEBHOOK_URL = "https://webhook.orbevision.shop/webhook/bloqueio-temp-karoline";
+const N8N_WEBHOOK_URL = "https://webhook.orbevision.shop/webhook/controle-temp-moncao";
 
 export function AiLockControl({ lead }: AiLockControlProps) {
   const { updateLead } = useLeads();
