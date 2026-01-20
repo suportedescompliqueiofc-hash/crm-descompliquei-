@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useLeads } from "@/hooks/useLeads";
 import { useStages, Stage } from "@/hooks/useStages";
 import MaskedInput, { PhoneInput, CpfInput } from "@/components/MaskedInput";
-import { User, Mail, Phone, DollarSign, MapPin, Tag, Clock, MessageSquare, Pencil, MessageCircle } from "lucide-react";
+import { User, Mail, Phone, DollarSign, MapPin, Tag, Clock, MessageSquare, Pencil, MessageCircle, HeartPulse } from "lucide-react";
 import { parse, format, differenceInYears, isValid, startOfDay, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,6 +65,7 @@ const initialFormData = {
   nome: "", telefone: "", resumo: "", origem: "",
   etapa_id: 1, status: "Ativo", email: "", cpf: "", idade: "",
   genero: "", endereco: "", 
+  procedimento_interesse: "", // Campo novo
   criativo_id: "none", // ID do criativo selecionado
   data_nascimento_display: "",
   criado_em_display: "",
@@ -87,6 +88,7 @@ const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[
         <CardContent className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" /><span className="font-medium">{lead.telefone}</span></div>
           {lead.email && <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /><span>{lead.email}</span></div>}
+          {lead.procedimento_interesse && <div className="flex items-center gap-2 col-span-2"><HeartPulse className="h-4 w-4 text-muted-foreground" /><span className="font-medium text-primary">{lead.procedimento_interesse}</span></div>}
           {lead.origem && <div className="flex items-center gap-2"><Tag className="h-4 w-4 text-muted-foreground" /><span>{lead.origem}</span></div>}
           {creativeName && <div className="flex items-center gap-2 col-span-2 md:col-span-1"><Tag className="h-4 w-4 text-muted-foreground" /><span className="truncate" title={creativeName}>{creativeName}</span></div>}
         </CardContent>
@@ -134,6 +136,14 @@ const FormContent = ({ formData, handleInputChange, handleSubmit, stages, handle
           </Select>
         </div>
         <div><Label>Endereço</Label><Input value={formData.endereco} onChange={(e) => handleInputChange('endereco', e.target.value)} /></div>
+      </div>
+      <div>
+        <Label>Procedimento de Interesse</Label>
+        <Input 
+          value={formData.procedimento_interesse} 
+          onChange={(e) => handleInputChange('procedimento_interesse', e.target.value)} 
+          placeholder="Ex: Harmonização, Botox, Clareamento..."
+        />
       </div>
       <div><Label>Resumo do Atendimento (IA)</Label><Textarea value={formData.resumo} onChange={(e) => handleInputChange('resumo', e.target.value)} placeholder="Resumo gerado pela IA..." /></div>
       <div className="grid grid-cols-2 gap-4">
@@ -218,6 +228,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
           resumo: lead.resumo || "", origem: lead.origem || "", etapa_id: lead.etapa_id || 1,
           status: lead.status || "Ativo", email: lead.email || "", cpf: lead.cpf || "",
           idade: lead.idade?.toString() || "", genero: lead.genero || "", endereco: lead.endereco || "",
+          procedimento_interesse: lead.procedimento_interesse || "", // Mapeamento
           criativo_id: lead.criativo_id || "none", // Usar ID do relacionamento
           data_nascimento_display: toDisplayDate(lead.data_nascimento),
           criado_em_display: toDisplayDateFromTimestamp(lead.criado_em),
@@ -271,6 +282,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
       cpf: formData.cpf || undefined,
       genero: formData.genero || undefined, 
       endereco: formData.endereco || undefined,
+      procedimento_interesse: formData.procedimento_interesse || undefined,
       // Tratar criativo_id: enviar null se for "none"
       criativo_id: formData.criativo_id === "none" ? null : formData.criativo_id,
     };

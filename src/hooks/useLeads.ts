@@ -20,6 +20,7 @@ export interface Lead {
   genero?: string;
   endereco?: string;
   queixa_principal?: string;
+  procedimento_interesse?: string; // Novo campo
   resumo?: string;
   origem?: string;
   criativo_id?: string; 
