@@ -71,6 +71,7 @@ export default function Leads() {
     idade: "",
     cadastroMes: "",
     tagId: "Todos",
+    procedimento: "", // Filtro de procedimento
   });
 
   const handleFilterChange = (filterName: string, value: string) => {
@@ -95,10 +96,13 @@ export default function Leads() {
       const idadeMatch = !filters.idade || (lead.idade?.toString() === filters.idade);
       const cadastroMesMatch = !filters.cadastroMes || (lead.criado_em && lead.criado_em.startsWith(filters.cadastroMes));
       
+      const procedimentoMatch = !filters.procedimento || 
+        (lead.procedimento_interesse && lead.procedimento_interesse.toLowerCase().includes(filters.procedimento.toLowerCase()));
+
       const tagMatch = filters.tagId === "Todos" || 
         (lead.leads_tags && lead.leads_tags.some(lt => lt.tags && lt.tags.id === filters.tagId));
 
-      return searchTermMatch && statusMatch && etapaMatch && origemMatch && generoMatch && criativoMatch && idadeMatch && cadastroMesMatch && tagMatch;
+      return searchTermMatch && statusMatch && etapaMatch && origemMatch && generoMatch && criativoMatch && idadeMatch && cadastroMesMatch && tagMatch && procedimentoMatch;
     });
   }, [leads, filters]);
 
@@ -244,6 +248,14 @@ export default function Leads() {
                 </Select>
               </div>
               <div>
+                <Label>Procedimento</Label>
+                <Input 
+                  placeholder="Ex: Botox" 
+                  value={filters.procedimento} 
+                  onChange={(e) => handleFilterChange('procedimento', e.target.value)} 
+                />
+              </div>
+              <div>
                 <Label>Gênero</Label>
                 <Select value={filters.genero} onValueChange={(v) => handleFilterChange('genero', v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -306,6 +318,7 @@ export default function Leads() {
                 <TableHead>Telefone</TableHead>
                 <TableHead>Idade/Gênero</TableHead>
                 <TableHead>Captação</TableHead>
+                <TableHead>Procedimento</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Etapa</TableHead>
                 <TableHead>Data de Cadastro</TableHead>
@@ -316,7 +329,7 @@ export default function Leads() {
             <TableBody>
               {filteredLeads.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-12">
+                  <TableCell colSpan={11} className="text-center py-12">
                     <p className="text-muted-foreground">Nenhum lead encontrado com os filtros aplicados</p>
                   </TableCell>
                 </TableRow>
@@ -341,6 +354,11 @@ export default function Leads() {
                         <Badge variant="outline" className="font-normal">
                           {lead.origem}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm font-medium text-primary">
+                          {lead.procedimento_interesse || '-'}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(lead.status)}>
