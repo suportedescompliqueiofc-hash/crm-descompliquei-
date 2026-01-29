@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from "react";
-import { Search, Filter, Plus, Pencil, Trash2 } from "lucide-react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { Search, Filter, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -47,12 +47,17 @@ const getStatusColor = (status: string) => {
   }
 };
 
+const ITEMS_PER_PAGE = 50;
+
 export default function Leads() {
   const [showFilters, setShowFilters] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  
+  // Paginação
+  const [currentPage, setCurrentPage] = useState(1);
   
   const { leads, isLoading: leadsLoading, deleteLead } = useLeads();
   const { stages, isLoading: stagesLoading } = useStages();
@@ -78,6 +83,11 @@ export default function Leads() {
   const handleFilterChange = (filterName: string, value: string) => {
     setFilters(prev => ({ ...prev, [filterName]: value }));
   };
+
+  // Reseta a página para 1 quando os filtros mudam
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
 
   const getStageByPosition = (position: number) => {
     return stages.find(s => s.posicao_ordem === position);
@@ -110,6 +120,12 @@ export default function Leads() {
       return searchTermMatch && statusMatch && etapaMatch && origemMatch && fonteMatch && generoMatch && criativoMatch && idadeMatch && cadastroMesMatch && tagMatch && procedimentoMatch;
     });
   }, [leads, filters]);
+
+  // Lógica de Paginação
+  const totalPages = Math.ceil(filteredLeads.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const currentLeads = filteredLeads.slice(startIndex, endIndex);
 
   const handleEdit = (lead: Lead) => {
     setSelectedLead(lead);
@@ -321,14 +337,14 @@ export default function Leads() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLeads.length === 0 ? (
+              {currentLeads.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={11} className="text-center py-12">
                     <p className="text-muted-foreground">Nenhum lead encontrado com os filtros aplicados</p>
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredLeads.map((lead) => {
+                currentLeads.map((lead) => {
                   const stage = getStageByPosition(lead.posicao_pipeline);
                   return (
                     <TableRow key={lead.id} className="hover:bg-muted/50">
@@ -362,6 +378,56 @@ export default function Leads() {
             </TableBody>
           </Table>
         </CardContent>
+        
+        {/* Pagination Controls */}
+        {filteredLeads.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-4 border-t">
+            <div className="text-sm text-muted-foreground">
+              Mostrando {startIndex + 1} a {Math.min(endIndex, filteredLeads.length)} de {filteredLeads.length} leads
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="text-sm font-medium">
+                Página {currentPage} de {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       <LeadModal open={isModalOpen} onOpenChange={handleModalOpenChange} lead={selectedLead} mode={modalMode} />
