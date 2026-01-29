@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConversationsList, Conversation } from "@/hooks/useConversations";
-import { format, isToday, isYesterday, isValid, parseISO } from "date-fns";
+import { format, isToday, isYesterday, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { TAG_COLORS } from "@/hooks/useTags";
@@ -16,31 +16,18 @@ import { TAG_COLORS } from "@/hooks/useTags";
 const formatLastMessageTime = (timestamp?: string | null) => {
   if (!timestamp) return '';
   
-  try {
-    // Tenta parsear como ISO primeiro (formato padrão do Supabase)
-    let date = parseISO(timestamp);
-    
-    // Se não for válido, tenta o construtor Date padrão (fallback)
-    if (!isValid(date)) {
-        date = new Date(timestamp);
-    }
+  const date = new Date(timestamp);
+  if (!isValid(date)) return '';
 
-    if (!isValid(date)) return '';
-
-    if (isToday(date)) {
-      return format(date, 'HH:mm');
-    }
-    
-    if (isYesterday(date)) {
-      return 'Ontem';
-    }
-    
-    // Formato curto para datas anteriores
-    return format(date, 'dd/MM');
-  } catch (e) {
-    console.error("Erro ao formatar data:", e);
-    return '';
+  if (isToday(date)) {
+    return format(date, 'HH:mm');
   }
+  
+  if (isYesterday(date)) {
+    return 'Ontem';
+  }
+  
+  return format(date, 'dd/MM');
 };
 
 const MessagePreview = ({ content, type, sender }: { content?: string, type?: string, sender?: string }) => {
