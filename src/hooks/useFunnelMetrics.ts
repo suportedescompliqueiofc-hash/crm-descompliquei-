@@ -26,13 +26,13 @@ const SALES_FUNNEL_STAGES = [
   { name: "Procedimento Fechado", color: "#15803d", order: 6 }
 ];
 
-export function useFunnelMetrics(dateRange: DateRange | undefined) {
+export function useFunnelMetrics(dateRange: DateRange | undefined, origin: 'marketing' | 'organico' = 'marketing') {
   const { user } = useAuth();
   const { profile } = useProfile();
   const orgId = profile?.organization_id;
 
   return useQuery({
-    queryKey: ['funnel-metrics', orgId, dateRange],
+    queryKey: ['funnel-metrics', orgId, dateRange, origin], // Adicionado origin à chave para refetch automático
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from) return [];
 
@@ -42,12 +42,12 @@ export function useFunnelMetrics(dateRange: DateRange | undefined) {
         : endOfDay(dateRange.from).toISOString();
 
       // 1. Buscar leads criados no período
-      // FILTRO APLICADO: origem = 'marketing'
+      // FILTRO APLICADO: origem dinâmica baseada no parâmetro
       const { data: leads, error: leadsError } = await supabase
         .from('leads')
         .select('posicao_pipeline')
         .eq('organization_id', orgId)
-        .eq('origem', 'marketing') 
+        .eq('origem', origin) 
         .gte('criado_em', startDate)
         .lte('criado_em', endDate);
 
@@ -73,7 +73,7 @@ export function useFunnelMetrics(dateRange: DateRange | undefined) {
         const position = dbStage ? dbStage.posicao_ordem : stdStage.order;
         const color = dbStage ? dbStage.cor : stdStage.color;
 
-        // Cálculo de Volume Acumulado (considerando apenas leads de marketing, já filtrados na query)
+        // Cálculo de Volume Acumulado (considerando apenas leads da origem selecionada)
         const count = leads.filter(l => 
           l.posicao_pipeline >= position && l.posicao_pipeline < lostPosition
         ).length;

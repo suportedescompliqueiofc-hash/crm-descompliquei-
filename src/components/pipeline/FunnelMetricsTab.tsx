@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useFunnelMetrics } from "@/hooks/useFunnelMetrics";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -6,46 +7,48 @@ import { AlertCircle, TrendingDown, TrendingUp, Filter } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface FunnelMetricsTabProps {
   dateRange: DateRange | undefined;
 }
 
 export function FunnelMetricsTab({ dateRange }: FunnelMetricsTabProps) {
-  const { data: funnelData, isLoading, error } = useFunnelMetrics(dateRange);
+  const [activeFunnel, setActiveFunnel] = useState<'marketing' | 'organico'>('marketing');
+  const { data: funnelData, isLoading, error } = useFunnelMetrics(dateRange, activeFunnel);
 
-  if (isLoading) {
+  const topCount = funnelData?.[0]?.count || 1; 
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="space-y-4">
+          <Skeleton className="h-[400px] w-full rounded-lg" />
+        </div>
+      );
+    }
+
+    if (error || !funnelData || funnelData.length === 0) {
+      return (
+        <Card className="border-dashed border-2">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <AlertCircle className="h-10 w-10 text-muted-foreground mb-4 opacity-50" />
+            <h3 className="text-lg font-semibold">Dados Insuficientes</h3>
+            <p className="text-muted-foreground max-w-sm">
+              Não foi possível carregar as etapas do funil para esta seleção.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-[400px] w-full rounded-lg" />
-      </div>
-    );
-  }
-
-  if (error || !funnelData || funnelData.length === 0) {
-    return (
-      <Card className="border-dashed border-2">
-        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <AlertCircle className="h-10 w-10 text-muted-foreground mb-4 opacity-50" />
-          <h3 className="text-lg font-semibold">Dados Insuficientes</h3>
-          <p className="text-muted-foreground max-w-sm">
-            Não foi possível carregar as etapas do funil padrão.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const topCount = funnelData[0]?.count || 1; 
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
         
         {/* Coluna Esquerda: Gráfico Visual do Funil */}
         <Card className="lg:col-span-2 border-none shadow-sm">
           <CardHeader>
-            <CardTitle className="text-xl font-bold">Fluxo de Conversão Real</CardTitle>
+            <CardTitle className="text-xl font-bold">Fluxo de Conversão Real ({activeFunnel === 'marketing' ? 'Marketing' : 'Orgânico'})</CardTitle>
             <CardDescription>Visualização acumulada do volume de leads por etapa</CardDescription>
           </CardHeader>
           <CardContent className="space-y-1">
@@ -186,7 +189,7 @@ export function FunnelMetricsTab({ dateRange }: FunnelMetricsTabProps) {
                 <div>
                   <h4 className="font-semibold text-sm text-foreground">Filtro Ativo</h4>
                   <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                    Exibindo apenas o fluxo padrão (6 etapas). Leads movidos para "Desqualificado", "Inativo" ou outras etapas de perda são contabilizados até a última etapa válida que alcançaram.
+                    Exibindo funil de <strong>{activeFunnel === 'marketing' ? 'Marketing (Anúncios)' : 'Orgânico (Indicação/Outros)'}</strong>. Leads movidos para "Desqualificado" ou "Perdido" são contabilizados até a última etapa válida que alcançaram.
                   </p>
                 </div>
               </div>
@@ -195,6 +198,31 @@ export function FunnelMetricsTab({ dateRange }: FunnelMetricsTabProps) {
 
         </div>
       </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <Tabs 
+        value={activeFunnel} 
+        onValueChange={(v) => setActiveFunnel(v as 'marketing' | 'organico')}
+        className="w-full"
+      >
+        <div className="flex items-center mb-6">
+          <TabsList>
+            <TabsTrigger value="marketing">Funil de Marketing</TabsTrigger>
+            <TabsTrigger value="organico">Funil Orgânico</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="marketing" className="m-0">
+          {renderContent()}
+        </TabsContent>
+        
+        <TabsContent value="organico" className="m-0">
+          {renderContent()}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
