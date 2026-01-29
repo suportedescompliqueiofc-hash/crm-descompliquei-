@@ -33,7 +33,9 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
     const audio = audioRef.current;
     if (audio) {
       const setAudioData = () => {
-        setDuration(audio.duration);
+        if (audio.duration && !isNaN(audio.duration)) {
+            setDuration(audio.duration);
+        }
         if (!isDragging) {
             setCurrentTime(audio.currentTime);
         }
@@ -53,19 +55,26 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
       
       const handleCanPlay = () => {
         setIsLoading(false);
+        // Tenta pegar a duração novamente caso tenha falhado no carregamento inicial
+        if (audio.duration && !isNaN(audio.duration)) {
+            setDuration(audio.duration);
+        }
       };
 
-      audio.addEventListener('loadedmetadata', setAudioData);
+      // Usando loadeddata e durationchange para garantir que pegamos a duração
+      audio.addEventListener('loadeddata', setAudioData);
+      audio.addEventListener('durationchange', setAudioData);
       audio.addEventListener('timeupdate', setAudioTime);
       audio.addEventListener('ended', handleEnd);
       audio.addEventListener('canplay', handleCanPlay);
       
-      if (audio.readyState >= 2) {
+      if (audio.readyState >= 1) {
         setAudioData();
       }
 
       return () => {
-        audio.removeEventListener('loadedmetadata', setAudioData);
+        audio.removeEventListener('loadeddata', setAudioData);
+        audio.removeEventListener('durationchange', setAudioData);
         audio.removeEventListener('timeupdate', setAudioTime);
         audio.removeEventListener('ended', handleEnd);
         audio.removeEventListener('canplay', handleCanPlay);
@@ -111,16 +120,20 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
   };
 
   return (
-    <div className="flex flex-col gap-1 w-full max-w-[280px] xs:max-w-[320px] sm:max-w-[380px]">
+    <div className={cn(
+        "flex flex-col gap-1",
+        // Larguras ajustadas para serem maiores e responsivas
+        "w-[260px] xs:w-[320px] sm:w-[420px] md:w-[500px]"
+    )}>
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
       
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <Button 
           onClick={togglePlay} 
           size="icon" 
           variant="ghost" 
           className={cn(
-            "flex-shrink-0 h-10 w-10 transition-colors rounded-full",
+            "flex-shrink-0 h-11 w-11 transition-colors rounded-full",
             isOutgoing 
               ? "text-primary-foreground hover:bg-white/20 hover:text-white" 
               : "text-foreground hover:bg-black/5"
@@ -128,16 +141,16 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
           disabled={isLoading}
         >
           {isLoading ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Loader2 className="h-6 w-6 animate-spin" />
           ) : isPlaying ? (
-            <Pause className="h-5 w-5 fill-current" />
+            <Pause className="h-6 w-6 fill-current" />
           ) : (
-            <Play className="h-5 w-5 fill-current ml-0.5" />
+            <Play className="h-6 w-6 fill-current ml-0.5" />
           )}
         </Button>
         
-        <div className="flex-grow flex flex-col gap-1.5 min-w-0">
-          <div className="flex items-center gap-2">
+        <div className="flex-grow flex flex-col gap-1.5 min-w-0 pt-1">
+          <div className="flex items-center gap-3">
             <Slider
               value={[currentTime]}
               max={duration || 1}
@@ -145,14 +158,14 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
               onValueChange={handleSliderChange}
               onValueCommit={handleSliderCommit}
               className={cn(
-                "flex-1 cursor-pointer py-2",
+                "flex-1 cursor-pointer py-1.5",
                 "[&>span:first-child]:h-1.5",
                 isOutgoing 
                   ? "[&>span:first-child]:bg-black/20" 
                   : "[&>span:first-child]:bg-muted-foreground/20",
                 "[&>span:first-child>span]:bg-current",
                 isOutgoing ? "text-white" : "text-primary",
-                "[&>span[role=slider]]:h-4 [&>span[role=slider]]:w-4 [&>span[role=slider]]:border-0 [&>span[role=slider]]:shadow-md [&>span[role=slider]]:transition-transform active:[&>span[role=slider]]:scale-125",
+                "[&>span[role=slider]]:h-3.5 [&>span[role=slider]]:w-3.5 [&>span[role=slider]]:border-0 [&>span[role=slider]]:shadow-md [&>span[role=slider]]:transition-transform active:[&>span[role=slider]]:scale-125",
                 isOutgoing
                    ? "[&>span[role=slider]]:bg-white"
                    : "[&>span[role=slider]]:bg-primary"
@@ -166,9 +179,9 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
                 onClick={toggleSpeed}
                 disabled={isLoading}
                 className={cn(
-                    "h-7 px-1.5 text-[10px] font-bold rounded-full flex-shrink-0 min-w-[2.5rem] transition-all",
+                    "h-7 px-2 text-xs font-bold rounded-full flex-shrink-0 min-w-[2.5rem] transition-all",
                     isOutgoing
-                        ? "bg-black/20 text-white hover:bg-black/30" 
+                        ? "bg-black/20 text-white hover:bg-black/30 hover:text-white" 
                         : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                 )}
             >
@@ -176,17 +189,14 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
             </Button>
           </div>
 
-          <div className="flex justify-between items-center px-1">
-            <span className={cn(
-                "text-[10px] font-mono tabular-nums",
-                isOutgoing ? "text-white/80" : "text-muted-foreground"
-            )}>
+          <div className={cn(
+            "flex justify-between items-center text-xs px-0.5 font-medium",
+            isOutgoing ? "text-white/90" : "text-muted-foreground"
+          )}>
+            <span className="font-mono tabular-nums">
                 {formatTime(currentTime)}
             </span>
-            <span className={cn(
-                "text-[10px] font-mono tabular-nums",
-                isOutgoing ? "text-white/80" : "text-muted-foreground"
-            )}>
+            <span className="font-mono tabular-nums">
                 {formatTime(duration)}
             </span>
           </div>
