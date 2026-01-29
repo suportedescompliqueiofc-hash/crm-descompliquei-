@@ -27,7 +27,9 @@ export function FunnelMetricsTab({ dateRange }: FunnelMetricsTabProps) {
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
           <AlertCircle className="h-10 w-10 text-muted-foreground mb-4 opacity-50" />
           <h3 className="text-lg font-semibold">Dados Insuficientes</h3>
-          <p className="text-muted-foreground">Não há histórico de movimentação suficiente para o período selecionado.</p>
+          <p className="text-muted-foreground max-w-sm">
+            Não foi possível carregar as etapas do funil padrão. Verifique se as etapas ("Novo Lead", "Qualificação", etc.) estão criadas no sistema.
+          </p>
         </CardContent>
       </Card>
     );
@@ -47,13 +49,13 @@ export function FunnelMetricsTab({ dateRange }: FunnelMetricsTabProps) {
           <CardContent className="space-y-6">
             {funnelData.map((step, index) => {
               const isLast = index === funnelData.length - 1;
-              // Largura da barra baseada na % relativa ao topo do funil
+              // Largura da barra baseada na % relativa ao topo do funil (mínimo de 2% para visibilidade)
               const widthPercentage = Math.max((step.count / topCount) * 100, 2); 
               
               return (
                 <div key={step.stageId} className="relative group">
                   <div className="flex items-center gap-4 mb-1">
-                    <div className="w-32 flex-shrink-0 text-sm font-medium text-right truncate" title={step.stageName}>
+                    <div className="w-36 flex-shrink-0 text-sm font-medium text-right truncate" title={step.stageName}>
                       {step.stageName}
                     </div>
                     
@@ -77,7 +79,7 @@ export function FunnelMetricsTab({ dateRange }: FunnelMetricsTabProps) {
                   {/* Conector Visual e Taxa de Conversão para a próxima etapa */}
                   {!isLast && (
                     <div className="flex items-center gap-4 h-8">
-                      <div className="w-32"></div> {/* Spacer */}
+                      <div className="w-36"></div> {/* Spacer alinhado com o nome da etapa */}
                       <div className="flex-1 pl-4 flex items-center">
                         <div className="h-full w-px border-l border-dashed border-border ml-[2px]"></div>
                         <div className={cn(
@@ -90,7 +92,9 @@ export function FunnelMetricsTab({ dateRange }: FunnelMetricsTabProps) {
                           {step.conversionToNext.toFixed(0)}% conversão
                         </div>
                         <div className="ml-auto text-xs text-muted-foreground mr-24">
-                          <span className="text-red-500 font-medium">-{step.dropoffCount}</span> perdidos
+                          {step.dropoffCount > 0 && (
+                            <span className="text-red-500 font-medium">-{step.dropoffCount} perdidos</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -126,7 +130,7 @@ export function FunnelMetricsTab({ dateRange }: FunnelMetricsTabProps) {
               {(() => {
                 // Encontra a etapa com maior dropoff absoluto (excluindo a última)
                 const biggestDrop = [...funnelData].slice(0, -1).sort((a, b) => b.dropoffCount - a.dropoffCount)[0];
-                if (!biggestDrop) return <p className="text-sm">Dados insuficientes</p>;
+                if (!biggestDrop || biggestDrop.dropoffCount === 0) return <p className="text-sm text-muted-foreground">Sem perdas significativas</p>;
 
                 return (
                   <div>
@@ -138,7 +142,7 @@ export function FunnelMetricsTab({ dateRange }: FunnelMetricsTabProps) {
                       -{biggestDrop.dropoffCount} leads
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Pararam nesta etapa e não avançaram.
+                      Não avançaram para a próxima etapa.
                     </p>
                   </div>
                 );
@@ -151,9 +155,9 @@ export function FunnelMetricsTab({ dateRange }: FunnelMetricsTabProps) {
               <div className="flex items-start gap-3">
                 <Filter className="h-5 w-5 text-primary mt-0.5" />
                 <div>
-                  <h4 className="font-semibold text-sm text-primary">Análise de Comportamento</h4>
+                  <h4 className="font-semibold text-sm text-primary">Filtro Ativo</h4>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Estes dados mostram o fluxo <strong>acumulado</strong>. Se um lead avançou da etapa 1 para a 3, ele é contabilizado como tendo passado pela 2, garantindo a integridade da conversão do funil.
+                    Exibindo apenas o fluxo padrão (6 etapas). Leads movidos para "Desqualificado", "Inativo" ou outras etapas de perda são contabilizados até a última etapa válida que alcançaram.
                   </p>
                 </div>
               </div>
