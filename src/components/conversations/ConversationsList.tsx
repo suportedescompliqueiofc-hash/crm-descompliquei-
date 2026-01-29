@@ -46,7 +46,7 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
   if (!content && !type) return <span className="italic text-muted-foreground/60">Nenhuma mensagem</span>;
 
   const isOutgoing = sender === 'agente' || sender === 'bot' || sender === 'agente_crm';
-  const prefix = isOutgoing ? <span className="mr-0.5 font-medium text-primary">Você: </span> : null;
+  const prefix = isOutgoing ? <span className="mr-1 font-medium text-primary">Você:</span> : null;
 
   if (type === 'audio') {
     return <div className="flex items-center gap-1 text-muted-foreground"><Mic className="h-3 w-3 flex-shrink-0" /> <span>Áudio</span></div>;
@@ -63,7 +63,11 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
 
   if (content === 'Nenhuma mensagem ainda') return <span className="italic text-muted-foreground/60">{content}</span>;
 
-  return <span className="truncate block">{prefix}{content}</span>;
+  return (
+    <span className="truncate block w-full">
+      {prefix}{content}
+    </span>
+  );
 };
 
 const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
@@ -118,7 +122,7 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
         </div>
 
         <div className="flex items-center w-full overflow-hidden">
-          <div className="text-xs text-muted-foreground truncate w-full pr-4">
+          <div className="text-xs text-muted-foreground w-full pr-4">
             <MessagePreview 
               content={conversation.last_message_content} 
               type={conversation.last_message_type} 
