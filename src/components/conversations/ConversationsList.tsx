@@ -31,7 +31,6 @@ const formatLastMessageTime = (timestamp?: string | null) => {
     return 'Ontem';
   }
   
-  // Formato abreviado para datas mais antigas (ex: 28/01)
   return format(date, 'dd/MM');
 };
 
@@ -42,21 +41,16 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
   const prefix = isOutgoing ? <span className="mr-1">Você:</span> : null;
 
   if (type === 'audio') {
-    return <div className="flex items-center gap-1 text-foreground/70"><Mic className="h-3 w-3 flex-shrink-0" /> <span>Áudio</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground"><Mic className="h-3 w-3 flex-shrink-0" /> <span>Áudio</span></div>;
   }
   if (type === 'imagem') {
-    return <div className="flex items-center gap-1 text-foreground/70"><ImageIcon className="h-3 w-3 flex-shrink-0" /> <span>Foto</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground"><ImageIcon className="h-3 w-3 flex-shrink-0" /> <span>Foto</span></div>;
   }
   if (type === 'video') {
-    return <div className="flex items-center gap-1 text-foreground/70"><Video className="h-3 w-3 flex-shrink-0" /> <span>Vídeo</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground"><Video className="h-3 w-3 flex-shrink-0" /> <span>Vídeo</span></div>;
   }
   if (type === 'pdf' || type === 'arquivo') {
-    return <div className="flex items-center gap-1 text-foreground/70"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Arquivo</span></div>;
-  }
-
-  // Fallback para quando o conteúdo é apenas o caminho do arquivo
-  if (content && (content.includes('audio-mensagens/') || content.includes('media-mensagens/') || content.includes('campaign-media/'))) {
-    return <div className="flex items-center gap-1 text-foreground/70"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Mídia</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Arquivo</span></div>;
   }
 
   return <span className="truncate flex items-center">{prefix}{content}</span>;
@@ -77,24 +71,23 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
     <Link
       to={`/conversas/${conversation.id}`}
       className={cn(
-        "flex gap-3 p-3 transition-colors cursor-pointer border-b border-border/40 hover:bg-muted/50 relative items-start group",
-        isActive ? "bg-muted border-l-4 border-l-primary" : "bg-transparent"
+        "flex gap-3 p-3 transition-colors cursor-pointer border-b border-border/40 relative items-start w-full",
+        isActive ? "bg-muted border-l-4 border-l-primary" : "bg-transparent hover:bg-muted/30"
       )}
     >
-      <Avatar className="h-12 w-12 flex-shrink-0 mt-0.5">
+      <Avatar className="h-12 w-12 flex-shrink-0">
         <AvatarFallback className={cn("text-sm font-semibold", isActive ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground")}>
           {getInitials(conversation.nome)}
         </AvatarFallback>
       </Avatar>
       
-      {/* Container Principal */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center min-h-[44px]">
+      {/* Container de Texto */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center h-full pt-0.5">
         
-        {/* Linha Superior: Nome + Tags + Horário */}
-        <div className="flex justify-between items-center mb-1">
-          {/* Lado Esquerdo: Nome e Tags */}
-          <div className="flex items-center gap-2 min-w-0 overflow-hidden pr-2">
-            <span className="font-semibold text-sm truncate text-foreground">
+        {/* Linha Superior: Nome e Horário */}
+        <div className="flex items-start justify-between gap-2 mb-1 w-full">
+          <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+            <span className="font-semibold text-sm truncate text-foreground block">
               {conversation.nome || conversation.telefone}
             </span>
             
@@ -104,13 +97,12 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
                 {conversation.tags.slice(0, 3).map(tag => {
                   const preset = TAG_COLORS.find(c => c.name === tag.color);
                   const isHex = tag.color && tag.color.startsWith('#');
-                  const bgColor = isHex ? tag.color : (preset ? undefined : '#ccc');
                   
                   return (
                     <div 
                       key={tag.id} 
                       className={cn("w-2 h-2 rounded-full ring-1 ring-background", !isHex && preset?.selector)} 
-                      style={isHex ? { backgroundColor: bgColor } : undefined}
+                      style={isHex ? { backgroundColor: tag.color } : undefined}
                       title={tag.name} 
                     />
                   );
@@ -119,22 +111,21 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             )}
           </div>
           
-          {/* Lado Direito: Horário (Sempre visível) */}
-          <span className="text-[11px] text-muted-foreground flex-shrink-0 whitespace-nowrap font-medium">
+          {/* Horário na Direita */}
+          <span className="text-[11px] text-muted-foreground/80 flex-shrink-0 whitespace-nowrap font-medium">
             {lastMessageTime}
           </span>
         </div>
 
         {/* Linha Inferior: Prévia da Mensagem */}
-        <div className="flex items-center justify-between w-full">
-          <div className="text-xs text-muted-foreground truncate flex-1 min-w-0">
+        <div className="flex items-center w-full overflow-hidden">
+          <div className="text-xs text-muted-foreground truncate w-full">
             <MessagePreview 
               content={conversation.last_message_content} 
               type={conversation.last_message_type} 
               sender={conversation.last_message_sender} 
             />
           </div>
-          {/* Espaço reservado para contador de não lidas se implementar futuramente */}
         </div>
       </div>
     </Link>
@@ -153,7 +144,7 @@ export function ConversationsList() {
   return (
     <div className="flex flex-col h-full bg-card border-r w-full">
       <div className="p-4 border-b">
-        <h2 className="text-xl font-bold mb-4 text-foreground">Conversas</h2>
+        <h2 className="text-xl font-bold mb-4">Conversas</h2>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

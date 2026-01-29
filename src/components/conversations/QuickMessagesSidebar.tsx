@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Search, Zap, Mic, Image as ImageIcon, Video, FileText, MessageSquare, Send, Folder, GripVertical } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Lead } from "@/hooks/useLeads";
 import {
@@ -45,7 +45,6 @@ interface QuickMessagesSidebarProps {
   lead: Lead | null;
 }
 
-// Componente individual ordenável
 function SortableMessageItem({ 
   msg, 
   onClick, 
@@ -74,7 +73,6 @@ function SortableMessageItem({
 
   return (
     <div ref={setNodeRef} style={style} className="mb-2 flex items-center group">
-      {/* Drag Handle - Visível apenas no hover ou ao arrastar */}
       <div 
         {...attributes} 
         {...listeners} 
@@ -93,7 +91,7 @@ function SortableMessageItem({
             {getIcon(msg.tipo)}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-medium text-sm flex items-center justify-between">
+            <div className="font-medium text-sm">
               {msg.titulo}
             </div>
             {msg.conteudo && (
@@ -116,30 +114,18 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   const { folders, isLoading: isLoadingFolders } = useQuickMessageFolders();
   const [searchTerm, setSearchTerm] = useState("");
   const [messageToConfirm, setMessageToConfirm] = useState<QuickMessage | null>(null);
-  
-  // Estado local para otimizar o drag and drop
   const [localMessages, setLocalMessages] = useState<QuickMessage[]>([]);
 
-  // Sincroniza estado local com dados do servidor evitando loops infinitos
+  // Sincronização segura para evitar loop infinito
   useEffect(() => {
-    if (quickMessages) {
-      setLocalMessages(prev => {
-        // Comparação simples para evitar atualização de estado se os dados forem idênticos
-        if (JSON.stringify(prev) === JSON.stringify(quickMessages)) return prev;
-        return quickMessages;
-      });
+    if (quickMessages && JSON.stringify(quickMessages) !== JSON.stringify(localMessages)) {
+      setLocalMessages(quickMessages);
     }
   }, [quickMessages]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // Previne arrastar acidentalmente ao clicar
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const filteredMessages = localMessages.filter(msg => 
@@ -147,9 +133,7 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
     (msg.conteudo && msg.conteudo.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleClickMessage = (msg: QuickMessage) => {
-    setMessageToConfirm(msg);
-  };
+  const handleClickMessage = (msg: QuickMessage) => setMessageToConfirm(msg);
 
   const handleConfirmSend = () => {
     if (!lead || !messageToConfirm) return;
@@ -167,46 +151,24 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
     }
   };
 
-  const getMessagesByFolder = (folderId: string | null) => {
-    return filteredMessages.filter(m => (m.folder_id || null) === folderId);
-  };
+  const getMessagesByFolder = (folderId: string | null) => filteredMessages.filter(m => (m.folder_id || null) === folderId);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-
-    if (!over || active.id === over.id) {
-      return;
-    }
+    if (!over || active.id === over.id) return;
 
     const oldIndex = localMessages.findIndex((item) => item.id === active.id);
     const newIndex = localMessages.findIndex((item) => item.id === over.id);
 
     if (oldIndex !== -1 && newIndex !== -1) {
       const newItems = arrayMove(localMessages, oldIndex, newIndex);
-      
-      // Atualiza estado local imediatamente (Optimistic UI)
       setLocalMessages(newItems);
-
-      // Prepara payload para salvar no banco
-      // Recalcula a posição baseada na nova ordem visual
-      const updates = newItems.map((msg, index) => ({
-        id: msg.id,
-        position: index + 1,
-        folder_id: msg.folder_id // Mantém a pasta original (reordenação intra-lista)
-      }));
-
+      const updates = newItems.map((msg, index) => ({ id: msg.id, position: index + 1, folder_id: msg.folder_id }));
       updateMessagesOrder.mutate(updates);
     }
   };
 
-  if (!lead) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center p-4 text-center text-muted-foreground bg-muted/10 border-l w-80 flex-shrink-0">
-        <Zap className="h-12 w-12 mb-2 opacity-20" />
-        <p className="text-sm">Selecione uma conversa para enviar mensagens rápidas.</p>
-      </div>
-    );
-  }
+  if (!lead) return null;
 
   return (
     <div className="h-full flex flex-col bg-background border-l w-80 flex-shrink-0">
@@ -229,43 +191,25 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
       <ScrollArea className="flex-1">
         {isLoadingMsgs || isLoadingFolders ? (
           <div className="text-center py-8 text-xs text-muted-foreground">Carregando...</div>
-        ) : filteredMessages.length === 0 ? (
-          <div className="text-center py-8 text-xs text-muted-foreground">Nenhuma mensagem encontrada.</div>
         ) : (
           <div className="p-3">
-            <DndContext 
-              sensors={sensors} 
-              collisionDetection={closestCenter} 
-              onDragEnd={handleDragEnd}
-            >
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <Accordion type="multiple" defaultValue={folders.map(f => f.id)} className="w-full space-y-2">
-                
-                {/* Pastas */}
                 {folders.map(folder => {
                   const msgs = getMessagesByFolder(folder.id);
                   if (msgs.length === 0) return null;
-
                   return (
                     <AccordionItem key={folder.id} value={folder.id} className="border-b-0">
                       <AccordionTrigger className="hover:no-underline py-2 px-1 rounded hover:bg-muted/50">
                         <div className="flex items-center gap-2 text-sm font-medium">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: folder.color }} />
                           {folder.name}
-                          <span className="text-[10px] text-muted-foreground ml-1">({msgs.length})</span>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="pt-2 pb-0 px-1">
-                        <SortableContext 
-                          items={msgs.map(m => m.id)} 
-                          strategy={verticalListSortingStrategy}
-                        >
+                        <SortableContext items={msgs.map(m => m.id)} strategy={verticalListSortingStrategy}>
                           {msgs.map(msg => (
-                            <SortableMessageItem 
-                              key={msg.id} 
-                              msg={msg} 
-                              onClick={handleClickMessage} 
-                              getIcon={getIcon} 
-                            />
+                            <SortableMessageItem key={msg.id} msg={msg} onClick={handleClickMessage} getIcon={getIcon} />
                           ))}
                         </SortableContext>
                       </AccordionContent>
@@ -273,28 +217,18 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
                   );
                 })}
 
-                {/* Mensagens sem Pasta */}
                 {getMessagesByFolder(null).length > 0 && (
                   <AccordionItem value="uncategorized" className="border-b-0">
                     <AccordionTrigger className="hover:no-underline py-2 px-1 rounded hover:bg-muted/50">
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <Folder className="h-4 w-4 text-muted-foreground" />
                         Geral
-                        <span className="text-[10px] text-muted-foreground ml-1">({getMessagesByFolder(null).length})</span>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="pt-2 pb-0 px-1">
-                      <SortableContext 
-                        items={getMessagesByFolder(null).map(m => m.id)} 
-                        strategy={verticalListSortingStrategy}
-                      >
+                      <SortableContext items={getMessagesByFolder(null).map(m => m.id)} strategy={verticalListSortingStrategy}>
                         {getMessagesByFolder(null).map(msg => (
-                          <SortableMessageItem 
-                            key={msg.id} 
-                            msg={msg} 
-                            onClick={handleClickMessage} 
-                            getIcon={getIcon} 
-                          />
+                          <SortableMessageItem key={msg.id} msg={msg} onClick={handleClickMessage} getIcon={getIcon} />
                         ))}
                       </SortableContext>
                     </AccordionContent>
