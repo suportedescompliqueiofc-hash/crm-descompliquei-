@@ -3,16 +3,17 @@ import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Mic, Image as ImageIcon, Video, FileText, MessageSquare, GripVertical } from "lucide-react";
+import { Trash2, Mic, Image as ImageIcon, Video, FileText, MessageSquare, GripVertical, Pencil } from "lucide-react";
 import { QuickMessage } from "@/hooks/useQuickMessages";
 import { cn } from "@/lib/utils";
 
 interface SortableMessageCardProps {
   message: QuickMessage;
+  onEdit: (message: QuickMessage) => void;
   onDelete: (id: string) => void;
 }
 
-export function SortableMessageCard({ message, onDelete }: SortableMessageCardProps) {
+export function SortableMessageCard({ message, onEdit, onDelete }: SortableMessageCardProps) {
   const {
     attributes,
     listeners,
@@ -82,17 +83,30 @@ export function SortableMessageCard({ message, onDelete }: SortableMessageCardPr
               </Badge>
             ) : <span />}
             
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation(); // Previne drag start se clicar no botão
-                onDelete(message.id);
-              }}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-primary transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(message);
+                }}
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-destructive transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(message.id);
+                }}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

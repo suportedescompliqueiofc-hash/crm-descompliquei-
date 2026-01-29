@@ -41,6 +41,7 @@ export default function QuickMessagesPage() {
     quickMessages, 
     isLoading: isLoadingMsgs, 
     createQuickMessage, 
+    updateQuickMessage,
     deleteQuickMessage, 
     isCreating: isCreatingMsg,
     updateMessagesOrder 
@@ -65,6 +66,9 @@ export default function QuickMessagesPage() {
   // Local state for optimistic updates
   const [localFolders, setLocalFolders] = useState<QuickMessageFolder[]>([]);
   const [localMessages, setLocalMessages] = useState<QuickMessage[]>([]);
+
+  // Editing State
+  const [editingMessage, setEditingMessage] = useState<QuickMessage | null>(null);
 
   // Sync with data
   useEffect(() => {
@@ -97,19 +101,48 @@ export default function QuickMessagesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [folderFormData, setFolderFormData] = useState({ name: "", color: "#3b82f6" });
 
+  const handleEditMessage = (message: QuickMessage) => {
+    setEditingMessage(message);
+    setMsgFormData({
+      titulo: message.titulo,
+      conteudo: message.conteudo || "",
+      tipo: message.tipo,
+      folder_id: message.folder_id || "none",
+    });
+    setFile(null); // Reset file input
+    setIsMsgModalOpen(true);
+  };
+
   const handleMsgSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createQuickMessage({
-      ...msgFormData,
-      folder_id: msgFormData.folder_id === "none" ? null : msgFormData.folder_id,
-      file
-    }, {
-      onSuccess: () => {
-        setIsMsgModalOpen(false);
-        setMsgFormData({ titulo: "", conteudo: "", tipo: "texto", folder_id: "none" });
-        setFile(null);
-      }
-    });
+    
+    if (editingMessage) {
+      updateQuickMessage({
+        id: editingMessage.id,
+        ...msgFormData,
+        folder_id: msgFormData.folder_id === "none" ? null : msgFormData.folder_id,
+        file
+      }, {
+        onSuccess: () => {
+          setIsMsgModalOpen(false);
+          setEditingMessage(null);
+          setMsgFormData({ titulo: "", conteudo: "", tipo: "texto", folder_id: "none" });
+          setFile(null);
+        }
+      });
+    } else {
+      createQuickMessage({
+        ...msgFormData,
+        folder_id: msgFormData.folder_id === "none" ? null : msgFormData.folder_id,
+        file
+      }, {
+        onSuccess: () => {
+          setIsMsgModalOpen(false);
+          setMsgFormData({ titulo: "", conteudo: "", tipo: "texto", folder_id: "none" });
+          setFile(null);
+        }
+      });
+    }
   };
 
   const handleFolderSubmit = (e: React.FormEvent) => {
@@ -330,8 +363,15 @@ export default function QuickMessagesPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Nova Mensagem */}
-          <Dialog open={isMsgModalOpen} onOpenChange={setIsMsgModalOpen}>
+          {/* Nova Mensagem / Editar Mensagem */}
+          <Dialog open={isMsgModalOpen} onOpenChange={(open) => {
+            setIsMsgModalOpen(open);
+            if (!open) {
+              setEditingMessage(null);
+              setMsgFormData({ titulo: "", conteudo: "", tipo: "texto", folder_id: "none" });
+              setFile(null);
+            }
+          }}>
             <DialogTrigger asChild>
               <Button className="gap-2">
                 <Plus className="h-4 w-4" /> Nova Mensagem
@@ -339,7 +379,7 @@ export default function QuickMessagesPage() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Criar Mensagem Rápida</DialogTitle>
+                <DialogTitle>{editingMessage ? "Editar Mensagem Rápida" : "Criar Mensagem Rápida"}</DialogTitle>
                 <DialogDescription>Configure o conteúdo do botão.</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleMsgSubmit} className="space-y-4 mt-2">
@@ -358,7 +398,7 @@ export default function QuickMessagesPage() {
                         <Label>Tipo</Label>
                         <Select 
                         value={msgFormData.tipo} 
-                        onValueChange={v => setMsgFormData({...msgFormData, tipo: v})}
+                        onValueChange={v => setMsgFormData({...msgFormData, tipo: v as any})}
                         >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -407,13 +447,13 @@ export default function QuickMessagesPage() {
 
                 {msgFormData.tipo !== 'texto' && (
                   <div className="space-y-2">
-                    <Label>Arquivo de Mídia *</Label>
+                    <Label>Arquivo de Mídia {editingMessage ? "(Opcional - deixe vazio para manter o atual)" : "*"}</Label>
                     <div 
                       className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                      <span className="text-sm text-muted-foreground">{file ? file.name : "Clique para selecionar arquivo"}</span>
+                      <span className="text-sm text-muted-foreground">{file ? file.name : (editingMessage?.arquivo_path ? "Mudar arquivo atual" : "Clique para selecionar arquivo")}</span>
                     </div>
                     <Input 
                       type="file" 
@@ -451,7 +491,6 @@ export default function QuickMessagesPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="all">Todas as Pastas</TabsTrigger>
-          {/* Removidas outras abas para focar na visualização de pastas conforme pedido "Aba Geral mostre todas as pastas" */}
         </TabsList>
 
         <TabsContent value="all" className="mt-6">
@@ -477,12 +516,13 @@ export default function QuickMessagesPage() {
                       folder={folder} 
                       messages={getMessagesByFolder(folder.id)}
                       onDeleteFolder={deleteFolder.mutate}
+                      onEditMessage={handleEditMessage}
                       onDeleteMessage={deleteQuickMessage.mutate}
                     />
                   ))}
                 </SortableContext>
 
-                {/* Área para mensagens sem pasta (SortableFolder falsa ou contêiner especial) */}
+                {/* Área para mensagens sem pasta */}
                 {getMessagesByFolder(null).length > 0 && (
                     <div className="mt-8">
                         <div className="flex items-center gap-2 mb-3 pl-1">
@@ -492,13 +532,14 @@ export default function QuickMessagesPage() {
                         <SortableContext 
                             id="uncategorized" // ID especial para drop
                             items={getMessagesByFolder(null).map(m => m.id)} 
-                            strategy={verticalListSortingStrategy} // ou rectSortingStrategy
+                            strategy={verticalListSortingStrategy}
                         >
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 border border-dashed rounded-xl bg-muted/5">
                                 {getMessagesByFolder(null).map(msg => (
                                     <SortableMessageCard 
                                         key={msg.id} 
                                         message={msg} 
+                                        onEdit={handleEditMessage}
                                         onDelete={deleteQuickMessage.mutate} 
                                     />
                                 ))}
@@ -508,11 +549,11 @@ export default function QuickMessagesPage() {
                 )}
               </div>
 
-              {/* Drag Overlay para visualização durante o arraste */}
+              {/* Drag Overlay */}
               {createPortal(
                 <DragOverlay dropAnimation={dropAnimation}>
                   {activeId && activeItem ? (
-                    activeItem.color ? ( // Check if it's a folder (folders have color)
+                    activeItem.color ? ( 
                         <div className="bg-background border rounded-lg p-4 shadow-xl opacity-90 w-[300px]">
                             <h3 className="font-semibold flex items-center gap-2">
                                 {activeItem.name}
@@ -520,7 +561,7 @@ export default function QuickMessagesPage() {
                         </div>
                     ) : (
                         <div className="w-[280px]">
-                            <SortableMessageCard message={activeItem} onDelete={() => {}} />
+                            <SortableMessageCard message={activeItem} onEdit={() => {}} onDelete={() => {}} />
                         </div>
                     )
                   ) : null}

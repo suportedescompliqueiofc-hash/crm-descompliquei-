@@ -13,10 +13,11 @@ interface SortableFolderProps {
   folder: QuickMessageFolder;
   messages: QuickMessage[];
   onDeleteFolder: (id: string) => void;
+  onEditMessage: (message: QuickMessage) => void;
   onDeleteMessage: (id: string) => void;
 }
 
-export function SortableFolder({ folder, messages, onDeleteFolder, onDeleteMessage }: SortableFolderProps) {
+export function SortableFolder({ folder, messages, onDeleteFolder, onEditMessage, onDeleteMessage }: SortableFolderProps) {
   const {
     attributes,
     listeners,
@@ -85,6 +86,7 @@ export function SortableFolder({ folder, messages, onDeleteFolder, onDeleteMessa
                 <SortableMessageCard 
                   key={msg.id} 
                   message={msg} 
+                  onEdit={onEditMessage}
                   onDelete={onDeleteMessage} 
                 />
               ))}

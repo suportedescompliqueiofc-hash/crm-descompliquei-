@@ -116,6 +116,63 @@ export function useQuickMessages() {
     },
   });
 
+  const updateQuickMessage = useMutation({
+    mutationFn: async ({ 
+      id,
+      titulo, 
+      conteudo, 
+      tipo, 
+      file,
+      folder_id
+    }: { 
+      id: string;
+      titulo: string; 
+      conteudo: string; 
+      tipo: string; 
+      file?: File | null;
+      folder_id?: string | null;
+    }) => {
+      if (!user || !orgId) throw new Error("Usuário não autenticado");
+
+      let updates: any = { 
+        titulo, 
+        conteudo: conteudo || '', 
+        tipo, 
+        folder_id: folder_id || null 
+      };
+
+      if (file) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `${orgId}/quick-messages/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('media-mensagens')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+        updates.arquivo_path = filePath;
+      }
+
+      const { data, error } = await supabase
+        .from('mensagens_rapidas')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quick_messages', orgId] });
+      toast.success('Mensagem atualizada com sucesso!');
+    },
+    onError: (error: any) => {
+      toast.error(`Erro ao atualizar mensagem: ${error.message}`);
+    },
+  });
+
   const deleteQuickMessage = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -204,7 +261,8 @@ export function useQuickMessages() {
     quickMessages,
     isLoading,
     createQuickMessage: createQuickMessage.mutate,
-    isCreating: createQuickMessage.isPending,
+    updateQuickMessage: updateQuickMessage.mutate,
+    isCreating: createQuickMessage.isPending || updateQuickMessage.isPending,
     deleteQuickMessage: deleteQuickMessage.mutate,
     sendQuickMessage: sendQuickMessage.mutate,
     isSending: sendQuickMessage.isPending,
