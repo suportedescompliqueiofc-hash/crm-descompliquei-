@@ -64,8 +64,9 @@ export default function Leads() {
   const [filters, setFilters] = useState({
     searchTerm: "",
     status: "Todos",
-    posicao_pipeline: "Todos", // Renomeado
-    origem: "Todos",
+    posicao_pipeline: "Todos",
+    origem: "Todos", // Isso aqui agora filtra o TIPO (Marketing/Organico)
+    fonte: "",       // Novo filtro para a FONTE
     genero: "Todos",
     criativo: "",
     idade: "",
@@ -89,11 +90,14 @@ export default function Leads() {
         lead.telefone.includes(filters.searchTerm);
       
       const statusMatch = filters.status === "Todos" || lead.status === filters.status;
-      // Filtro por posição
       const etapaMatch = filters.posicao_pipeline === "Todos" || lead.posicao_pipeline.toString() === filters.posicao_pipeline;
+      
+      // Filtros de Origem
       const origemMatch = filters.origem === "Todos" || lead.origem === filters.origem;
+      const fonteMatch = !filters.fonte || (lead.fonte && lead.fonte.toLowerCase().includes(filters.fonte.toLowerCase()));
+
       const generoMatch = filters.genero === "Todos" || lead.genero === filters.genero;
-      const criativoMatch = !filters.criativo || (lead.criativo_id && lead.criativo_id.toLowerCase().includes(filters.criativo.toLowerCase())); // Correção de propriedade se necessário, assumindo que criativo_id existe ou 'criativo'
+      const criativoMatch = !filters.criativo || (lead.criativo_id && lead.criativo_id.toLowerCase().includes(filters.criativo.toLowerCase()));
       const idadeMatch = !filters.idade || (lead.idade?.toString() === filters.idade);
       const cadastroMesMatch = !filters.cadastroMes || (lead.criado_em && lead.criado_em.startsWith(filters.cadastroMes));
       
@@ -103,7 +107,7 @@ export default function Leads() {
       const tagMatch = filters.tagId === "Todos" || 
         (lead.leads_tags && lead.leads_tags.some(lt => lt.tags && lt.tags.id === filters.tagId));
 
-      return searchTermMatch && statusMatch && etapaMatch && origemMatch && generoMatch && criativoMatch && idadeMatch && cadastroMesMatch && tagMatch && procedimentoMatch;
+      return searchTermMatch && statusMatch && etapaMatch && origemMatch && fonteMatch && generoMatch && criativoMatch && idadeMatch && cadastroMesMatch && tagMatch && procedimentoMatch;
     });
   }, [leads, filters]);
 
@@ -237,16 +241,19 @@ export default function Leads() {
                 </Select>
               </div>
               <div>
-                <Label>Origem</Label>
+                <Label>Origem (Tipo)</Label>
                 <Select value={filters.origem} onValueChange={(v) => handleFilterChange('origem', v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Todos">Todos</SelectItem>
-                    {allSources.map(origem => (
-                      <SelectItem key={origem} value={origem}>{origem}</SelectItem>
-                    ))}
+                    <SelectItem value="Todos">Todas</SelectItem>
+                    <SelectItem value="marketing">Marketing</SelectItem>
+                    <SelectItem value="organico">Orgânico</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label>Fonte (Detalhe)</Label>
+                <Input value={filters.fonte} onChange={(e) => handleFilterChange('fonte', e.target.value)} placeholder="Ex: Facebook" />
               </div>
               <div>
                 <Label>Procedimento</Label>
@@ -267,19 +274,6 @@ export default function Leads() {
                     <SelectItem value="Outro">Outro</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
-                <Label>Idade</Label>
-                <Input 
-                  type="number" 
-                  value={filters.idade} 
-                  onChange={(e) => handleFilterChange('idade', e.target.value)} 
-                  placeholder="Ex: 25"
-                />
-              </div>
-              <div>
-                <Label>Criativo (ID ou Nome)</Label>
-                <Input value={filters.criativo} onChange={(e) => handleFilterChange('criativo', e.target.value)} />
               </div>
               <div>
                 <Label>Mês de Cadastro</Label>
@@ -312,13 +306,12 @@ export default function Leads() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12">
-                  <Checkbox />
-                </TableHead>
+                <TableHead className="w-12"><Checkbox /></TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Telefone</TableHead>
-                <TableHead>Idade/Gênero</TableHead>
-                <TableHead>Captação</TableHead>
+                {/* Removido Idade/Gênero */}
+                <TableHead>Origem</TableHead>
+                <TableHead>Fonte</TableHead>
                 <TableHead>Procedimento</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Etapa</TableHead>
@@ -339,64 +332,27 @@ export default function Leads() {
                   const stage = getStageByPosition(lead.posicao_pipeline);
                   return (
                     <TableRow key={lead.id} className="hover:bg-muted/50">
+                      <TableCell><Checkbox /></TableCell>
+                      <TableCell><p className="font-medium text-foreground">{lead.nome}</p></TableCell>
+                      <TableCell><p className="text-sm text-muted-foreground">{lead.telefone}</p></TableCell>
+                      
+                      {/* Novas colunas */}
                       <TableCell>
-                        <Checkbox />
-                      </TableCell>
-                      <TableCell>
-                        <p className="font-medium text-foreground">{lead.nome}</p>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm text-muted-foreground">{lead.telefone}</p>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">{lead.idade || '-'} anos, {lead.genero || '-'}</span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-normal">
-                          {lead.origem}
+                        <Badge variant="outline" className={lead.origem === 'marketing' ? 'border-primary text-primary' : ''}>
+                          {lead.origem === 'marketing' ? 'Marketing' : 'Orgânico'}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <span className="text-sm font-medium text-primary">
-                          {lead.procedimento_interesse || '-'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(lead.status)}>
-                          {lead.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {stage && (
-                          <Badge style={{ backgroundColor: stage.cor, color: 'white' }}>
-                            {stage.nome}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-muted-foreground">{formatDate(lead.criado_em)}</span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-muted-foreground">{formatTime(lead.ultimo_contato)}</span>
-                      </TableCell>
+                      <TableCell><span className="text-sm text-muted-foreground">{lead.fonte || '-'}</span></TableCell>
+
+                      <TableCell><span className="text-sm font-medium text-primary">{lead.procedimento_interesse || '-'}</span></TableCell>
+                      <TableCell><Badge className={getStatusColor(lead.status)}>{lead.status}</Badge></TableCell>
+                      <TableCell>{stage && <Badge style={{ backgroundColor: stage.cor, color: 'white' }}>{stage.nome}</Badge>}</TableCell>
+                      <TableCell><span className="text-sm text-muted-foreground">{formatDate(lead.criado_em)}</span></TableCell>
+                      <TableCell><span className="text-sm text-muted-foreground">{formatTime(lead.ultimo_contato)}</span></TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8"
-                            onClick={() => handleEdit(lead)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => handleDeleteRequest(lead)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(lead)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteRequest(lead)}><Trash2 className="h-4 w-4" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -408,28 +364,12 @@ export default function Leads() {
         </CardContent>
       </Card>
 
-      <LeadModal 
-        open={isModalOpen}
-        onOpenChange={handleModalOpenChange}
-        lead={selectedLead}
-        mode={modalMode}
-      />
+      <LeadModal open={isModalOpen} onOpenChange={handleModalOpenChange} lead={selectedLead} mode={modalMode} />
 
-      {/* AlertDialog para Confirmação de Exclusão */}
       <AlertDialog open={isDeleting} onOpenChange={setIsDeleting}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação não pode ser desfeita. Isso excluirá permanentemente o lead "{selectedLead?.nome}".
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">
-              Sim, excluir lead
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>Você tem certeza?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita. Isso excluirá permanentemente o lead "{selectedLead?.nome}".</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Sim, excluir lead</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>

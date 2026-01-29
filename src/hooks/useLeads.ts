@@ -22,10 +22,11 @@ export interface Lead {
   queixa_principal?: string;
   procedimento_interesse?: string;
   resumo?: string;
-  origem?: string;
+  origem?: string; // Agora será apenas 'marketing' ou 'organico'
+  fonte?: string;  // Nova coluna com o detalhe (Facebook, Indicação, etc)
   criativo_id?: string; 
   status: string;
-  posicao_pipeline: number; // Alterado de etapa_id para posicao_pipeline
+  posicao_pipeline: number;
   ultimo_contato?: string;
   criado_em: string;
   atualizado_em: string;

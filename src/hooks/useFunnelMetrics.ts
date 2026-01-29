@@ -16,7 +16,7 @@ export interface FunnelStep {
   conversionFromStart: number;
 }
 
-// Lista ESTRITA de etapas padrão para o funil (Mesma dos Relatórios)
+// Lista ESTRITA de etapas padrão para o funil
 const SALES_FUNNEL_STAGES = [
   { name: "Novo Lead", color: "#94a3b8", order: 1 },
   { name: "Qualificação", color: "#64748b", order: 2 },
@@ -42,11 +42,12 @@ export function useFunnelMetrics(dateRange: DateRange | undefined) {
         : endOfDay(dateRange.from).toISOString();
 
       // 1. Buscar leads criados no período
-      // Importante: Usamos a mesma query base do Relatório para garantir consistência
+      // FILTRO APLICADO: origem = 'marketing'
       const { data: leads, error: leadsError } = await supabase
         .from('leads')
         .select('posicao_pipeline')
         .eq('organization_id', orgId)
+        .eq('origem', 'marketing') 
         .gte('criado_em', startDate)
         .lte('criado_em', endDate);
 
@@ -72,9 +73,7 @@ export function useFunnelMetrics(dateRange: DateRange | undefined) {
         const position = dbStage ? dbStage.posicao_ordem : stdStage.order;
         const color = dbStage ? dbStage.cor : stdStage.color;
 
-        // Cálculo de Volume Acumulado
-        // Conta leads que estão nesta etapa OU em etapas posteriores
-        // EXCLUI leads que estão na etapa "Perdido" ou superior
+        // Cálculo de Volume Acumulado (considerando apenas leads de marketing, já filtrados na query)
         const count = leads.filter(l => 
           l.posicao_pipeline >= position && l.posicao_pipeline < lostPosition
         ).length;

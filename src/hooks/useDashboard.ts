@@ -37,25 +37,15 @@ export function useDashboard(dateRange: DateRange | undefined) {
       const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
       const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
 
-      const { data: tagsData } = await supabase
-        .from('tags')
-        .select('id, name')
-        .in('name', ['LEAD', 'CLIENTE'])
-        .eq('organization_id', orgId);
-
-      const leadTagId = tagsData?.find(t => t.name === 'LEAD')?.id;
-
       const [
         { data: leadsData },
         { data: stagesData },
         { data: activitiesData },
-        { count: novosLeadsCount },
         { data: vendasData }
       ] = await Promise.all([
         supabase.from('leads').select('*').eq('organization_id', orgId).gte('criado_em', startDate).lte('criado_em', endDate),
         supabase.from('etapas').select('id, nome, posicao_ordem'),
         supabase.from('atividades').select('*').eq('organization_id', orgId).gte('criado_em', startDate).lte('criado_em', endDate).limit(10),
-        leadTagId ? supabase.from('leads_tags').select('*', { count: 'exact', head: true }).eq('tag_id', leadTagId).gte('assigned_at', startDate).lte('assigned_at', endDate) : Promise.resolve({ count: 0 }),
         supabase.from('vendas').select('valor_fechado').eq('organization_id', orgId).gte('data_fechamento', format(startOfDay(dateRange.from), 'yyyy-MM-dd')).lte('data_fechamento', format(endOfDay(dateRange.to), 'yyyy-MM-dd'))
       ]);
 
@@ -64,6 +54,11 @@ export function useDashboard(dateRange: DateRange | undefined) {
       const convertedStagePosition = stages.find(s => s.nome.toLowerCase().includes('fechado'))?.posicao_ordem;
 
       const totalContatos = leads.length;
+      
+      // Separação Marketing vs Orgânico
+      const marketingLeads = leads.filter(l => l.origem === 'marketing').length;
+      const organicLeads = leads.filter(l => l.origem === 'organico').length;
+
       const convertedLeads = leads.filter(l => l.posicao_pipeline === convertedStagePosition);
       const conversionRate = totalContatos > 0 ? (convertedLeads.length / totalContatos) * 100 : 0;
       const faturamentoTotal = (vendasData || []).reduce((sum, v) => sum + v.valor_fechado, 0);
@@ -80,11 +75,12 @@ export function useDashboard(dateRange: DateRange | undefined) {
 
       return {
         totalContatos,
-        totalNovosLeads: novosLeadsCount || 0,
+        marketingLeads,
+        organicLeads,
         conversionRate: conversionRate.toFixed(1),
         faturamentoTotal,
         activities: activitiesData || [],
-        leadsByStage: leads.map(l => ({ etapa_id: l.posicao_pipeline })), // Mapeia posicao para gráfico
+        leadsByStage: leads.map(l => ({ etapa_id: l.posicao_pipeline })),
         leadsOverTime,
         sourceChartData: [],
       };

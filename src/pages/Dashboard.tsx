@@ -1,4 +1,4 @@
-import { UserPlus, TrendingUp, DollarSign, Tag, AlertTriangle, RefreshCw } from "lucide-react";
+import { UserPlus, TrendingUp, DollarSign, Tag, AlertTriangle, RefreshCw, Megaphone, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useDashboard } from "@/hooks/useDashboard";
@@ -48,12 +48,13 @@ export default function Dashboard() {
   }
 
   if (isLoading || !metrics) {
-    return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
+    return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div></div>;
   }
 
   const metricsData = [
-    { title: "Novos Contatos", value: metrics.totalContatos.toString(), icon: UserPlus, description: "Leads totais no período" },
-    { title: "Novos Leads", value: metrics.totalNovosLeads.toString(), icon: Tag, description: "Etiquetados como Lead" },
+    { title: "Total Contatos", value: metrics.totalContatos.toString(), icon: UserPlus, description: "Todos os registros" },
+    { title: "Leads Marketing", value: (metrics.marketingLeads || 0).toString(), icon: Megaphone, description: "Origem Marketing (Ads)" },
+    { title: "Leads Orgânico", value: (metrics.organicLeads || 0).toString(), icon: Users, description: "Indicação, Manual..." },
     { title: "Taxa de Conversão", value: `${metrics.conversionRate}%`, icon: TrendingUp, description: "Funil de vendas" },
     { title: "Faturamento", value: `R$ ${metrics.faturamentoTotal.toLocaleString('pt-BR')}`, icon: DollarSign, description: "Vendas fechadas" },
   ];
@@ -68,7 +69,7 @@ export default function Dashboard() {
         <DateRangePicker date={dateRange} setDate={setDateRange} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {metricsData.map((metric) => (
           <Card key={metric.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

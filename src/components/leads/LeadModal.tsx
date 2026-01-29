@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useLeads } from "@/hooks/useLeads";
 import { useStages, Stage } from "@/hooks/useStages";
 import MaskedInput, { PhoneInput, CpfInput } from "@/components/MaskedInput";
-import { User, Mail, Phone, DollarSign, MapPin, Tag, Clock, MessageSquare, Pencil, MessageCircle, HeartPulse } from "lucide-react";
+import { User, Mail, Phone, DollarSign, MapPin, Tag, Clock, MessageSquare, Pencil, MessageCircle, HeartPulse, Globe } from "lucide-react";
 import { parse, format, differenceInYears, isValid, startOfDay, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,8 +62,10 @@ const toSupabaseTimestamp = (displayDate: string): string | undefined => {
 const cleanPhoneNumber = (phone: string): string => phone.replace(/\D/g, '');
 
 const initialFormData = {
-  nome: "", telefone: "", resumo: "", origem: "",
-  posicao_pipeline: 1, // Usando posicao_pipeline padrão
+  nome: "", telefone: "", resumo: "", 
+  origem: "organico", // Default agora é organico
+  fonte: "",          // Novo campo para o detalhe (antiga origem)
+  posicao_pipeline: 1, 
   status: "Ativo", email: "", cpf: "", idade: "",
   genero: "", endereco: "", 
   procedimento_interesse: "",
@@ -75,7 +77,7 @@ const initialFormData = {
 // --- Componentes de UI ---
 
 const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[], creativeName?: string }) => {
-  const currentStage = stages.find(s => s.posicao_ordem === lead?.posicao_pipeline); // Busca por posição
+  const currentStage = stages.find(s => s.posicao_ordem === lead?.posicao_pipeline); 
   return (
     <div className="space-y-6 py-4 max-h-[70vh] overflow-y-auto px-4">
       <div className="flex items-center justify-between">
@@ -90,7 +92,16 @@ const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[
           <div className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" /><span className="font-medium">{lead.telefone}</span></div>
           {lead.email && <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /><span>{lead.email}</span></div>}
           {lead.procedimento_interesse && <div className="flex items-center gap-2 col-span-2"><HeartPulse className="h-4 w-4 text-muted-foreground" /><span className="font-medium text-primary">{lead.procedimento_interesse}</span></div>}
-          {lead.origem && <div className="flex items-center gap-2"><Tag className="h-4 w-4 text-muted-foreground" /><span>{lead.origem}</span></div>}
+          
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            <span className="capitalize">{lead.origem || 'Orgânico'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Tag className="h-4 w-4 text-muted-foreground" />
+            <span>{lead.fonte || 'Sem fonte'}</span>
+          </div>
+          
           {creativeName && <div className="flex items-center gap-2 col-span-2 md:col-span-1"><Tag className="h-4 w-4 text-muted-foreground" /><span className="truncate" title={creativeName}>{creativeName}</span></div>}
         </CardContent>
       </Card>
@@ -147,18 +158,32 @@ const FormContent = ({ formData, handleInputChange, handleSubmit, stages, handle
         />
       </div>
       <div><Label>Resumo do Atendimento (IA)</Label><Textarea value={formData.resumo} onChange={(e) => handleInputChange('resumo', e.target.value)} placeholder="Resumo gerado pela IA..." /></div>
+      
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label>Fonte</Label>
-          <CreatableSelect
-            options={allSources}
-            value={formData.origem}
-            onChange={handleSourceChange}
-            placeholder="Ex: Facebook Ads"
-          />
+          <Label>Origem (Tipo)</Label>
+          <Select value={formData.origem} onValueChange={(value) => handleInputChange('origem', value)}>
+            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="marketing">Marketing (Pago/Ads)</SelectItem>
+              <SelectItem value="organico">Orgânico (Manual/Indicação)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div>
-          <Label>Criativo</Label>
+          <Label>Fonte (Detalhe)</Label>
+          <CreatableSelect
+            options={allSources}
+            value={formData.fonte}
+            onChange={handleSourceChange}
+            placeholder="Ex: Facebook, Instagram, Indicação"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>Criativo (Opcional)</Label>
           <Select value={formData.criativo_id} onValueChange={(value) => handleInputChange('criativo_id', value)}>
             <SelectTrigger><SelectValue placeholder="Selecione o criativo" /></SelectTrigger>
             <SelectContent>
@@ -226,8 +251,10 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
       if (lead) {
         setFormData({
           nome: lead.nome || "", telefone: lead.telefone || "",
-          resumo: lead.resumo || "", origem: lead.origem || "", 
-          posicao_pipeline: lead.posicao_pipeline || 1, // Mapeado
+          resumo: lead.resumo || "", 
+          origem: lead.origem || "organico", // Mapeia antigo para default
+          fonte: lead.fonte || lead.origem || "", // Fallback para origem antiga se fonte vazia
+          posicao_pipeline: lead.posicao_pipeline || 1,
           status: lead.status || "Ativo", email: lead.email || "", cpf: lead.cpf || "",
           idade: lead.idade?.toString() || "", genero: lead.genero || "", endereco: lead.endereco || "",
           procedimento_interesse: lead.procedimento_interesse || "",
@@ -255,7 +282,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
   };
 
   const handleSourceChange = (value: string) => {
-    handleInputChange('origem', value);
+    handleInputChange('fonte', value);
     if (value && !allSources.includes(value)) {
       createSource({ name: value });
     }
@@ -277,6 +304,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
       criado_em: toSupabaseTimestamp(formData.criado_em_display),
       nome: formData.nome || undefined, 
       origem: formData.origem || undefined, 
+      fonte: formData.fonte || undefined,
       resumo: formData.resumo || undefined,
       email: formData.email || undefined, 
       cpf: formData.cpf || undefined,
@@ -307,7 +335,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
     }
   };
 
-  const currentStage = stages.find(s => s.posicao_ordem === lead?.posicao_pipeline); // Busca por ordem
+  const currentStage = stages.find(s => s.posicao_ordem === lead?.posicao_pipeline); 
   const isContratoFechado = currentStage?.nome === 'Contrato Fechado';
   
   const creativeName = lead?.criativo_id 
