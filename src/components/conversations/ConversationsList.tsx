@@ -42,21 +42,21 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
   const prefix = isOutgoing ? <span className="mr-1">Você:</span> : null;
 
   if (type === 'audio') {
-    return <div className="flex items-center gap-1 text-primary"><Mic className="h-3 w-3" /> <span>Áudio</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/80"><Mic className="h-3 w-3" /> <span>Áudio</span></div>;
   }
   if (type === 'imagem') {
-    return <div className="flex items-center gap-1"><ImageIcon className="h-3 w-3" /> <span>Foto</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/80"><ImageIcon className="h-3 w-3" /> <span>Foto</span></div>;
   }
   if (type === 'video') {
-    return <div className="flex items-center gap-1"><Video className="h-3 w-3" /> <span>Vídeo</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/80"><Video className="h-3 w-3" /> <span>Vídeo</span></div>;
   }
   if (type === 'pdf' || type === 'arquivo') {
-    return <div className="flex items-center gap-1"><FileText className="h-3 w-3" /> <span>Arquivo</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/80"><FileText className="h-3 w-3" /> <span>Arquivo</span></div>;
   }
 
   // Fallback para quando o conteúdo é apenas o caminho do arquivo mas o tipo não foi detectado corretamente
   if (content && (content.includes('audio-mensagens/') || content.includes('media-mensagens/'))) {
-    return <div className="flex items-center gap-1"><FileText className="h-3 w-3" /> <span>Mídia</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/80"><FileText className="h-3 w-3" /> <span>Mídia</span></div>;
   }
 
   return <span className="truncate flex items-center">{prefix}{content}</span>;
@@ -77,35 +77,37 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
     <Link
       to={`/conversas/${conversation.id}`}
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg transition-colors cursor-pointer border border-transparent",
+        "flex items-center gap-3 p-3 rounded-lg transition-colors cursor-pointer border border-transparent group",
         isActive ? "bg-muted border-border" : "hover:bg-muted/50"
       )}
     >
-      <Avatar className="h-10 w-10 flex-shrink-0">
-        <AvatarFallback className={cn("text-xs font-semibold", isActive ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground")}>
+      <Avatar className="h-12 w-12 flex-shrink-0">
+        <AvatarFallback className={cn("text-sm font-semibold", isActive ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground")}>
           {getInitials(conversation.nome)}
         </AvatarFallback>
       </Avatar>
       
-      {/* Container principal de texto: ocupa todo o espaço restante */}
-      <div className="flex-1 min-w-0 grid gap-0.5">
+      {/* Container principal: min-w-0 é crucial para o truncate funcionar dentro do flex */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
         
-        {/* Linha 1: Nome e Horário */}
+        {/* Linha 1: Nome + Tags (Esquerda) e Horário (Direita) */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0 pr-2">
-            <span className="font-semibold text-sm truncate text-foreground">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-2">
+            <span className="font-semibold text-sm truncate text-foreground block">
               {conversation.nome || conversation.telefone}
             </span>
+            
+            {/* Tags Compactas */}
             {conversation.tags && conversation.tags.length > 0 && (
               <div className="flex items-center gap-1 flex-shrink-0">
-                {conversation.tags.slice(0, 2).map(tag => {
+                {conversation.tags.slice(0, 3).map(tag => {
                   const preset = TAG_COLORS.find(c => c.name === tag.color);
                   const isHex = tag.color && tag.color.startsWith('#');
                   
                   return (
                     <div 
                       key={tag.id} 
-                      className={cn("w-2 h-2 rounded-full", preset?.selector)} 
+                      className={cn("w-2 h-2 rounded-full ring-1 ring-background", preset?.selector)} 
                       style={isHex ? { backgroundColor: tag.color } : undefined}
                       title={tag.name} 
                     />
@@ -115,18 +117,23 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             )}
           </div>
           
-          <span className="text-[10px] text-muted-foreground flex-shrink-0 tabular-nums">
+          <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap">
             {lastMessageTime}
           </span>
         </div>
 
-        {/* Linha 2: Última mensagem com prévia inteligente */}
-        <div className="text-xs text-muted-foreground truncate h-4 leading-4">
-          <MessagePreview 
-            content={conversation.last_message_content} 
-            type={conversation.last_message_type} 
-            sender={conversation.last_message_sender} 
-          />
+        {/* Linha 2: Prévia da Mensagem */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs text-muted-foreground truncate flex-1 min-w-0">
+            <MessagePreview 
+              content={conversation.last_message_content} 
+              type={conversation.last_message_type} 
+              sender={conversation.last_message_sender} 
+            />
+          </div>
+          
+          {/* Espaço reservado para contador de mensagens não lidas ou ícone de pin no futuro */}
+          {/* <div className="h-4 w-4 bg-primary rounded-full text-[9px] flex items-center justify-center text-primary-foreground font-bold flex-shrink-0">1</div> */}
         </div>
       </div>
     </Link>
@@ -161,8 +168,8 @@ export function ConversationsList() {
           {isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 p-3">
-                <Skeleton className="h-10 w-10 rounded-full" />
-                <div className="flex-1 space-y-2">
+                <Skeleton className="h-12 w-12 rounded-full flex-shrink-0" />
+                <div className="flex-1 space-y-2 min-w-0">
                   <div className="flex justify-between">
                     <Skeleton className="h-4 w-24" />
                     <Skeleton className="h-3 w-8" />
