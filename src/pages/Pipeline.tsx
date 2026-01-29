@@ -10,7 +10,7 @@ import {
   DragOverEvent, 
   DragOverlay, 
   DragStartEvent,
-  closestCorners, 
+  closestCenter, 
   PointerSensor, 
   useSensor, 
   useSensors, 
@@ -176,10 +176,10 @@ function LeadCard({
     );
   };
 
-  // Se for o overlay, renderiza um card "limpo" sem listeners de drag para evitar conflitos
+  // Se for o overlay, renderiza um card com pointer-events-none para não bloquear o drop
   if (isOverlay) {
     return (
-      <Card className="shadow-xl cursor-grabbing bg-card ring-2 ring-primary/50 rotate-2 scale-105">
+      <Card className="shadow-xl cursor-grabbing bg-card ring-2 ring-primary/50 rotate-2 scale-105 z-50 pointer-events-none relative">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0 pr-2">
@@ -319,7 +319,7 @@ export default function Pipeline() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // Reduzi para 5px para ser mais responsivo
+        distance: 5, // 5px para evitar cliques acidentais mas ser responsivo
       },
     })
   );
@@ -394,7 +394,6 @@ export default function Pipeline() {
     if (!over) return;
 
     const leadId = active.id as string;
-    const currentLead = optimisticLeads.find(l => l.id === leadId);
     
     // Identificar a nova etapa
     let newStageId: number | undefined;
@@ -458,7 +457,7 @@ export default function Pipeline() {
       {/* Kanban Board */}
       <DndContext 
         sensors={sensors} 
-        collisionDetection={closestCorners}
+        collisionDetection={closestCenter}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
