@@ -343,7 +343,9 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
 
               const msg = item as Message;
               const isOutgoing = msg.remetente === 'agente' || msg.remetente === 'bot' || msg.remetente === 'agente_crm';
-              const isAi = msg.remetente === 'bot' || msg.remetente === 'agente_crm';
+              // Força mensagens de áudio enviadas a serem identificadas como IA (robô)
+              const isAi = msg.remetente === 'bot' || msg.remetente === 'agente_crm' || (msg.tipo_conteudo === 'audio' && isOutgoing);
+              
               const hasNewAttachments = msg.message_attachments && msg.message_attachments.length > 0;
               const legacyAttachmentIndex = msg.conteudo?.toLowerCase().indexOf('attachments:');
               const hasLegacyAttachments = !hasNewAttachments && legacyAttachmentIndex !== -1;
