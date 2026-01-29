@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConversationsList, Conversation } from "@/hooks/useConversations";
-import { format, isToday, isYesterday } from "date-fns";
+import { format, isToday, isYesterday, isValid, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { TAG_COLORS } from "@/hooks/useTags";
@@ -17,11 +17,15 @@ const formatLastMessageTime = (timestamp?: string | null) => {
   if (!timestamp) return '';
   
   try {
-    // Usa o construtor Date diretamente para maior compatibilidade com ISO strings do DB
-    const date = new Date(timestamp);
+    // Tenta parsear como ISO primeiro (formato padrão do Supabase)
+    let date = parseISO(timestamp);
     
-    // Verifica se a data é válida
-    if (isNaN(date.getTime())) return '';
+    // Se não for válido, tenta o construtor Date padrão (fallback)
+    if (!isValid(date)) {
+        date = new Date(timestamp);
+    }
+
+    if (!isValid(date)) return '';
 
     if (isToday(date)) {
       return format(date, 'HH:mm');
@@ -43,7 +47,7 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
   if (!content && !type) return <span className="italic text-muted-foreground/60">Nenhuma mensagem</span>;
 
   const isOutgoing = sender === 'agente' || sender === 'bot' || sender === 'agente_crm';
-  const prefix = isOutgoing ? <span className="mr-0.5">Você: </span> : null;
+  const prefix = isOutgoing ? <span className="mr-0.5 font-medium">Você: </span> : null;
 
   if (type === 'audio') {
     return <div className="flex items-center gap-1 text-muted-foreground"><Mic className="h-3 w-3 flex-shrink-0" /> <span>Áudio</span></div>;
@@ -92,7 +96,7 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
         {/* Linha Superior: Nome e Horário */}
         <div className="flex items-start justify-between w-full mb-1">
           {/* Lado Esquerdo: Nome + Tags */}
-          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden pr-2">
+          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden pr-2 flex-1">
             <span className="font-semibold text-sm truncate text-foreground block">
               {conversation.nome || conversation.telefone}
             </span>
@@ -118,9 +122,11 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
           </div>
           
           {/* Lado Direito: Horário fixo */}
-          <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap font-medium">
-            {lastMessageTime}
-          </span>
+          {lastMessageTime && (
+            <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap font-medium ml-auto">
+              {lastMessageTime}
+            </span>
+          )}
         </div>
 
         {/* Linha Inferior: Prévia da Mensagem */}
