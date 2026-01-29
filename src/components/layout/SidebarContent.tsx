@@ -57,25 +57,25 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     <TooltipProvider>
       <div className="flex flex-col h-full bg-sidebar">
         {/* Logo & Toggle */}
-        <div className={`flex items-center transition-all h-24 flex-shrink-0 ${isCollapsed ? 'px-2 justify-center' : 'px-6'}`}>
-          <div className="flex items-center gap-3 overflow-hidden w-full">
+        <div className={`flex items-center transition-all h-20 flex-shrink-0 ${isCollapsed ? 'px-2 justify-center' : 'px-4'}`}>
+          <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
             {/* Logo Icon - Sempre visível ou ajustado */}
             <img 
               src="https://iuutktzsbdoadkqaoudq.supabase.co/storage/v1/object/public/media-mensagens/CRM/logo%20principal%20sem%20fundo%20cor%20original%202.png" 
               alt="Logo Monção" 
-              className={`h-10 w-auto object-contain transition-all duration-300 ${isCollapsed ? 'mx-auto' : ''}`}
+              className={`h-9 w-auto object-contain transition-all duration-300 flex-shrink-0 ${isCollapsed ? 'mx-auto' : ''}`}
             />
             
             {/* Logo Text - Colapsável */}
             <div className={`flex flex-col whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}`}>
-              <h1 className="text-sm font-bold text-sidebar-foreground uppercase tracking-widest font-serif">MONÇÃO</h1>
-              <p className="text-[9px] text-sidebar-primary tracking-[0.1em] uppercase">Odontologia & Estética</p>
+              <h1 className="text-sm font-bold text-sidebar-foreground uppercase tracking-widest font-serif leading-none mb-0.5">MONÇÃO</h1>
+              <p className="text-[9px] text-sidebar-primary tracking-wide uppercase font-medium truncate">Odontologia & Estética</p>
             </div>
           </div>
           
           {toggleCollapse && !isCollapsed && (
-            <Button variant="ghost" size="icon" className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ml-auto flex-shrink-0" onClick={toggleCollapse}>
-              <ChevronLeft className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ml-1 h-8 w-8 flex-shrink-0" onClick={toggleCollapse}>
+              <ChevronLeft className="h-4 w-4" />
             </Button>
           )}
         </div>
@@ -83,22 +83,22 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
         {/* Toggle Button for Collapsed State (Centered) */}
         {toggleCollapse && isCollapsed && (
           <div className="flex justify-center pb-2">
-             <Button variant="ghost" size="icon" className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50" onClick={toggleCollapse}>
-              <ChevronLeft className="h-5 w-5 rotate-180" />
+             <Button variant="ghost" size="icon" className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 h-8 w-8" onClick={toggleCollapse}>
+              <ChevronLeft className="h-4 w-4 rotate-180" />
             </Button>
           </div>
         )}
 
         {/* Menu Items */}
-        <nav className={`flex-1 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-sidebar-accent/20 scrollbar-track-transparent ${isCollapsed ? 'p-2' : 'p-4'}`}>
+        <nav className={`flex-1 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-sidebar-accent/20 scrollbar-track-transparent ${isCollapsed ? 'p-2' : 'p-3'}`}>
           {menuItems.map((item) => {
             const isActive = location.pathname.startsWith(item.path) && (item.path !== '/' || location.pathname === '/');
             const Icon = item.icon;
             
-            const linkClasses = `flex items-center gap-3 py-3 rounded-lg transition-all ${
+            const linkClasses = `flex items-center gap-3 py-2.5 rounded-lg transition-all ${
               isCollapsed 
                 ? 'justify-center px-2' 
-                : 'px-4'
+                : 'px-3'
             } ${
               isActive 
                 ? 'bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-sidebar-primary' 
@@ -117,7 +117,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
             ) : (
               <Link key={item.path} to={item.path} className={linkClasses}>
                 <Icon className="h-5 w-5 flex-shrink-0" />
-                <span className="truncate">{item.title}</span>
+                <span className="truncate text-sm">{item.title}</span>
               </Link>
             );
           })}
@@ -125,10 +125,10 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
 
         {/* User Section */}
         <div className={`${isCollapsed ? 'p-2' : 'p-4'} border-t border-sidebar-border flex-shrink-0`}>
-          <div className={`flex items-center gap-3 mb-3 ${isCollapsed ? 'justify-center' : ''}`}>
-            <Avatar className="h-10 w-10 flex-shrink-0 border border-sidebar-border">
+          <div className={`flex items-center gap-3 mb-2 ${isCollapsed ? 'justify-center' : ''}`}>
+            <Avatar className="h-9 w-9 flex-shrink-0 border border-sidebar-border">
               <AvatarImage src={profile?.url_avatar || ''} />
-              <AvatarFallback className="bg-sidebar-accent text-sidebar-primary font-serif">
+              <AvatarFallback className="bg-sidebar-accent text-sidebar-primary font-serif text-xs">
                 {getInitials(profile?.nome_completo)}
               </AvatarFallback>
             </Avatar>
@@ -136,19 +136,19 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
               <p className="text-sm font-medium text-sidebar-foreground truncate" title={profile?.nome_completo || 'Usuário'}>
                 {profile?.nome_completo || 'Colaborador'}
               </p>
-              <p className="text-xs text-sidebar-foreground/50 truncate" title={user?.email || ''}>
+              <p className="text-[10px] text-sidebar-foreground/50 truncate" title={user?.email || ''}>
                 {user?.email}
               </p>
             </div>
           </div>
           <Button 
             variant="ghost" 
-            className={`w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ${isCollapsed ? 'justify-center px-0' : 'justify-start'}`}
+            className={`w-full h-9 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ${isCollapsed ? 'justify-center px-0' : 'justify-start'}`}
             onClick={signOut}
             title={isCollapsed ? "Sair" : undefined}
           >
             <LogOut className="h-4 w-4 flex-shrink-0" />
-            <span className={`ml-2 whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}`}>Sair</span>
+            <span className={`ml-2 text-xs whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}`}>Sair</span>
           </Button>
         </div>
       </div>
