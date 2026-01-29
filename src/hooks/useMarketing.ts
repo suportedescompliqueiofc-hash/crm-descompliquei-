@@ -19,6 +19,7 @@ export interface MetaMetrics {
   reporting_start?: string | null; // Data de início do relatório
   reporting_end?: string | null;   // Data de término do relatório
   updated_at?: string;
+  included_in_dashboard?: boolean; // Novo campo para controle
 }
 
 export interface Criativo {
@@ -54,9 +55,11 @@ export function useMarketing(dateRange?: DateRange) {
       .channel('marketing_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'criativos' }, () => {
         queryClient.invalidateQueries({ queryKey: ['criativos'] });
+        queryClient.invalidateQueries({ queryKey: ['marketing_metrics'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'marketing_expenses' }, () => {
         queryClient.invalidateQueries({ queryKey: ['marketing_expenses'] });
+        queryClient.invalidateQueries({ queryKey: ['marketing_metrics'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
         queryClient.invalidateQueries({ queryKey: ['criativos'] });
@@ -109,7 +112,7 @@ export function useMarketing(dateRange?: DateRange) {
       
       const { count: totalSalesCount } = await globalSalesQuery;
 
-      // 3. Buscar criativos (Filtrando pela data de criação - apenas para listagem)
+      // 3. Buscar criativos
       let query = supabase
         .from('criativos')
         .select('*')
@@ -296,6 +299,35 @@ export function useMarketing(dateRange?: DateRange) {
     onError: (err: any) => toast.error(`Erro ao registrar investimento: ${err.message}`),
   });
 
+  const toggleAdSpendInclusion = useMutation({
+    mutationFn: async ({ id, included }: { id: string; included: boolean }) => {
+      const { data: currentData, error: fetchError } = await supabase
+        .from('criativos')
+        .select('platform_metrics')
+        .eq('id', id)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      const updatedMetrics = {
+        ...currentData.platform_metrics,
+        included_in_dashboard: included
+      };
+
+      const { error } = await supabase
+        .from('criativos')
+        .update({ platform_metrics: updatedMetrics })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['marketing_metrics'] });
+      toast.success('Cálculo de investimento atualizado.');
+    },
+    onError: (err: any) => toast.error(`Erro ao atualizar: ${err.message}`),
+  });
+
   return {
     criativos: metricsData?.criativos || [],
     manualSpend: metricsData?.manualSpend || 0,
@@ -306,6 +338,7 @@ export function useMarketing(dateRange?: DateRange) {
     atualizarMetricasCriativo: atualizarMetricasCriativo.mutate,
     deletarCriativo: deletarCriativo.mutate,
     associarCriativo: associarCriativo.mutate, 
-    adicionarInvestimentoManual: adicionarInvestimentoManual.mutate
+    adicionarInvestimentoManual: adicionarInvestimentoManual.mutate,
+    toggleAdSpendInclusion: toggleAdSpendInclusion.mutate,
   };
 }

@@ -36,7 +36,8 @@ export default function Marketing() {
     deletarCriativo, 
     atualizarMetricasCriativo, 
     associarCriativo,
-    adicionarInvestimentoManual
+    adicionarInvestimentoManual,
+    toggleAdSpendInclusion
   } = useMarketing(dateRange);
   
   const { reports, isLoading: isLoadingReports } = useReports(dateRange);
@@ -58,17 +59,27 @@ export default function Marketing() {
   const criativosAssets = (criativos || []).filter(c => !c.platform_metrics || c.platform_metrics.spend === 0);
 
   // Cálculos Acumulados (Meta Ads)
-  const metaSpend = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.spend || 0), 0);
+  // Agora considera apenas o que foi marcado como 'included_in_dashboard'
+  const metaSpend = campanhasMeta.reduce((acc, c) => {
+    if (c.platform_metrics?.included_in_dashboard) {
+        return acc + (c.platform_metrics.spend || 0);
+    }
+    return acc;
+  }, 0);
+
+  // Totais visuais da tabela (para referência)
+  const metaSpendDisplay = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.spend || 0), 0);
+
   const totalResults = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.results || 0), 0);
   const totalReach = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.reach || 0), 0);
   const totalImpressions = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.impressions || 0), 0);
   const totalClicks = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.clicks || 0), 0);
   
-  const avgCostPerResult = totalResults > 0 ? metaSpend / totalResults : 0;
+  const avgCostPerResult = totalResults > 0 ? metaSpendDisplay / totalResults : 0;
   const avgCTR = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
-  const avgCPC = totalClicks > 0 ? metaSpend / totalClicks : 0;
+  const avgCPC = totalClicks > 0 ? metaSpendDisplay / totalClicks : 0;
 
-  // Cálculos Globais (Meta + Manual)
+  // Cálculos Globais (Meta Selecionado + Manual)
   const totalInvestment = metaSpend + manualSpend;
   const cac = totalSales > 0 ? totalInvestment / totalSales : 0;
 
@@ -224,7 +235,7 @@ export default function Marketing() {
             <CardHeader>
               <CardTitle>Performance de Anúncios (Meta Ads)</CardTitle>
               <CardDescription>
-                Métricas importadas do Gerenciador de Anúncios. Dados baseados na última importação.
+                Métricas importadas do Gerenciador de Anúncios. Selecione quais devem compor o custo de investimento.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -253,9 +264,9 @@ export default function Marketing() {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[50px] text-center" title="Incluir no cálculo de investimento total">Total</TableHead>
                           <TableHead className="w-[280px]">Campanha / Criativo</TableHead>
-                          <TableHead className="text-center w-[120px]">Início</TableHead>
-                          <TableHead className="text-center w-[120px]">Término</TableHead>
+                          <TableHead className="text-center w-[100px]">Data</TableHead>
                           <TableHead className="text-right">Valor Usado</TableHead>
                           <TableHead className="text-right">Resultados</TableHead>
                           <TableHead className="text-right">Custo p/ Res.</TableHead>
@@ -269,8 +280,24 @@ export default function Marketing() {
                       <TableBody>
                         {campanhasMeta.map((campanha) => {
                           const m = campanha.platform_metrics!;
+                          const isIncluded = m.included_in_dashboard;
+                          
                           return (
                             <TableRow key={campanha.id}>
+                              <TableCell className="text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={cn(
+                                    "h-8 w-8 transition-colors", 
+                                    isIncluded ? "text-green-600 bg-green-50 hover:bg-green-100 hover:text-green-700" : "text-muted-foreground/40 hover:text-primary hover:bg-primary/10"
+                                  )}
+                                  onClick={() => toggleAdSpendInclusion({ id: campanha.id, included: !isIncluded })}
+                                  title={isIncluded ? "Remover do cálculo de investimento total" : "Incluir no cálculo de investimento total"}
+                                >
+                                  <DollarSign className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
                               <TableCell className="font-medium">
                                 <div className="flex flex-col">
                                   <span className="text-sm font-semibold text-foreground">{campanha.nome}</span>
@@ -278,9 +305,6 @@ export default function Marketing() {
                                     Original: {campanha.titulo || '-'}
                                   </span>
                                 </div>
-                              </TableCell>
-                              <TableCell className="text-center text-xs text-muted-foreground">
-                                {formatDateDisplay(m.reporting_start)}
                               </TableCell>
                               <TableCell className="text-center text-xs text-muted-foreground">
                                 {formatDateDisplay(m.reporting_end)}
@@ -340,7 +364,7 @@ export default function Marketing() {
                       <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Valor Meta Ads</span>
                       <div className="flex items-center gap-2">
                         <DollarSign className="h-4 w-4 text-primary" />
-                        <span className="text-2xl font-bold">{formatMoney(metaSpend)}</span>
+                        <span className="text-2xl font-bold">{formatMoney(metaSpendDisplay)}</span>
                       </div>
                     </div>
 
