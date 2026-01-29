@@ -55,7 +55,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
         setIsLoading(false);
       };
 
-      audio.addEventListener('loadeddata', setAudioData);
+      audio.addEventListener('loadedmetadata', setAudioData);
       audio.addEventListener('timeupdate', setAudioTime);
       audio.addEventListener('ended', handleEnd);
       audio.addEventListener('canplay', handleCanPlay);
@@ -65,7 +65,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
       }
 
       return () => {
-        audio.removeEventListener('loadeddata', setAudioData);
+        audio.removeEventListener('loadedmetadata', setAudioData);
         audio.removeEventListener('timeupdate', setAudioTime);
         audio.removeEventListener('ended', handleEnd);
         audio.removeEventListener('canplay', handleCanPlay);
@@ -111,73 +111,86 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
   };
 
   return (
-    <div className="flex items-center gap-2 w-full max-w-[210px] xs:max-w-[240px] sm:max-w-xs">
+    <div className="flex flex-col gap-1 w-full max-w-[280px] xs:max-w-[320px] sm:max-w-[380px]">
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
-      <Button 
-        onClick={togglePlay} 
-        size="icon" 
-        variant="ghost" 
-        className={cn(
-          "flex-shrink-0 h-8 w-8 transition-colors",
-          isOutgoing 
-            ? "text-primary-foreground hover:bg-white/20 hover:text-white" 
-            : "text-foreground hover:bg-black/5"
-        )} 
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : isPlaying ? (
-          <Pause className="h-4 w-4 fill-current" />
-        ) : (
-          <Play className="h-4 w-4 fill-current ml-0.5" />
-        )}
-      </Button>
       
-      <div className="flex-grow flex items-center gap-2 min-w-0">
-        <Slider
-          value={[currentTime]}
-          max={duration || 1}
-          step={0.1}
-          onValueChange={handleSliderChange}
-          onValueCommit={handleSliderCommit}
+      <div className="flex items-center gap-2">
+        <Button 
+          onClick={togglePlay} 
+          size="icon" 
+          variant="ghost" 
           className={cn(
-            "flex-1 cursor-pointer",
-            "[&>span:first-child]:h-1.5",
+            "flex-shrink-0 h-10 w-10 transition-colors rounded-full",
             isOutgoing 
-              ? "[&>span:first-child]:bg-black/20" 
-              : "[&>span:first-child]:bg-muted-foreground/20",
-            "[&>span:first-child>span]:bg-current",
-            isOutgoing ? "text-white" : "text-primary",
-            "[&>span[role=slider]]:h-4 [&>span[role=slider]]:w-4 [&>span[role=slider]]:border-0 [&>span[role=slider]]:shadow-md [&>span[role=slider]]:transition-transform active:[&>span[role=slider]]:scale-125",
-            isOutgoing
-               ? "[&>span[role=slider]]:bg-white"
-               : "[&>span[role=slider]]:bg-primary"
-          )}
-          disabled={isLoading || duration === 0}
-        />
-        
-        <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleSpeed}
-            disabled={isLoading}
-            className={cn(
-                "h-6 px-1 text-[9px] font-medium rounded-full flex-shrink-0 min-w-[2rem] transition-all",
-                isOutgoing
-                    ? "bg-black/20 text-white hover:bg-black/30 hover:text-white" 
-                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-            )}
+              ? "text-primary-foreground hover:bg-white/20 hover:text-white" 
+              : "text-foreground hover:bg-black/5"
+          )} 
+          disabled={isLoading}
         >
-            {playbackRate}x
+          {isLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : isPlaying ? (
+            <Pause className="h-5 w-5 fill-current" />
+          ) : (
+            <Play className="h-5 w-5 fill-current ml-0.5" />
+          )}
         </Button>
+        
+        <div className="flex-grow flex flex-col gap-1.5 min-w-0">
+          <div className="flex items-center gap-2">
+            <Slider
+              value={[currentTime]}
+              max={duration || 1}
+              step={0.01}
+              onValueChange={handleSliderChange}
+              onValueCommit={handleSliderCommit}
+              className={cn(
+                "flex-1 cursor-pointer py-2",
+                "[&>span:first-child]:h-1.5",
+                isOutgoing 
+                  ? "[&>span:first-child]:bg-black/20" 
+                  : "[&>span:first-child]:bg-muted-foreground/20",
+                "[&>span:first-child>span]:bg-current",
+                isOutgoing ? "text-white" : "text-primary",
+                "[&>span[role=slider]]:h-4 [&>span[role=slider]]:w-4 [&>span[role=slider]]:border-0 [&>span[role=slider]]:shadow-md [&>span[role=slider]]:transition-transform active:[&>span[role=slider]]:scale-125",
+                isOutgoing
+                   ? "[&>span[role=slider]]:bg-white"
+                   : "[&>span[role=slider]]:bg-primary"
+              )}
+              disabled={isLoading || duration === 0}
+            />
+            
+            <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleSpeed}
+                disabled={isLoading}
+                className={cn(
+                    "h-7 px-1.5 text-[10px] font-bold rounded-full flex-shrink-0 min-w-[2.5rem] transition-all",
+                    isOutgoing
+                        ? "bg-black/20 text-white hover:bg-black/30" 
+                        : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                )}
+            >
+                {playbackRate.toFixed(1)}x
+            </Button>
+          </div>
 
-        <span className={cn(
-            "text-[9px] font-mono w-7 text-right flex-shrink-0 tabular-nums",
-            isOutgoing ? "text-white/80" : "text-muted-foreground"
-        )}>
-            {formatTime(isDragging ? currentTime : duration)}
-        </span>
+          <div className="flex justify-between items-center px-1">
+            <span className={cn(
+                "text-[10px] font-mono tabular-nums",
+                isOutgoing ? "text-white/80" : "text-muted-foreground"
+            )}>
+                {formatTime(currentTime)}
+            </span>
+            <span className={cn(
+                "text-[10px] font-mono tabular-nums",
+                isOutgoing ? "text-white/80" : "text-muted-foreground"
+            )}>
+                {formatTime(duration)}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
