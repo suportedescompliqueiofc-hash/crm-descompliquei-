@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { MessageSquare, FileText, Phone, Calendar as CalendarIcon, Clock, BarChart3, LayoutKanban } from "lucide-react";
+import { MessageSquare, FileText, Phone, Calendar as CalendarIcon, Clock, BarChart3, Kanban } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
