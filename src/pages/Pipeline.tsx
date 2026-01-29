@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { MessageSquare, FileText, Phone, Calendar as CalendarIcon, Clock } from "lucide-react";
+import { MessageSquare, FileText, Phone, Calendar as CalendarIcon, Clock, BarChart3, LayoutKanban } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   DndContext, 
   DragEndEvent, 
@@ -35,6 +36,7 @@ import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { FunnelMetricsTab } from "@/components/pipeline/FunnelMetricsTab";
 
 // Configuração de animação para tornar o drop mais suave
 const dropAnimation: DropAnimation = {
@@ -301,6 +303,7 @@ export default function Pipeline() {
     to: endOfMonth(today) 
   };
   const [dateRange, setDateRange] = useState<DateRange | undefined>(initialDateRange);
+  const [activeTab, setActiveTab] = useState("kanban");
   
   const { leads, isLoading: leadsLoading, updateLead } = useLeads(dateRange);
   const { stages, isLoading: stagesLoading } = useStages();
@@ -441,55 +444,72 @@ export default function Pipeline() {
         </div>
         <div className="flex flex-wrap gap-4 items-center">
           <DateRangePicker date={dateRange} setDate={setDateRange} />
-          <Card className="shadow-sm">
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">Total de Leads</p>
-              <p className="text-2xl font-bold text-foreground">{optimisticLeads.length}</p>
-            </CardContent>
-          </Card>
+          {activeTab === 'kanban' && (
+            <Card className="shadow-sm">
+              <CardContent className="p-4">
+                <p className="text-sm text-muted-foreground">Total de Leads</p>
+                <p className="text-2xl font-bold text-foreground">{optimisticLeads.length}</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
-      {/* Kanban Board */}
-      <DndContext 
-        sensors={sensors} 
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        measuring={{
-          droppable: {
-            strategy: 1, // AlwaysMeasureStrategy
-          }
-        }}
-      >
-        <div className="overflow-x-auto pb-4 flex-1">
-          <div className="flex gap-4 min-w-max h-full pb-2 px-1">
-            {stages.map((stage) => {
-              const stageLeads = optimisticLeads.filter(l => l.posicao_pipeline === stage.posicao_ordem);
-              
-              return (
-                <StageColumn 
-                  key={stage.id} 
-                  stage={stage} 
-                  leads={stageLeads}
-                  onCardClick={handleCardClick}
-                  onUpdateLead={handleUpdateLead}
-                />
-              );
-            })}
-          </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col h-full overflow-hidden">
+        <div className="flex-shrink-0 mb-4">
+          <TabsList>
+            <TabsTrigger value="kanban" className="gap-2"><LayoutKanban className="h-4 w-4"/> Quadro Kanban</TabsTrigger>
+            <TabsTrigger value="metrics" className="gap-2"><BarChart3 className="h-4 w-4"/> Métricas do Funil</TabsTrigger>
+          </TabsList>
         </div>
 
-        <DragOverlay dropAnimation={dropAnimation}>
-          {activeLead ? (
-            <LeadCard 
-              lead={activeLead} 
-              isOverlay 
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+        <TabsContent value="kanban" className="flex-1 h-full overflow-hidden">
+          {/* Kanban Board */}
+          <DndContext 
+            sensors={sensors} 
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+            measuring={{
+              droppable: {
+                strategy: 1, // AlwaysMeasureStrategy
+              }
+            }}
+          >
+            <div className="overflow-x-auto pb-4 h-full">
+              <div className="flex gap-4 min-w-max h-full pb-2 px-1">
+                {stages.map((stage) => {
+                  const stageLeads = optimisticLeads.filter(l => l.posicao_pipeline === stage.posicao_ordem);
+                  
+                  return (
+                    <StageColumn 
+                      key={stage.id} 
+                      stage={stage} 
+                      leads={stageLeads}
+                      onCardClick={handleCardClick}
+                      onUpdateLead={handleUpdateLead}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            <DragOverlay dropAnimation={dropAnimation}>
+              {activeLead ? (
+                <LeadCard 
+                  lead={activeLead} 
+                  isOverlay 
+                />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        </TabsContent>
+
+        <TabsContent value="metrics" className="flex-1 overflow-y-auto">
+          <FunnelMetricsTab dateRange={dateRange} />
+        </TabsContent>
+      </Tabs>
 
       {/* Lead Modal */}
       <LeadModal
