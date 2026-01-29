@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Upload, CheckCircle, AlertCircle, FileSpreadsheet } from "lucide-react";
@@ -138,6 +137,9 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
     };
 
     reader.readAsText(file);
+    
+    // Limpa o valor do input para permitir selecionar o mesmo arquivo novamente se necessário
+    e.target.value = '';
   };
 
   const handleConfirm = () => {
@@ -176,10 +178,11 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
               <Upload className="h-8 w-8 text-muted-foreground mb-2" />
               <p className="text-sm font-medium text-foreground">Clique para selecionar o arquivo CSV</p>
               <p className="text-xs text-muted-foreground mt-1">Formatos suportados: .csv</p>
-              <Input 
+              {/* Usando input nativo para garantir que o w-full h-full funcione corretamente com inset-0 */}
+              <input 
                 type="file" 
                 accept=".csv" 
-                className="absolute inset-0 opacity-0 cursor-pointer" 
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50" 
                 onChange={handleFileUpload}
               />
             </div>
