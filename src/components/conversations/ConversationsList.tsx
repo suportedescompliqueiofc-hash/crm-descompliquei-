@@ -27,14 +27,14 @@ const formatLastMessageTime = (timestamp?: string | null) => {
     return 'Ontem';
   }
   
-  return format(date, 'dd/MM');
+  return format(date, 'dd/MM/yy'); // Formato compacto para mobile
 };
 
 const MessagePreview = ({ content, type, sender }: { content?: string, type?: string, sender?: string }) => {
   if (!content && !type) return <span className="italic text-muted-foreground/60">Nenhuma mensagem</span>;
 
   const isOutgoing = sender === 'agente' || sender === 'bot' || sender === 'agente_crm';
-  const prefix = isOutgoing ? <span className="mr-0.5 font-medium">Você: </span> : null;
+  const prefix = isOutgoing ? <span className="mr-0.5 font-medium text-primary">Você: </span> : null;
 
   if (type === 'audio') {
     return <div className="flex items-center gap-1 text-muted-foreground"><Mic className="h-3 w-3 flex-shrink-0" /> <span>Áudio</span></div>;
@@ -48,6 +48,9 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
   if (type === 'pdf' || type === 'arquivo') {
     return <div className="flex items-center gap-1 text-muted-foreground"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Arquivo</span></div>;
   }
+
+  // Se for "Nenhuma mensagem ainda", não coloca prefixo "Você"
+  if (content === 'Nenhuma mensagem ainda') return <span className="italic text-muted-foreground/60">{content}</span>;
 
   return <span className="truncate block">{prefix}{content}</span>;
 };
@@ -67,7 +70,7 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
     <Link
       to={`/conversas/${conversation.id}`}
       className={cn(
-        "flex gap-3 p-3 transition-all cursor-pointer border-b border-border/40 relative items-start w-full group",
+        "flex gap-3 p-3 transition-all cursor-pointer border-b border-border/40 relative items-center w-full group",
         isActive ? "bg-muted border-l-4 border-l-primary" : "bg-transparent hover:bg-muted/30"
       )}
     >
@@ -78,27 +81,27 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
       </Avatar>
       
       {/* Container Principal */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center h-full pt-0.5">
+      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
         
         {/* Linha Superior: Nome e Horário */}
-        <div className="flex items-start justify-between w-full mb-1">
+        <div className="flex items-center justify-between w-full">
           {/* Lado Esquerdo: Nome + Tags */}
-          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden pr-2 flex-1">
-            <span className="font-semibold text-sm truncate text-foreground block">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <span className="font-bold text-sm truncate text-foreground block">
               {conversation.nome || conversation.telefone}
             </span>
             
             {/* Tags (Pontos Coloridos) */}
             {conversation.tags && conversation.tags.length > 0 && (
               <div className="flex items-center gap-1 flex-shrink-0">
-                {conversation.tags.slice(0, 3).map(tag => {
+                {conversation.tags.slice(0, 2).map(tag => {
                   const preset = TAG_COLORS.find(c => c.name === tag.color);
                   const isHex = tag.color && tag.color.startsWith('#');
                   
                   return (
                     <div 
                       key={tag.id} 
-                      className={cn("w-2 h-2 rounded-full ring-1 ring-background", !isHex && preset?.selector)} 
+                      className={cn("w-1.5 h-1.5 rounded-full", !isHex && preset?.selector)} 
                       style={isHex ? { backgroundColor: tag.color } : undefined}
                       title={tag.name} 
                     />
@@ -108,9 +111,9 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             )}
           </div>
           
-          {/* Lado Direito: Horário fixo */}
+          {/* Lado Direito: Horário (Aparece sempre no topo direito) */}
           {lastMessageTime && (
-            <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap font-medium ml-auto">
+            <span className="text-[10px] text-muted-foreground font-medium shrink-0 ml-2">
               {lastMessageTime}
             </span>
           )}
@@ -118,7 +121,7 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
 
         {/* Linha Inferior: Prévia da Mensagem */}
         <div className="flex items-center w-full overflow-hidden">
-          <div className="text-xs text-muted-foreground truncate w-full pr-2">
+          <div className="text-xs text-muted-foreground truncate w-full">
             <MessagePreview 
               content={conversation.last_message_content} 
               type={conversation.last_message_type} 
