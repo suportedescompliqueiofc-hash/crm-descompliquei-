@@ -17,8 +17,14 @@ const formatLastMessageTime = (timestamp?: string | null) => {
   if (!timestamp) return '';
   
   try {
-    // parseISO é crucial para strings de data do PostgreSQL/Supabase
-    const date = parseISO(timestamp);
+    // Tenta parseISO primeiro (padrão Supabase/Postgres)
+    let date = parseISO(timestamp);
+    
+    // Se falhar, tenta converter espaço em T (alguns formatos de data legados do Postgres)
+    if (!isValid(date)) {
+      date = new Date(timestamp.replace(' ', 'T'));
+    }
+
     if (!isValid(date)) return '';
 
     if (isToday(date)) {
@@ -31,6 +37,7 @@ const formatLastMessageTime = (timestamp?: string | null) => {
     
     return format(date, 'dd/MM');
   } catch (e) {
+    console.error("Erro ao formatar data da conversa:", e);
     return '';
   }
 };
@@ -90,7 +97,6 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
               {conversation.nome || conversation.telefone}
             </span>
             
-            {/* Tags (Pontos Coloridos) */}
             <div className="flex items-center gap-1 flex-shrink-0">
               {conversation.tags?.slice(0, 2).map(tag => {
                 const preset = TAG_COLORS.find(c => c.name === tag.color);
@@ -106,8 +112,7 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             </div>
           </div>
           
-          {/* Horário forçado a aparecer */}
-          <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap ml-2">
+          <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap ml-2 flex-shrink-0">
             {lastMessageTime || '--:--'}
           </span>
         </div>
@@ -156,7 +161,7 @@ export function ConversationsList() {
               <div key={i} className="flex items-center gap-3 p-3 border-b border-border/40">
                 <Skeleton className="h-12 w-12 rounded-full flex-shrink-0" />
                 <div className="flex-1 space-y-2 min-w-0">
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <Skeleton className="h-4 w-24" />
                     <Skeleton className="h-3 w-8" />
                   </div>
