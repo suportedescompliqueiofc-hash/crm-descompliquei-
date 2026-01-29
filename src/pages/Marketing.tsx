@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { DateRange } from "react-day-picker";
-import { startOfMonth, endOfMonth, format } from "date-fns";
+import { startOfMonth, endOfMonth, format, parseISO, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -74,6 +74,18 @@ export default function Marketing() {
 
   const formatMoney = (val: number) => {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  // Helper para formatar data ISO (YYYY-MM-DD) para DD/MM/YYYY
+  const formatDateDisplay = (dateString?: string | null) => {
+    if (!dateString) return '-';
+    try {
+      const date = parseISO(dateString);
+      if (!isValid(date)) return '-';
+      return format(date, "dd/MM/yyyy", { locale: ptBR });
+    } catch {
+      return '-';
+    }
   };
 
   return (
@@ -149,7 +161,9 @@ export default function Marketing() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[300px]">Campanha / Criativo</TableHead>
+                        <TableHead className="w-[280px]">Campanha / Criativo</TableHead>
+                        <TableHead className="text-center w-[120px]">Início</TableHead>
+                        <TableHead className="text-center w-[120px]">Término</TableHead>
                         <TableHead className="text-right">Valor Usado</TableHead>
                         <TableHead className="text-right">Resultados</TableHead>
                         <TableHead className="text-right">Custo p/ Res.</TableHead>
@@ -157,7 +171,6 @@ export default function Marketing() {
                         <TableHead className="text-right">Impressões</TableHead>
                         <TableHead className="text-right">CTR</TableHead>
                         <TableHead className="text-right">CPC</TableHead>
-                        <TableHead className="text-right">Última Atualização</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -168,10 +181,16 @@ export default function Marketing() {
                             <TableCell className="font-medium">
                               <div className="flex flex-col">
                                 <span className="text-sm font-semibold text-foreground">{campanha.nome}</span>
-                                <span className="text-xs text-muted-foreground truncate max-w-[280px]" title={campanha.titulo || ''}>
+                                <span className="text-xs text-muted-foreground truncate max-w-[260px]" title={campanha.titulo || ''}>
                                   Original: {campanha.titulo || '-'}
                                 </span>
                               </div>
+                            </TableCell>
+                            <TableCell className="text-center text-xs text-muted-foreground">
+                              {formatDateDisplay(m.reporting_start)}
+                            </TableCell>
+                            <TableCell className="text-center text-xs text-muted-foreground">
+                              {formatDateDisplay(m.reporting_end)}
                             </TableCell>
                             <TableCell className="text-right font-medium">
                               {formatMoney(m.spend)}
@@ -195,9 +214,6 @@ export default function Marketing() {
                             </TableCell>
                             <TableCell className="text-right text-xs">
                               {formatMoney(m.cpc)}
-                            </TableCell>
-                            <TableCell className="text-right text-xs text-muted-foreground">
-                              {m.updated_at ? format(new Date(m.updated_at), "dd/MM HH:mm", { locale: ptBR }) : '-'}
                             </TableCell>
                           </TableRow>
                         );

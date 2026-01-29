@@ -16,6 +16,8 @@ export interface MetaMetrics {
   reach: number;          // Alcance
   results: number;        // Resultados
   cost_per_result: number;// Custo por resultados
+  reporting_start?: string | null; // Data de início do relatório
+  reporting_end?: string | null;   // Data de término do relatório
   updated_at?: string;
 }
 

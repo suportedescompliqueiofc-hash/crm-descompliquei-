@@ -69,6 +69,9 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
       const idxClicks = headers.indexOf('Cliques no link');
       const idxCPC = headers.indexOf('CPC (custo por clique no link) (BRL)');
       const idxCTR = headers.indexOf('CTR (taxa de cliques no link)');
+      // Novos índices para as datas
+      const idxStart = headers.indexOf('Início dos relatórios');
+      const idxEnd = headers.indexOf('Término dos relatórios');
 
       if (idxName === -1) {
         toast.error("Coluna 'Nome da campanha' não encontrada no CSV.");
@@ -106,6 +109,9 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
             clicks: parseNumber(values[idxClicks]),
             cpc: parseNumber(values[idxCPC]),
             ctr: parseNumber(values[idxCTR]),
+            // Captura as datas se existirem
+            reporting_start: idxStart !== -1 ? values[idxStart]?.replace(/"/g, '') : null,
+            reporting_end: idxEnd !== -1 ? values[idxEnd]?.replace(/"/g, '') : null,
             updated_at: new Date().toISOString()
           }
         };
