@@ -288,10 +288,9 @@ export function useQuickMessages() {
     onSuccess: () => {
       toast.success('Mensagem enviada!');
     },
-    onSettled: (data, error, variables) => {
-      // Invalida a query para buscar os dados reais do servidor (remove duplicatas/temps)
-      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
-    }
+    // IMPORTANTE: onSettled REMOVIDO para evitar que a mensagem suma do front.
+    // A atualização da lista virá via Realtime (useConversations.ts), que invalidará o cache
+    // no momento correto em que a mensagem for inserida no banco de dados.
   });
 
   const updateMessagesOrder = useMutation({
