@@ -73,7 +73,7 @@ export function PromptEditor({ value, onChange, disabled }: PromptEditorProps) {
         onKeyDown={handleKeyDown}
         disabled={disabled}
         className={cn(
-          "flex-1 w-full h-full p-4 resize-none outline-none bg-background text-foreground leading-6 whitespace-pre",
+          "flex-1 w-full h-full p-4 resize-none outline-none bg-background text-foreground leading-6 whitespace-pre-wrap",
           "focus:ring-0 border-0"
         )}
         spellCheck={false}
