@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap } from "lucide-react";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -256,30 +256,43 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-3 border-b bg-card">
-        <div className="flex items-center gap-4 min-w-0">
-          <Avatar className="h-12 w-12 border">
-            <AvatarFallback className="bg-accent text-accent-foreground">{getInitials(lead?.nome)}</AvatarFallback>
+      {/* Header Otimizado */}
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b bg-card shadow-sm z-10 min-h-[60px]">
+        {/* Info do Lead (Esquerda) */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Avatar className="h-10 w-10 sm:h-11 sm:w-11 border bg-muted flex-shrink-0">
+            <AvatarFallback className="bg-accent text-accent-foreground text-sm font-medium">{getInitials(lead?.nome)}</AvatarFallback>
           </Avatar>
-          <div className="flex flex-col gap-1 min-w-0">
+          <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2">
-              <p className="font-semibold truncate">{lead?.nome || 'Carregando...'}</p>
-              <p className="text-xs text-muted-foreground flex items-center gap-1 flex-shrink-0"><Phone className="h-3 w-3" />{lead?.telefone}</p>
+              <p className="font-semibold truncate text-sm sm:text-base leading-tight">{lead?.nome || 'Carregando...'}</p>
             </div>
-            {lead && <TagManager leadId={lead.id} />}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{lead?.telefone}</span>
+                {/* Mostra tags apenas se houver espaço (responsivo) */}
+                <div className="hidden sm:block scale-90 origin-left">
+                    {lead && <TagManager leadId={lead.id} />}
+                </div>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 md:gap-4 flex-wrap md:flex-nowrap justify-end">
+
+        {/* Ações (Direita) - Layout otimizado com flex-wrap */}
+        <div className="flex items-center gap-2 flex-wrap justify-end sm:flex-nowrap">
           {lead && stages.length > 0 && (
-            // CORREÇÃO: Usa posicao_pipeline como value e posicao_ordem nas opções
             <Select 
               value={lead.posicao_pipeline?.toString() || "1"} 
               onValueChange={handleStageChange}
             >
-              <SelectTrigger className="w-[180px] h-9">
+              <SelectTrigger className="w-[140px] lg:w-[170px] h-8 text-xs bg-background/50 border-input/60 focus:ring-1">
                 <div className="flex items-center gap-2 truncate">
-                  <SelectValue placeholder="Selecione a etapa">
-                    {currentStage && <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: currentStage.cor }} />{currentStage.nome}</div>}
+                  <SelectValue placeholder="Etapa">
+                    {currentStage ? (
+                        <div className="flex items-center gap-1.5 truncate">
+                            <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: currentStage.cor }} />
+                            <span className="truncate">{currentStage.nome}</span>
+                        </div>
+                    ) : "Etapa"}
                   </SelectValue>
                 </div>
               </SelectTrigger>
@@ -295,26 +308,36 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
               </SelectContent>
             </Select>
           )}
-          <div className="h-6 w-px bg-border mx-1 hidden md:block"></div>
-          {lead && <AiLockControl lead={lead} />}
-          <div className="flex items-center space-x-2"><Switch id="ai-toggle" checked={isAiActive} onCheckedChange={handleAiToggle} disabled={!lead} /></div>
           
-          {onToggleQuickMessages && (
-            <>
-              <div className="h-6 w-px bg-border mx-1 hidden md:block"></div>
-              <Button 
-                variant={showQuickMessages ? "default" : "outline"}
-                size="icon"
-                className={cn("h-9 w-9 transition-all", showQuickMessages ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-muted-foreground hover:text-foreground")}
-                onClick={onToggleQuickMessages}
-                title="Mensagens Rápidas"
-              >
-                <Zap className="h-4 w-4" />
-              </Button>
-            </>
-          )}
+          <div className="h-6 w-px bg-border mx-0.5 hidden sm:block"></div>
+          
+          {lead && <AiLockControl lead={lead} />}
+          
+          <div className="flex items-center gap-2 pl-1">
+            <Switch id="ai-toggle" checked={isAiActive} onCheckedChange={handleAiToggle} disabled={!lead} className="scale-90" />
+            
+            {onToggleQuickMessages && (
+                <Button 
+                    variant={showQuickMessages ? "default" : "ghost"}
+                    size="icon"
+                    className={cn(
+                        "h-8 w-8 transition-all rounded-full ml-1", 
+                        showQuickMessages ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted"
+                    )}
+                    onClick={onToggleQuickMessages}
+                    title="Mensagens Rápidas"
+                >
+                    <Zap className="h-4 w-4" />
+                </Button>
+            )}
+          </div>
         </div>
       </header>
+
+      {/* Tags visíveis em mobile abaixo do header se necessário */}
+      <div className="sm:hidden px-3 pb-2 border-b bg-card/50 flex overflow-x-auto">
+         {lead && <TagManager leadId={lead.id} />}
+      </div>
 
       {notifications && notifications.length > 0 && (
         <div className="p-2 bg-amber-100 border-b border-amber-200">
@@ -327,8 +350,8 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
         </div>
       )}
 
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-1">
+      <ScrollArea className="flex-1 p-3 md:p-4 bg-muted/10">
+        <div className="space-y-2 max-w-3xl mx-auto">
           {messagesLoading ? <p className="text-center text-muted-foreground text-sm py-4">Carregando mensagens...</p> : (
             groupedMessages.map((item, index) => {
               if (item.type === 'separator') return <DateSeparator key={`sep-${index}`} dateString={item.date} />;
@@ -339,19 +362,21 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
               if (msg.tipo_conteudo === 'audio' && msg.conteudo && (!msg.message_attachments || msg.message_attachments.length === 0)) {
                 return (
                   <div key={msg.id} className={cn("group relative flex flex-col gap-1 py-1", isOutgoing ? "items-end" : "items-start")}>
-                    <div className={cn("flex items-end gap-2", isOutgoing ? "flex-row-reverse" : "flex-row")}>
-                      <div className={cn("max-w-[85%] md:max-w-md p-3 rounded-2xl relative", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border rounded-bl-none")}>
+                    <div className={cn("flex items-end gap-2 max-w-full", isOutgoing ? "flex-row-reverse" : "flex-row")}>
+                      <div className={cn("max-w-[85%] sm:max-w-md p-3 rounded-2xl relative shadow-sm", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border rounded-bl-none")}>
                         <AudioMessage filePath={msg.conteudo} variant={isOutgoing ? 'outgoing' : 'incoming'} />
-                        <p className="text-[10px] opacity-70 mt-1 text-right">{format(new Date(msg.criado_em), 'HH:mm')}</p>
+                        <p className={cn("text-[10px] mt-1 text-right opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                            {format(new Date(msg.criado_em), 'HH:mm')}
+                        </p>
                       </div>
                       {!isOutgoing ? (
-                        <Avatar className="h-8 w-8"><AvatarFallback>{getInitials(lead?.nome)}</AvatarFallback></Avatar>
+                        <Avatar className="h-6 w-6 sm:h-8 sm:w-8 hidden sm:block"><AvatarFallback className="text-xs">{getInitials(lead?.nome)}</AvatarFallback></Avatar>
                       ) : (
-                        <Avatar className="h-8 w-8 bg-success"><AvatarFallback className="bg-transparent text-success-foreground">{msg.remetente === 'bot' ? <Bot className="h-5 w-5" /> : <User className="h-5 w-5" />}</AvatarFallback></Avatar>
+                        <Avatar className="h-6 w-6 sm:h-8 sm:w-8 bg-success hidden sm:block"><AvatarFallback className="bg-transparent text-success-foreground">{msg.remetente === 'bot' ? <Bot className="h-4 w-4" /> : <User className="h-4 w-4" />}</AvatarFallback></Avatar>
                       )}
                        <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className={cn("h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity")}>
+                          <Button variant="ghost" size="icon" className={cn("h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity absolute top-1/2 -translate-y-1/2", isOutgoing ? "-left-8" : "-right-8")}>
                             <ChevronDown className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -378,24 +403,26 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
 
               return (
                 <div key={msg.id} className={cn("group relative flex flex-col gap-1 py-1", isOutgoing ? "items-end" : "items-start")}>
-                  <div className={cn("flex items-end gap-2", isOutgoing ? "flex-row-reverse" : "flex-row")}>
-                    <div className={cn("max-w-[85%] md:max-w-md p-3 rounded-2xl relative", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border rounded-bl-none")}>
+                  <div className={cn("flex items-end gap-2 max-w-full", isOutgoing ? "flex-row-reverse" : "flex-row")}>
+                    <div className={cn("max-w-[85%] sm:max-w-md p-3 rounded-2xl relative shadow-sm", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border rounded-bl-none")}>
                       {hasNewAttachments && msg.message_attachments!.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}
                       {hasLegacyAttachments && <LegacyAttachmentRenderer content={msg.conteudo} isOutgoing={isOutgoing} />}
                       
-                      {caption && <p className="text-sm whitespace-pre-wrap">{caption}</p>}
+                      {caption && <p className="text-sm whitespace-pre-wrap leading-relaxed">{caption}</p>}
                       
-                      <p className="text-[10px] opacity-70 mt-1 text-right">{format(new Date(msg.criado_em), 'HH:mm')}</p>
+                      <p className={cn("text-[10px] mt-1 text-right opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                        {format(new Date(msg.criado_em), 'HH:mm')}
+                      </p>
                     </div>
                     {!isOutgoing ? (
-                      <Avatar className="h-8 w-8"><AvatarFallback>{getInitials(lead?.nome)}</AvatarFallback></Avatar>
+                      <Avatar className="h-6 w-6 sm:h-8 sm:w-8 hidden sm:block"><AvatarFallback className="text-xs">{getInitials(lead?.nome)}</AvatarFallback></Avatar>
                     ) : (
-                      <Avatar className="h-8 w-8 bg-success"><AvatarFallback className="bg-transparent text-success-foreground">{msg.remetente === 'bot' ? <Bot className="h-5 w-5" /> : <User className="h-5 w-5" />}</AvatarFallback></Avatar>
+                      <Avatar className="h-6 w-6 sm:h-8 sm:w-8 bg-success hidden sm:block"><AvatarFallback className="bg-transparent text-success-foreground">{msg.remetente === 'bot' ? <Bot className="h-4 w-4" /> : <User className="h-4 w-4" />}</AvatarFallback></Avatar>
                     )}
                      <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className={cn(
-                          "h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
+                          "h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity absolute top-1/2 -translate-y-1/2", isOutgoing ? "-left-8" : "-right-8"
                         )}>
                           <ChevronDown className="h-4 w-4 text-muted-foreground" />
                         </Button>
@@ -416,28 +443,34 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
         <div ref={messagesEndRef} />
       </ScrollArea>
 
-      <footer className="p-4 border-t bg-card">
+      <footer className="p-3 md:p-4 border-t bg-card">
         {isRecordingMode ? (
           <AudioRecorder 
             onSend={handleSendAudio} 
             onCancel={() => setIsRecordingMode(false)} 
           />
         ) : (
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+          <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-full border border-input/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all">
             <Popover>
-              <PopoverTrigger asChild><Button variant="ghost" size="icon"><Smile className="h-5 w-5 text-muted-foreground" /></Button></PopoverTrigger>
-              <PopoverContent className="w-auto p-0 border-none"><EmojiPicker onEmojiClick={(emojiObject) => setMessageContent(prev => prev + emojiObject.emoji)} /></PopoverContent>
+              <PopoverTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-primary"><Smile className="h-5 w-5" /></Button></PopoverTrigger>
+              <PopoverContent className="w-auto p-0 border-none" align="start" side="top"><EmojiPicker onEmojiClick={(emojiObject) => setMessageContent(prev => prev + emojiObject.emoji)} /></PopoverContent>
             </Popover>
-            <Input placeholder="Digite sua mensagem..." value={messageContent} onChange={(e) => setMessageContent(e.target.value)} autoComplete="off" />
+            <Input 
+                placeholder="Digite sua mensagem..." 
+                value={messageContent} 
+                onChange={(e) => setMessageContent(e.target.value)} 
+                autoComplete="off" 
+                className="border-0 bg-transparent shadow-none focus-visible:ring-0 px-2 h-9"
+            />
             
             {messageContent.trim() ? (
-              <Button type="submit" size="icon" className="bg-primary hover:bg-primary/90 transition-all"><Send className="h-5 w-5" /></Button>
+              <Button type="submit" size="icon" className="bg-primary hover:bg-primary/90 transition-all h-9 w-9 rounded-full shadow-sm"><Send className="h-4 w-4" /></Button>
             ) : (
               <Button 
                 type="button" 
                 size="icon" 
-                variant="outline" 
-                className={cn("transition-all", isSendingAudio && "opacity-50 cursor-not-allowed")}
+                variant="ghost" 
+                className={cn("transition-all h-9 w-9 rounded-full text-muted-foreground hover:bg-background hover:text-primary", isSendingAudio && "opacity-50 cursor-not-allowed")}
                 onClick={() => setIsRecordingMode(true)}
                 disabled={isSendingAudio}
               >

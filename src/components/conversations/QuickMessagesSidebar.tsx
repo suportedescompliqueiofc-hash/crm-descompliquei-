@@ -85,25 +85,25 @@ function SortableMessageItem({
 
       <Button
         variant="outline"
-        className="w-full justify-start h-auto py-2.5 px-3 relative group/btn hover:border-primary/50 hover:bg-primary/5 text-left whitespace-normal flex-1"
+        className="w-full justify-start h-auto py-2 px-3 relative group/btn hover:border-primary/50 hover:bg-primary/5 text-left whitespace-normal flex-1"
         onClick={() => onClick(msg)}
       >
-        <div className="flex items-start gap-3 w-full">
-          <div className="mt-0.5 flex-shrink-0 bg-muted rounded p-1.5 group-hover/btn:bg-background transition-colors">
+        <div className="flex items-start gap-2.5 w-full">
+          <div className="mt-0.5 flex-shrink-0 bg-muted rounded p-1 group-hover/btn:bg-background transition-colors">
             {getIcon(msg.tipo)}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-medium text-sm">
+            <div className="font-medium text-xs leading-tight">
               {msg.titulo}
             </div>
             {msg.conteudo && (
-              <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5 font-normal opacity-80">
+              <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5 font-normal opacity-80">
                 {msg.conteudo}
               </p>
             )}
           </div>
-          <div className="opacity-0 group-hover/btn:opacity-100 absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-primary-foreground p-1.5 rounded-full shadow-sm transition-opacity">
-            <Send className="h-3 w-3" />
+          <div className="opacity-0 group-hover/btn:opacity-100 absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-primary-foreground p-1 rounded-full shadow-sm transition-opacity">
+            <Send className="h-2.5 w-2.5" />
           </div>
         </div>
       </Button>
@@ -129,7 +129,6 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   useEffect(() => {
     if (!isLoadingMsgs && quickMessages) {
       const serverStr = JSON.stringify(quickMessages);
-      // Só atualiza se os dados do servidor mudaram em relação à última sincronização
       if (serverStr !== lastSyncedMessagesRef.current) {
         setLocalMessages(quickMessages);
         lastSyncedMessagesRef.current = serverStr;
@@ -141,7 +140,6 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   useEffect(() => {
     if (!isLoadingFolders && folders) {
       const serverStr = JSON.stringify(folders);
-      // Só atualiza se os dados do servidor mudaram em relação à última sincronização
       if (serverStr !== lastSyncedFoldersRef.current) {
         setLocalFolders(folders);
         lastSyncedFoldersRef.current = serverStr;
@@ -169,11 +167,11 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
 
   const getIcon = (tipo: string) => {
     switch (tipo) {
-      case 'audio': return <Mic className="h-4 w-4 text-blue-500" />;
-      case 'imagem': return <ImageIcon className="h-4 w-4 text-purple-500" />;
-      case 'video': return <Video className="h-4 w-4 text-pink-500" />;
-      case 'pdf': return <FileText className="h-4 w-4 text-red-500" />;
-      default: return <MessageSquare className="h-4 w-4 text-gray-500" />;
+      case 'audio': return <Mic className="h-3.5 w-3.5 text-blue-500" />;
+      case 'imagem': return <ImageIcon className="h-3.5 w-3.5 text-purple-500" />;
+      case 'video': return <Video className="h-3.5 w-3.5 text-pink-500" />;
+      case 'pdf': return <FileText className="h-3.5 w-3.5 text-red-500" />;
+      default: return <MessageSquare className="h-3.5 w-3.5 text-gray-500" />;
     }
   };
 
@@ -189,12 +187,6 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
     if (oldIndex !== -1 && newIndex !== -1) {
       const newItems = arrayMove(localMessages, oldIndex, newIndex);
       setLocalMessages(newItems);
-      
-      // Atualiza a ref para evitar que o efeito de sync reverta a mudança imediatamente
-      // antes da resposta do servidor (Optimistic UI support)
-      // Nota: Idealmente o servidor responderia rápido, mas isso previne flashs
-      // lastSyncedMessagesRef.current = JSON.stringify(newItems); // Opcional, dependendo da estratégia
-
       const updates = newItems.map((msg, index) => ({ id: msg.id, position: index + 1, folder_id: msg.folder_id || null }));
       updateMessagesOrder.mutate(updates);
     }
@@ -203,9 +195,10 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   if (!lead) return null;
 
   return (
-    <div className="h-full flex flex-col bg-background border-l w-80 flex-shrink-0 shadow-sm">
-      <div className="p-4 border-b">
-        <h3 className="font-semibold flex items-center gap-2 mb-3">
+    // Largura responsiva: w-72 em notebooks, w-80 em telas maiores
+    <div className="h-full flex flex-col bg-background w-72 xl:w-80 flex-shrink-0 shadow-sm">
+      <div className="p-3 border-b flex-shrink-0">
+        <h3 className="font-semibold flex items-center gap-2 mb-2 text-sm">
           <Zap className="h-4 w-4 text-primary" />
           Mensagens Rápidas
         </h3>
@@ -224,7 +217,7 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
         {isLoadingMsgs || isLoadingFolders ? (
           <div className="text-center py-8 text-xs text-muted-foreground">Carregando...</div>
         ) : (
-          <div className="p-3">
+          <div className="p-2">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <Accordion type="multiple" defaultValue={localFolders.map(f => f.id)} className="w-full space-y-2">
                 {localFolders.map(folder => {
@@ -232,13 +225,13 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
                   if (msgs.length === 0) return null;
                   return (
                     <AccordionItem key={folder.id} value={folder.id} className="border-b-0">
-                      <AccordionTrigger className="hover:no-underline py-2 px-1 rounded hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: folder.color }} />
+                      <AccordionTrigger className="hover:no-underline py-1.5 px-2 rounded hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: folder.color }} />
                           {folder.name}
                         </div>
                       </AccordionTrigger>
-                      <AccordionContent className="pt-2 pb-0 px-1">
+                      <AccordionContent className="pt-1 pb-0 px-1">
                         <SortableContext items={msgs.map(m => m.id)} strategy={verticalListSortingStrategy}>
                           {msgs.map(msg => (
                             <SortableMessageItem key={msg.id} msg={msg} onClick={handleClickMessage} getIcon={getIcon} />
@@ -251,13 +244,13 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
 
                 {getMessagesByFolder(null).length > 0 && (
                   <AccordionItem value="uncategorized" className="border-b-0">
-                    <AccordionTrigger className="hover:no-underline py-2 px-1 rounded hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <Folder className="h-4 w-4 text-muted-foreground" />
+                    <AccordionTrigger className="hover:no-underline py-1.5 px-2 rounded hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <Folder className="h-3.5 w-3.5" />
                         Geral
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="pt-2 pb-0 px-1">
+                    <AccordionContent className="pt-1 pb-0 px-1">
                       <SortableContext items={getMessagesByFolder(null).map(m => m.id)} strategy={verticalListSortingStrategy}>
                         {getMessagesByFolder(null).map(msg => (
                           <SortableMessageItem key={msg.id} msg={msg} onClick={handleClickMessage} getIcon={getIcon} />

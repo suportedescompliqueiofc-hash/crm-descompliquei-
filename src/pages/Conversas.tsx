@@ -19,13 +19,16 @@ export default function Conversations() {
         {/* Área Flexível (Lista + Chat) */}
         <div className="flex-1 min-w-0 h-full flex">
             
-            {/* Painel Esquerdo: Lista (Largura Fixa) */}
-            <div className="hidden md:block w-80 lg:w-96 flex-shrink-0 h-full">
+            {/* Painel Esquerdo: Lista (Largura Otimizada) 
+                Antes: w-80 lg:w-96
+                Agora: w-72 (notebooks) -> w-80 (monitores grandes)
+            */}
+            <div className="hidden md:block w-72 xl:w-80 flex-shrink-0 h-full border-r bg-card/50">
               <ConversationsList />
             </div>
             
             {/* Painel Central: Chat Ativo */}
-            <div className="flex-1 min-w-0 h-full border-l">
+            <div className="flex-1 min-w-0 h-full bg-background relative">
               {leadId ? (
                 <div className="flex flex-col h-full relative">
                   <div className="flex-1 overflow-hidden">
@@ -50,7 +53,7 @@ export default function Conversations() {
 
         {/* Painel Direito Fixo: Mensagens Rápidas */}
         {showQuickMessages && leadId && (
-          <div className="hidden md:block h-full flex-shrink-0">
+          <div className="hidden lg:block h-full flex-shrink-0 border-l bg-card">
             <QuickMessagesSidebar lead={lead || null} />
           </div>
         )}
