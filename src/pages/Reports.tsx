@@ -4,7 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  Download, TrendingUp, TrendingDown, Users, DollarSign, Clock, Filter, BarChart2, Tag, ArrowUpRight, ArrowDownRight, ArrowRight
+  Download, TrendingUp, TrendingDown, Users, DollarSign, Clock, Filter, BarChart2, Tag, ArrowUpRight, ArrowDownRight, ArrowRight,
+  CreditCard, ShoppingCart, Percent, Wallet
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -450,6 +451,51 @@ export default function Reports() {
         </TabsContent>
 
         <TabsContent value="financial" className="space-y-6">
+          {/* KPIs Financeiros */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Faturamento Total</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">R$ {reports?.financial?.totalFaturado.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</div>
+                <p className="text-xs text-muted-foreground">No período selecionado</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
+                <CreditCard className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">R$ {reports?.financial?.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</div>
+                <p className="text-xs text-muted-foreground">Por venda realizada</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Vendas Realizadas</CardTitle>
+                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{reports?.financial?.totalVendas}</div>
+                <p className="text-xs text-muted-foreground">Contratos fechados</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Eficiência (Orçado x Fechado)</CardTitle>
+                <Percent className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{reports?.financial?.taxaEficiencia.toFixed(1)}%</div>
+                <p className="text-xs text-muted-foreground">Taxa de conversão de valor</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Gráficos Financeiros */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader><CardTitle>Faturamento</CardTitle></CardHeader>
