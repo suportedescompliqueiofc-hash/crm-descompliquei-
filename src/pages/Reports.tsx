@@ -4,25 +4,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  Download, 
-  TrendingUp, 
-  Users, 
-  DollarSign, 
-  Clock,
-  Filter,
-  Target,
-  CreditCard,
-  BarChart2,
-  Tag,
-  ArrowRight,
-  ArrowDown
+  Download, TrendingUp, Users, DollarSign, Clock, Filter, Target, CreditCard, BarChart2, Tag, ArrowRight, ArrowDown
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, LabelList } from "recharts";
+import { 
+  LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, LabelList, AreaChart, Area
+} from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import { useReports } from "@/hooks/useReports";
-import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { useStages } from "@/hooks/useStages";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -30,6 +21,8 @@ import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { useLeadSources } from "@/hooks/useLeadSources";
 import { useTags } from "@/hooks/useTags";
+import { ChartGradients, CustomChartTooltip, CHART_COLORS, glassCardClass } from "@/components/charts/ChartTheme";
+import { cn } from "@/lib/utils";
 
 export default function Reports() {
   const today = new Date();
@@ -75,191 +68,134 @@ export default function Reports() {
   if (!reports) return null;
 
   const periodDisplay = dateRange?.from && dateRange.to ? `${format(dateRange.from, 'dd/MM/yyyy')} a ${format(dateRange.to, 'dd/MM/yyyy')}` : 'Período Selecionado';
-  const chartTooltipStyle = { backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)', color: 'hsl(var(--foreground))' };
-  const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', 'hsl(var(--muted-foreground))', '#FF8042'];
+  
+  // Neon Colors for Pie Charts
+  const PIE_COLORS = [CHART_COLORS.teal, CHART_COLORS.blue, CHART_COLORS.purple, CHART_COLORS.pink, CHART_COLORS.amber];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 p-2">
+      {/* Header com Animação */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Relatórios</h1>
-          <p className="text-muted-foreground mt-1">Análise completa de performance e resultados</p>
+          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/60 bg-clip-text text-transparent">Relatórios</h1>
+          <p className="text-muted-foreground mt-2 text-lg font-light">Análise profunda de dados e tendências.</p>
         </div>
-        <div className="flex gap-3 items-start">
-          <DateRangePicker date={dateRange} setDate={setDateRange} />
-          <Button variant="outline" onClick={() => setShowFilters(!showFilters)}><Filter className="h-4 w-4 mr-2" />Filtros Avançados</Button>
-          <Button className="bg-primary hover:bg-primary/90" onClick={handleExport}><Download className="h-4 w-4 mr-2" />Exportar</Button>
+        <div className="flex gap-3 items-center flex-wrap">
+          <div className="bg-white/50 dark:bg-black/20 p-1 rounded-xl backdrop-blur-sm border border-white/20">
+             <DateRangePicker date={dateRange} setDate={setDateRange} className="border-none shadow-none" />
+          </div>
+          <Button variant="outline" className="rounded-xl border-white/20 hover:bg-white/10" onClick={() => setShowFilters(!showFilters)}><Filter className="h-4 w-4 mr-2" />Filtros</Button>
+          <Button className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 shadow-lg shadow-blue-500/20 border-none" onClick={handleExport}><Download className="h-4 w-4 mr-2" />Exportar</Button>
         </div>
       </div>
 
       {showFilters && (
-        <Card className="shadow-sm animate-fade-in">
+        <Card className={cn(glassCardClass, "animate-in fade-in slide-in-from-top-4 duration-300")}>
           <CardHeader>
             <CardTitle className="text-lg">Filtros Avançados</CardTitle>
-            <CardDescription>Aplique filtros para refinar os dados dos relatórios.</CardDescription>
+            <CardDescription>Refine os dados para uma análise precisa.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
                 <Label>Etapa do Funil</Label>
                 <Select value={filters.posicao_pipeline} onValueChange={(v) => handleFilterChange('posicao_pipeline', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todos">Todas as Etapas</SelectItem>
                     {stages.map(stage => <SelectItem key={stage.id} value={stage.posicao_ordem.toString()}>{stage.nome}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Origem</Label>
-                <Select value={filters.origem} onValueChange={(v) => handleFilterChange('origem', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Todos">Todos</SelectItem>
-                    {allSources.map(origem => <SelectItem key={origem} value={origem}>{origem}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Gênero</Label>
-                <Select value={filters.genero} onValueChange={(v) => handleFilterChange('genero', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Todos">Todos</SelectItem>
-                    <SelectItem value="M">Masculino</SelectItem>
-                    <SelectItem value="F">Feminino</SelectItem>
-                    <SelectItem value="Outro">Outro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Idade</Label>
-                <Input type="number" value={filters.idade} onChange={(e) => handleFilterChange('idade', e.target.value)} placeholder="Idade exata" />
-              </div>
-              <div>
-                <Label>Etiqueta</Label>
-                <Select value={filters.tagId} onValueChange={(v) => handleFilterChange('tagId', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Todos">Todas as Etiquetas</SelectItem>
-                    {availableTags.map(tag => (
-                      <SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div><Label>Origem</Label><Select value={filters.origem} onValueChange={(v) => handleFilterChange('origem', v)}><SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem>{allSources.map(origem => <SelectItem key={origem} value={origem}>{origem}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>Gênero</Label><Select value={filters.genero} onValueChange={(v) => handleFilterChange('genero', v)}><SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem><SelectItem value="M">Masculino</SelectItem><SelectItem value="F">Feminino</SelectItem><SelectItem value="Outro">Outro</SelectItem></SelectContent></Select></div>
+              <div><Label>Idade</Label><Input type="number" className="rounded-lg" value={filters.idade} onChange={(e) => handleFilterChange('idade', e.target.value)} placeholder="Idade exata" /></div>
+              <div><Label>Etiqueta</Label><Select value={filters.tagId} onValueChange={(v) => handleFilterChange('tagId', v)}><SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas as Etiquetas</SelectItem>{availableTags.map(tag => (<SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>))}</SelectContent></Select></div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="bg-muted">
-          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-          <TabsTrigger value="funnel">Funil de Vendas Real</TabsTrigger>
-          <TabsTrigger value="conversions">Conversões</TabsTrigger>
-          <TabsTrigger value="financial">Financeiro</TabsTrigger>
+      <Tabs defaultValue="overview" className="space-y-8">
+        <TabsList className="bg-muted/50 p-1 rounded-2xl backdrop-blur-sm">
+          {["overview", "funnel", "conversions", "financial"].map(tab => (
+            <TabsTrigger key={tab} value={tab} className="rounded-xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm capitalize">
+              {tab === 'overview' ? 'Visão Geral' : tab === 'funnel' ? 'Funil Real' : tab === 'conversions' ? 'Conversões' : 'Financeiro'}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* KPI Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="border-l-4 border-l-accent">
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><Users className="h-4 w-4" />Novos Contatos</CardDescription>
-                <CardTitle className="text-3xl font-bold">{reports?.kpis?.totalContatos ?? 0}</CardTitle>
-              </CardHeader>
+            <Card className={cn(glassCardClass, "border-l-8 border-l-teal-400")}>
+              <CardHeader className="pb-3"><CardDescription className="flex items-center gap-2 text-teal-600 font-medium"><Users className="h-4 w-4" />Novos Contatos</CardDescription><CardTitle className="text-4xl font-extrabold">{reports?.kpis?.totalContatos ?? 0}</CardTitle></CardHeader>
             </Card>
-            <Card className="border-l-4 border-l-primary">
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><Tag className="h-4 w-4" />Novos Leads</CardDescription>
-                <CardTitle className="text-3xl font-bold">{reports?.kpis?.totalNovosLeads ?? 0}</CardTitle>
-              </CardHeader>
+            <Card className={cn(glassCardClass, "border-l-8 border-l-blue-500")}>
+              <CardHeader className="pb-3"><CardDescription className="flex items-center gap-2 text-blue-600 font-medium"><Tag className="h-4 w-4" />Novos Leads</CardDescription><CardTitle className="text-4xl font-extrabold">{reports?.kpis?.totalNovosLeads ?? 0}</CardTitle></CardHeader>
             </Card>
-            <Card className="border-l-4 border-l-primary">
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><TrendingUp className="h-4 w-4" />Taxa de Conversão</CardDescription>
-                <CardTitle className="text-3xl font-bold">{reports?.kpis?.conversionRate ?? 0}%</CardTitle>
-              </CardHeader>
-              <CardContent><p className="text-xs text-muted-foreground">Baseado nos dados filtrados</p></CardContent>
+            <Card className={cn(glassCardClass, "border-l-8 border-l-purple-500")}>
+              <CardHeader className="pb-3"><CardDescription className="flex items-center gap-2 text-purple-600 font-medium"><TrendingUp className="h-4 w-4" />Taxa de Conversão</CardDescription><CardTitle className="text-4xl font-extrabold">{reports?.kpis?.conversionRate ?? 0}%</CardTitle></CardHeader>
             </Card>
-            <Card className="border-l-4 border-l-secondary">
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Ticket Médio</CardDescription>
-                <CardTitle className="text-3xl font-bold">R$ {(reports?.kpis?.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
-              </CardHeader>
-              <CardContent><p className="text-xs text-muted-foreground">Vendas realizadas no período</p></CardContent>
+            <Card className={cn(glassCardClass, "border-l-8 border-l-emerald-500")}>
+              <CardHeader className="pb-3"><CardDescription className="flex items-center gap-2 text-emerald-600 font-medium"><DollarSign className="h-4 w-4" />Ticket Médio</CardDescription><CardTitle className="text-4xl font-extrabold">R$ {(reports?.kpis?.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</CardTitle></CardHeader>
             </Card>
-            <Card className="border-l-4 border-l-accent">
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><Clock className="h-4 w-4" />Tempo Médio no Funil</CardDescription>
-                <CardTitle className="text-3xl font-bold">{reports?.kpis?.tempoMedioFunil ?? 0} dias</CardTitle>
-              </CardHeader>
-              <CardContent><p className="text-xs text-muted-foreground">Para leads convertidos (filtrados)</p></CardContent>
+            <Card className={cn(glassCardClass, "border-l-8 border-l-amber-500")}>
+              <CardHeader className="pb-3"><CardDescription className="flex items-center gap-2 text-amber-600 font-medium"><Clock className="h-4 w-4" />Tempo Médio no Funil</CardDescription><CardTitle className="text-4xl font-extrabold">{reports?.kpis?.tempoMedioFunil ?? 0} dias</CardTitle></CardHeader>
             </Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>Captados vs Convertidos</CardTitle>
-                <CardDescription>Evolução no período: {periodDisplay}</CardDescription>
-              </CardHeader>
+            <Card className={cn(glassCardClass, "lg:col-span-2")}>
+              <CardHeader><CardTitle>Captados vs Convertidos</CardTitle><CardDescription>Evolução natural no tempo</CardDescription></CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={reports?.charts?.leadsCapturedData || []}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                    <Tooltip contentStyle={chartTooltipStyle} />
-                    <Legend />
-                    <Line type="monotone" dataKey="captados" stroke="hsl(var(--primary))" strokeWidth={2} name="Captados" />
-                    <Line type="monotone" dataKey="convertidos" stroke="hsl(var(--success))" strokeWidth={2} name="Convertidos" />
-                  </LineChart>
+                <ResponsiveContainer width="100%" height={350}>
+                  <AreaChart data={reports?.charts?.leadsCapturedData || []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <ChartGradients />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_COLORS.grid} />
+                    <XAxis dataKey="day" stroke="currentColor" fontSize={12} tickLine={false} axisLine={false} className="text-muted-foreground opacity-60" />
+                    <YAxis stroke="currentColor" fontSize={12} tickLine={false} axisLine={false} className="text-muted-foreground opacity-60" />
+                    <Tooltip content={<CustomChartTooltip />} />
+                    <Legend iconType="circle" />
+                    <Area type="monotone" dataKey="captados" stroke={CHART_COLORS.teal} fillOpacity={1} fill="url(#colorTeal)" strokeWidth={3} name="Captados" />
+                    <Area type="monotone" dataKey="convertidos" stroke={CHART_COLORS.blue} fillOpacity={1} fill="url(#colorBlue)" strokeWidth={3} name="Convertidos" />
+                  </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Por Origem</CardTitle>
-                <CardDescription>Distribuição de captação</CardDescription>
-              </CardHeader>
+            <Card className={glassCardClass}>
+              <CardHeader><CardTitle>Por Origem</CardTitle></CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={reports?.charts?.sourceData || []} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis type="number" stroke="hsl(var(--muted-foreground))" className="text-xs" />
-                    <YAxis dataKey="source" type="category" stroke="hsl(var(--muted-foreground))" className="text-xs" width={100} />
-                    <Tooltip contentStyle={chartTooltipStyle} />
-                    <Bar dataKey="leads" fill="hsl(var(--accent))" name="Leads" />
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart data={reports?.charts?.sourceData || []} layout="vertical" margin={{ top: 0, right: 30, left: 20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={CHART_COLORS.grid} />
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="source" type="category" stroke="currentColor" fontSize={11} width={80} tickLine={false} axisLine={false} className="text-foreground font-medium" />
+                    <Tooltip content={<CustomChartTooltip />} />
+                    <Bar dataKey="leads" fill="url(#colorPurple)" radius={[0, 4, 4, 0]} barSize={24} name="Leads">
+                        <LabelList dataKey="leads" position="right" style={{ fill: 'currentColor', fontSize: '11px', fontWeight: 'bold' }} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Top 10 Criativos por Performance</CardTitle>
-              <CardDescription>Campanhas com melhor desempenho</CardDescription>
-            </CardHeader>
+          <Card className={glassCardClass}>
+            <CardHeader><CardTitle>Top 10 Criativos</CardTitle></CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Criativo</TableHead>
-                    <TableHead>Origem</TableHead>
-                    <TableHead>Leads Gerados</TableHead>
-                    <TableHead>Taxa Conversão</TableHead>
-                  </TableRow>
+                  <TableRow className="border-b-white/10"><TableHead>Criativo</TableHead><TableHead>Origem</TableHead><TableHead>Leads</TableHead><TableHead>Conversão</TableHead></TableRow>
                 </TableHeader>
                 <TableBody>
                   {(reports?.charts?.topCreativesData || []).map((item, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell><Badge variant="outline">{item.origin}</Badge></TableCell>
+                    <TableRow key={i} className="border-b-white/5 hover:bg-white/5">
+                      <TableCell className="font-medium text-foreground">{item.name}</TableCell>
+                      <TableCell><Badge variant="outline" className="border-white/20">{item.origin}</Badge></TableCell>
                       <TableCell>{item.leads}</TableCell>
-                      <TableCell><Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{item.conversion}</Badge></TableCell>
+                      <TableCell><Badge className="bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30">{item.conversion}</Badge></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -268,33 +204,11 @@ export default function Reports() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="funnel" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="bg-primary/5 border-primary/20">
-              <CardHeader className="pb-2">
-                <CardDescription className="text-primary font-medium">Conversão Geral do Funil</CardDescription>
-                <CardTitle className="text-4xl font-bold">{reports?.funnel?.overallConversion || 0}%</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">Dos leads que entraram no topo, esta porcentagem chegou ao final.</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-sm">Entenda o Funil Real</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Este gráfico mostra o volume acumulado. Se um lead está na etapa 5, ele conta no volume das etapas 1, 2, 3 e 4, refletindo a jornada completa.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
+        <TabsContent value="funnel" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <Card className={glassCardClass}>
             <CardHeader>
-              <CardTitle>Jornada do Cliente (Volume Acumulado)</CardTitle>
-              <CardDescription>Visualize onde os leads estão parando no processo.</CardDescription>
+              <CardTitle>Jornada do Cliente (Acumulado)</CardTitle>
+              <CardDescription>Fluxo visual com comportamento natural.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[500px] w-full">
@@ -304,59 +218,30 @@ export default function Reports() {
                     layout="vertical"
                     margin={{ top: 20, right: 120, left: 20, bottom: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={CHART_COLORS.grid} />
                     <XAxis type="number" hide />
                     <YAxis 
                       dataKey="etapa" 
                       type="category" 
                       width={180} 
-                      tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
+                      tick={{ fontSize: 13, fill: 'currentColor', fontWeight: 500 }}
+                      tickLine={false}
+                      axisLine={false}
                     />
-                    <Tooltip 
-                      cursor={{ fill: 'transparent' }}
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          return (
-                            <div className="bg-popover border p-3 rounded-lg shadow-lg">
-                              <p className="font-semibold">{data.etapa}</p>
-                              <p className="text-sm">Volume: <span className="font-bold">{data.quantidade}</span> leads</p>
-                              <p className="text-xs text-muted-foreground mt-1">Taxa de Passagem: {data.conversionRate}%</p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
+                    <Tooltip content={<CustomChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
                     <Bar 
                       dataKey="quantidade" 
-                      barSize={40} 
-                      radius={[0, 4, 4, 0]}
+                      barSize={32} 
+                      radius={[0, 16, 16, 0]} // Barras super arredondadas
                     >
                       {reports?.funnel?.funnelData.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                        <Cell key={`cell-${index}`} fill={entry.fill} className="hover:opacity-80 transition-opacity duration-300" />
                       ))}
                       <LabelList 
                         dataKey="quantidade" 
                         position="right" 
                         formatter={(val: number) => `${val}`}
-                        style={{ fill: 'hsl(var(--foreground))', fontWeight: 'bold' }}
-                      />
-                      <LabelList 
-                        dataKey="conversionRate" 
-                        position="right" 
-                        content={(props: any) => {
-                          const { x, y, width, value, index } = props;
-                          // Não mostra conversão para a primeira barra (sempre 100% ou N/A)
-                          if (index === 0) return null; 
-                          return (
-                            <g transform={`translate(${x + 40},${y + 12})`}>
-                              <text x={0} y={0} dy={4} fill="#666" fontSize={11} textAnchor="start">
-                                ({value}% conv.)
-                              </text>
-                            </g>
-                          );
-                        }}
+                        style={{ fill: 'currentColor', fontWeight: 'bold', fontSize: '14px' }}
                       />
                     </Bar>
                   </BarChart>
@@ -366,157 +251,91 @@ export default function Reports() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="conversions" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Total Convertido</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {(reports?.conversions?.kpis?.totalConvertido || 0).toLocaleString('pt-BR')}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><Target className="h-4 w-4" />Leads Convertidos</CardDescription>
-                <CardTitle className="text-2xl font-bold">{reports?.conversions?.kpis?.leadsConvertidos ?? 0}</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><TrendingUp className="h-4 w-4" />Taxa de Conversão</CardDescription>
-                <CardTitle className="text-2xl font-bold">{reports?.conversions?.kpis?.conversionRate ?? 0}%</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4" />Ticket Médio</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {(reports?.conversions?.kpis?.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
-              </CardHeader>
-            </Card>
-          </div>
+        <TabsContent value="conversions" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <Card className="lg:col-span-2">
+            <Card className={cn(glassCardClass, "lg:col-span-2")}>
               <CardHeader><CardTitle>Conversões por Origem</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
-                    <Pie data={reports?.conversions?.charts?.conversoesPorOrigemData || []} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                    <Pie 
+                      data={reports?.conversions?.charts?.conversoesPorOrigemData || []} 
+                      dataKey="value" 
+                      nameKey="name" 
+                      cx="50%" 
+                      cy="50%" 
+                      outerRadius={80} 
+                      innerRadius={50}
+                      paddingAngle={5}
+                      stroke="none"
+                    >
                       {(reports?.conversions?.charts?.conversoesPorOrigemData || []).map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} className="drop-shadow-md" />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={chartTooltipStyle} />
-                    <Legend />
+                    <Tooltip content={<CustomChartTooltip />} />
+                    <Legend iconType="circle" />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-            <Card className="lg:col-span-3">
+            <Card className={cn(glassCardClass, "lg:col-span-3")}>
               <CardHeader>
                 <CardTitle>Valor Convertido</CardTitle>
-                <CardDescription>Evolução no período: {periodDisplay}</CardDescription>
+                <CardDescription>Evolução diária</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={reports?.conversions?.charts?.valorConvertidoPorDia || []}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" className="text-xs" />
-                    <YAxis stroke="hsl(var(--muted-foreground))" className="text-xs" />
-                    <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} contentStyle={chartTooltipStyle} />
-                    <Bar dataKey="valor" fill="hsl(var(--success))" name="Valor" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} vertical={false} />
+                    <XAxis dataKey="day" stroke="currentColor" className="text-xs text-muted-foreground" tickLine={false} axisLine={false} />
+                    <YAxis stroke="currentColor" className="text-xs text-muted-foreground" tickLine={false} axisLine={false} />
+                    <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} content={<CustomChartTooltip />} />
+                    <Bar dataKey="valor" fill="url(#colorTeal)" name="Valor" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
-          <Card>
-            <CardHeader><CardTitle>Últimas 5 Conversões</CardTitle></CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Lead</TableHead>
-                    <TableHead>Atendente</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Data</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(reports?.conversions?.tables?.ultimasConversoes || []).map((lead: any) => (
-                    <TableRow key={lead.id}>
-                      <TableCell className="font-medium">{lead.nome}</TableCell>
-                      <TableCell>{lead.atendente}</TableCell>
-                      <TableCell>R$ {(lead.valor || 0).toLocaleString('pt-BR')}</TableCell>
-                      <TableCell>{format(parseISO(lead.atualizado_em), 'dd/MM/yyyy')}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
         </TabsContent>
 
-        <TabsContent value="financial" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><DollarSign className="h-4 w-4"/> Faturamento Total</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {(reports?.financial?.totalFaturado || 0).toLocaleString('pt-BR')}</CardTitle>
-              </CardHeader>
-              <CardContent><p className="text-xs text-muted-foreground">Valor total de contratos fechados no período</p></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><CreditCard className="h-4 w-4"/> Ticket Médio Real</CardDescription>
-                <CardTitle className="text-2xl font-bold">R$ {(reports?.financial?.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</CardTitle>
-              </CardHeader>
-              <CardContent><p className="text-xs text-muted-foreground">Faturamento / Total de Vendas ({reports?.financial?.totalVendas ?? 0})</p></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><BarChart2 className="h-4 w-4"/> Eficiência Negociação</CardDescription>
-                <CardTitle className="text-2xl font-bold">{(reports?.financial?.taxaEficiencia || 0).toFixed(1)}%</CardTitle>
-              </CardHeader>
-              <CardContent><p className="text-xs text-muted-foreground">% do valor orçado que foi efetivamente fechado</p></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription className="flex items-center gap-2"><TrendingUp className="h-4 w-4"/> Vendas Realizadas</CardDescription>
-                <CardTitle className="text-2xl font-bold">{reports?.financial?.totalVendas ?? 0}</CardTitle>
-              </CardHeader>
-              <CardContent><p className="text-xs text-muted-foreground">Contratos assinados no período</p></CardContent>
-            </Card>
-          </div>
+        <TabsContent value="financial" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>Evolução do Faturamento</CardTitle>
-                <CardDescription>Receita diária no período selecionado</CardDescription>
-              </CardHeader>
+            <Card className={cn(glassCardClass, "lg:col-span-2")}>
+              <CardHeader><CardTitle>Evolução do Faturamento</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={reports?.financial?.faturamentoPorDia || []}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" className="text-xs" />
-                    <YAxis stroke="hsl(var(--muted-foreground))" className="text-xs" tickFormatter={(value) => `R$${value/1000}k`} />
-                    <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} contentStyle={chartTooltipStyle} />
-                    <Bar dataKey="valor" fill="hsl(var(--primary))" name="Faturamento" radius={[4, 4, 0, 0]} />
-                  </BarChart>
+                  <AreaChart data={reports?.financial?.faturamentoPorDia || []}>
+                    <ChartGradients />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} vertical={false} />
+                    <XAxis dataKey="day" stroke="currentColor" className="text-xs text-muted-foreground" tickLine={false} axisLine={false} />
+                    <YAxis stroke="currentColor" className="text-xs text-muted-foreground" tickFormatter={(value) => `R$${value/1000}k`} tickLine={false} axisLine={false} />
+                    <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} content={<CustomChartTooltip />} />
+                    <Area type="monotone" dataKey="valor" stroke={CHART_COLORS.teal} fill="url(#colorTeal)" strokeWidth={3} name="Faturamento" activeDot={{ r: 6, strokeWidth: 0, fill: "white", stroke: CHART_COLORS.teal }} />
+                  </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Métodos de Pagamento</CardTitle>
-                <CardDescription>Distribuição do faturamento</CardDescription>
-              </CardHeader>
+            <Card className={glassCardClass}>
+              <CardHeader><CardTitle>Métodos de Pagamento</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>
                   <PieChart>
-                    <Pie data={reports?.financial?.metodosPagamentoData || []} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5}>
-                      {(reports?.financial?.metodosPagamentoData || []).map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                    <Pie 
+                      data={reports?.financial?.metodosPagamentoData || []} 
+                      dataKey="value" 
+                      nameKey="name" 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius={60} 
+                      outerRadius={100} 
+                      paddingAngle={5}
+                      stroke="none"
+                    >
+                      {(reports?.financial?.metodosPagamentoData || []).map((_, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} className="drop-shadow-lg" />)}
                     </Pie>
-                    <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} contentStyle={chartTooltipStyle} />
-                    <Legend verticalAlign="bottom" height={36}/>
+                    <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} content={<CustomChartTooltip />} />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle"/>
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
