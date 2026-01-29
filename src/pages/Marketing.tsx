@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy, Upload } from "lucide-react";
+import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy, Upload, Facebook, Eye, MousePointerClick } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,7 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { DateRange } from "react-day-picker";
-import { startOfMonth, endOfMonth } from "date-fns";
+import { startOfMonth, endOfMonth, format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +27,7 @@ export default function Marketing() {
   const { reports, isLoading: isLoadingReports } = useReports(dateRange);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("creatives");
+  const [activeTab, setActiveTab] = useState("meta"); // Aba padrão alterada para a nova
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
@@ -38,6 +39,9 @@ export default function Marketing() {
       (c.conteudo && c.conteudo.toLowerCase().includes(search))
     );
   });
+
+  // Filtra apenas criativos que possuem métricas do Meta
+  const campanhasMeta = (criativos || []).filter(c => c.platform_metrics && c.platform_metrics.spend > 0);
 
   const handleDeleteConfirm = () => {
     if (deleteId) {
@@ -68,6 +72,10 @@ export default function Marketing() {
     return typeof val === 'number' ? val.toLocaleString('pt-BR', { notation: "compact" }) : val;
   };
 
+  const formatMoney = (val: number) => {
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -77,18 +85,17 @@ export default function Marketing() {
         </div>
         <div className="flex gap-2 items-center">
           <DateRangePicker date={dateRange} setDate={setDateRange} />
-          <Button variant="outline" className="gap-2" onClick={() => setIsImportModalOpen(true)}>
-            <Upload className="h-4 w-4" /> Importar CSV Meta
-          </Button>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <TabsList>
-            <TabsTrigger value="creatives">Criativos</TabsTrigger>
-            <TabsTrigger value="reports">Performance</TabsTrigger>
+            <TabsTrigger value="meta" className="gap-2"><Facebook className="h-4 w-4" /> Campanhas Meta</TabsTrigger>
+            <TabsTrigger value="creatives" className="gap-2"><Megaphone className="h-4 w-4" /> Criativos</TabsTrigger>
+            <TabsTrigger value="reports" className="gap-2"><BarChart2 className="h-4 w-4" /> Performance Geral</TabsTrigger>
           </TabsList>
+          
           {activeTab === 'creatives' && (
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -101,6 +108,107 @@ export default function Marketing() {
             </div>
           )}
         </div>
+
+        {/* NOVA ABA: CAMPANHAS META */}
+        <TabsContent value="meta" className="space-y-6">
+          <div className="flex justify-end">
+            <Button variant="default" className="gap-2 bg-[#1877F2] hover:bg-[#1877F2]/90 text-white" onClick={() => setIsImportModalOpen(true)}>
+              <Upload className="h-4 w-4" /> Importar CSV do Gerenciador
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Performance de Anúncios (Meta Ads)</CardTitle>
+              <CardDescription>
+                Métricas importadas do Gerenciador de Anúncios. Dados baseados na última importação.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingCreatives ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : campanhasMeta.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="bg-blue-50 p-4 rounded-full mb-4">
+                    <BarChart2 className="h-8 w-8 text-blue-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-1">Nenhuma campanha importada</h3>
+                  <p className="text-muted-foreground max-w-sm mb-6">
+                    Importe seu arquivo CSV do Meta Ads para visualizar os custos e resultados por criativo aqui.
+                  </p>
+                  <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
+                    Importar Agora
+                  </Button>
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[300px]">Campanha / Criativo</TableHead>
+                        <TableHead className="text-right">Valor Usado</TableHead>
+                        <TableHead className="text-right">Resultados</TableHead>
+                        <TableHead className="text-right">Custo p/ Res.</TableHead>
+                        <TableHead className="text-right">Alcance</TableHead>
+                        <TableHead className="text-right">Impressões</TableHead>
+                        <TableHead className="text-right">CTR</TableHead>
+                        <TableHead className="text-right">CPC</TableHead>
+                        <TableHead className="text-right">Última Atualização</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {campanhasMeta.map((campanha) => {
+                        const m = campanha.platform_metrics!;
+                        return (
+                          <TableRow key={campanha.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-foreground">{campanha.nome}</span>
+                                <span className="text-xs text-muted-foreground truncate max-w-[280px]" title={campanha.titulo || ''}>
+                                  Original: {campanha.titulo || '-'}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatMoney(m.spend)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant="secondary" className="font-bold">{m.results}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right text-amber-700 font-medium">
+                              {formatMoney(m.cost_per_result)}
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground text-xs">
+                              {m.reach.toLocaleString('pt-BR')}
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground text-xs">
+                              {m.impressions.toLocaleString('pt-BR')}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className={m.ctr > 1 ? "text-green-600 font-medium" : "text-muted-foreground"}>
+                                {m.ctr.toFixed(2)}%
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right text-xs">
+                              {formatMoney(m.cpc)}
+                            </TableCell>
+                            <TableCell className="text-right text-xs text-muted-foreground">
+                              {m.updated_at ? format(new Date(m.updated_at), "dd/MM HH:mm", { locale: ptBR }) : '-'}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="creatives" className="space-y-6">
           {isLoadingCreatives ? (
