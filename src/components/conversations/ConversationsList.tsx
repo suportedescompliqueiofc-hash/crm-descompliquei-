@@ -77,23 +77,24 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
     <Link
       to={`/conversas/${conversation.id}`}
       className={cn(
-        "flex gap-3 p-3 rounded-lg transition-colors cursor-pointer border border-transparent group relative items-center",
+        "flex items-center gap-3 p-3 rounded-lg transition-colors cursor-pointer border border-transparent group",
         isActive ? "bg-muted border-border" : "hover:bg-muted/50"
       )}
     >
+      {/* Avatar fixo */}
       <Avatar className="h-12 w-12 flex-shrink-0">
         <AvatarFallback className={cn("text-sm font-semibold", isActive ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground")}>
           {getInitials(conversation.nome)}
         </AvatarFallback>
       </Avatar>
       
-      {/* Container Principal de Texto - Flex Column */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center h-full">
+      {/* Container de Texto - Flex Column - min-w-0 para permitir truncate interno */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
         
-        {/* Linha Superior: Nome (Esq) e Horário (Dir) */}
-        <div className="flex items-center justify-between mb-0.5">
-          {/* Container do Nome + Tags com Truncate */}
-          <div className="flex items-center gap-1.5 min-w-0 pr-1">
+        {/* Linha Superior: Nome + Tags + Horário */}
+        <div className="flex justify-between items-center w-full">
+          {/* Lado Esquerdo: Nome e Tags */}
+          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden pr-2">
             <span className="font-semibold text-sm truncate text-foreground">
               {conversation.nome || conversation.telefone}
             </span>
@@ -118,15 +119,15 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             )}
           </div>
           
-          {/* Horário Fixo */}
-          <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap ml-auto pl-1">
+          {/* Lado Direito: Horário (Sempre visível) */}
+          <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap">
             {lastMessageTime}
           </span>
         </div>
 
         {/* Linha Inferior: Prévia da Mensagem */}
-        <div className="flex items-center w-full">
-          <div className="text-xs text-muted-foreground truncate flex-1 min-w-0 block">
+        <div className="flex justify-between items-center w-full">
+          <div className="text-xs text-muted-foreground truncate flex-1 min-w-0">
             <MessagePreview 
               content={conversation.last_message_content} 
               type={conversation.last_message_type} 
