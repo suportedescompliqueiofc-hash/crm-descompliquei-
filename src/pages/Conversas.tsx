@@ -1,5 +1,4 @@
 import { useParams } from "react-router-dom";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ConversationsList } from "@/components/conversations/ConversationsList";
 import { ActiveConversation } from "@/components/conversations/ActiveConversation";
 import { QuickMessagesSidebar } from "@/components/conversations/QuickMessagesSidebar";
@@ -18,18 +17,15 @@ export default function Conversations() {
       <div className="flex h-full w-full rounded-lg border bg-background overflow-hidden">
         
         {/* Área Flexível (Lista + Chat) */}
-        <div className="flex-1 min-w-0 h-full">
-          <ResizablePanelGroup direction="horizontal" className="h-full">
+        <div className="flex-1 min-w-0 h-full flex">
             
-            {/* Painel Esquerdo: Lista */}
-            <ResizablePanel defaultSize={25} minSize={20} maxSize={30} className="hidden md:block">
+            {/* Painel Esquerdo: Lista (Largura Fixa) */}
+            <div className="hidden md:block w-80 lg:w-96 flex-shrink-0 h-full">
               <ConversationsList />
-            </ResizablePanel>
-            
-            <ResizableHandle withHandle className="hidden md:flex" />
+            </div>
             
             {/* Painel Central: Chat Ativo */}
-            <ResizablePanel defaultSize={75} minSize={40}>
+            <div className="flex-1 min-w-0 h-full border-l">
               {leadId ? (
                 <div className="flex flex-col h-full relative">
                   <div className="flex-1 overflow-hidden">
@@ -49,8 +45,7 @@ export default function Conversations() {
                   <p>Escolha um cliente na lista para iniciar o atendimento.</p>
                 </div>
               )}
-            </ResizablePanel>
-          </ResizablePanelGroup>
+            </div>
         </div>
 
         {/* Painel Direito Fixo: Mensagens Rápidas */}
