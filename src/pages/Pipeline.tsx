@@ -85,7 +85,7 @@ function StageColumn({
         >
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold text-foreground/90">{stage.nome}</CardTitle>
-            <Badge variant="secondary" className="font-mono text-xs bg-background/80 shadow-sm">
+            <Badge variant="secondary" className="font-mono text-xs bg-background/80 shadow-sm text-secondary font-bold">
               {leads.length}
             </Badge>
           </div>
@@ -429,7 +429,7 @@ export default function Pipeline() {
   if (leadsLoading || stagesLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
       </div>
     );
   }
