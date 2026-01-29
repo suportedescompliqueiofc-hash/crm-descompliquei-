@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,6 +24,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const isOutgoing = variant === 'outgoing';
@@ -31,11 +34,17 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
     if (audio) {
       const setAudioData = () => {
         setDuration(audio.duration);
-        setCurrentTime(audio.currentTime);
+        if (!isDragging) {
+            setCurrentTime(audio.currentTime);
+        }
         setIsLoading(false);
       };
 
-      const setAudioTime = () => setCurrentTime(audio.currentTime);
+      const setAudioTime = () => {
+        if (!isDragging) {
+            setCurrentTime(audio.currentTime);
+        }
+      };
 
       const handleEnd = () => {
         setIsPlaying(false);
@@ -62,7 +71,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
         audio.removeEventListener('canplay', handleCanPlay);
       };
     }
-  }, [audioUrl]);
+  }, [audioUrl, isDragging]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -90,10 +99,15 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
   };
 
   const handleSliderChange = (value: number[]) => {
+    setIsDragging(true);
+    setCurrentTime(value[0]);
+  };
+
+  const handleSliderCommit = (value: number[]) => {
     if (audioRef.current) {
       audioRef.current.currentTime = value[0];
-      setCurrentTime(value[0]);
     }
+    setIsDragging(false);
   };
 
   return (
@@ -126,15 +140,16 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
           max={duration || 1}
           step={0.1}
           onValueChange={handleSliderChange}
+          onValueCommit={handleSliderCommit}
           className={cn(
-            "flex-1",
-            "[&>span:first-child]:h-1",
+            "flex-1 cursor-pointer",
+            "[&>span:first-child]:h-1.5",
             isOutgoing 
               ? "[&>span:first-child]:bg-black/20" 
               : "[&>span:first-child]:bg-muted-foreground/20",
             "[&>span:first-child>span]:bg-current",
             isOutgoing ? "text-white" : "text-primary",
-            "[&>span[role=slider]]:h-3 [&>span[role=slider]]:w-3 [&>span[role=slider]]:border-0 [&>span[role=slider]]:shadow-sm",
+            "[&>span[role=slider]]:h-4 [&>span[role=slider]]:w-4 [&>span[role=slider]]:border-0 [&>span[role=slider]]:shadow-md [&>span[role=slider]]:transition-transform active:[&>span[role=slider]]:scale-125",
             isOutgoing
                ? "[&>span[role=slider]]:bg-white"
                : "[&>span[role=slider]]:bg-primary"
@@ -161,7 +176,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
             "text-[9px] font-mono w-7 text-right flex-shrink-0 tabular-nums",
             isOutgoing ? "text-white/80" : "text-muted-foreground"
         )}>
-            {formatTime(duration)}
+            {formatTime(isDragging ? currentTime : duration)}
         </span>
       </div>
     </div>
