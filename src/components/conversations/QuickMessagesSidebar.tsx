@@ -1,3 +1,5 @@
+"use client";
+
 import { useQuickMessages, QuickMessage } from "@/hooks/useQuickMessages";
 import { useQuickMessageFolders } from "@/hooks/useQuickMessageFolders";
 import { Button } from "@/components/ui/button";
@@ -118,10 +120,17 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
 
   // Sincronização segura para evitar loop infinito
   useEffect(() => {
-    if (quickMessages && JSON.stringify(quickMessages) !== JSON.stringify(localMessages)) {
-      setLocalMessages(quickMessages);
+    if (!isLoadingMsgs && quickMessages) {
+       // Só sincroniza se houver mudança real na lista para evitar re-renderizações circulares
+       const shouldUpdate = localMessages.length === 0 || 
+                           quickMessages.length !== localMessages.length || 
+                           quickMessages[0]?.id !== localMessages[0]?.id;
+       
+       if (shouldUpdate) {
+          setLocalMessages(quickMessages);
+       }
     }
-  }, [quickMessages]);
+  }, [quickMessages, isLoadingMsgs]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -163,7 +172,7 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
     if (oldIndex !== -1 && newIndex !== -1) {
       const newItems = arrayMove(localMessages, oldIndex, newIndex);
       setLocalMessages(newItems);
-      const updates = newItems.map((msg, index) => ({ id: msg.id, position: index + 1, folder_id: msg.folder_id }));
+      const updates = newItems.map((msg, index) => ({ id: msg.id, position: index + 1, folder_id: msg.folder_id || null }));
       updateMessagesOrder.mutate(updates);
     }
   };
@@ -171,7 +180,7 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   if (!lead) return null;
 
   return (
-    <div className="h-full flex flex-col bg-background border-l w-80 flex-shrink-0">
+    <div className="h-full flex flex-col bg-background border-l w-80 flex-shrink-0 shadow-sm">
       <div className="p-4 border-b">
         <h3 className="font-semibold flex items-center gap-2 mb-3">
           <Zap className="h-4 w-4 text-primary" />
@@ -181,7 +190,7 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input 
             placeholder="Buscar atalho..." 
-            className="pl-8 h-8 text-xs bg-muted/30" 
+            className="pl-8 h-8 text-xs bg-muted/30 border-muted-foreground/10 focus-visible:ring-primary" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -200,7 +209,7 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
                   if (msgs.length === 0) return null;
                   return (
                     <AccordionItem key={folder.id} value={folder.id} className="border-b-0">
-                      <AccordionTrigger className="hover:no-underline py-2 px-1 rounded hover:bg-muted/50">
+                      <AccordionTrigger className="hover:no-underline py-2 px-1 rounded hover:bg-muted/50 transition-colors">
                         <div className="flex items-center gap-2 text-sm font-medium">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: folder.color }} />
                           {folder.name}
@@ -219,7 +228,7 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
 
                 {getMessagesByFolder(null).length > 0 && (
                   <AccordionItem value="uncategorized" className="border-b-0">
-                    <AccordionTrigger className="hover:no-underline py-2 px-1 rounded hover:bg-muted/50">
+                    <AccordionTrigger className="hover:no-underline py-2 px-1 rounded hover:bg-muted/50 transition-colors">
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <Folder className="h-4 w-4 text-muted-foreground" />
                         Geral
