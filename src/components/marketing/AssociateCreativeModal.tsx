@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, Link } from "lucide-react";
+import { Info, Link } from "lucide-react";
 import { Criativo } from "@/hooks/useMarketing";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -46,16 +46,16 @@ export function AssociateCreativeModal({
             Associar Criativo
           </DialogTitle>
           <DialogDescription>
-            Unifique as métricas desta campanha importada com um criativo existente no CRM.
+            Vincule as métricas desta campanha importada a um criativo do CRM para cálculo de ROI.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="bg-muted/30 p-3 rounded border">
-            <Label className="text-xs text-muted-foreground">Origem (Métricas)</Label>
+            <Label className="text-xs text-muted-foreground">Origem (Dados do Meta)</Label>
             <p className="font-medium text-sm truncate">{sourceCreative?.nome || "Campanha Selecionada"}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Gasto: R$ {sourceCreative?.platform_metrics?.spend.toFixed(2)} | Leads: {sourceCreative?.stats?.contagem_leads}
+              Gasto: R$ {sourceCreative?.platform_metrics?.spend.toFixed(2)} | Impressões: {sourceCreative?.platform_metrics?.impressions}
             </p>
           </div>
 
@@ -74,15 +74,15 @@ export function AssociateCreativeModal({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              O criativo selecionado receberá as métricas de gasto e impressões. O registro original será removido para evitar duplicidade.
+              Este criativo receberá os dados de custo e performance para análise de métricas.
             </p>
           </div>
 
-          <Alert variant="warning" className="bg-amber-50 border-amber-200 text-amber-800">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Atenção</AlertTitle>
-            <AlertDescription className="text-xs">
-              Esta ação mescla os dados e remove a campanha importada da lista, mantendo apenas o criativo unificado.
+          <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+            <Info className="h-4 w-4 text-blue-800" />
+            <AlertTitle>Informação</AlertTitle>
+            <AlertDescription className="text-xs mt-1">
+              Esta ação copiará as métricas de plataforma para o criativo selecionado. A campanha original importada <strong>será mantida</strong> na lista para conferência.
             </AlertDescription>
           </Alert>
         </div>
