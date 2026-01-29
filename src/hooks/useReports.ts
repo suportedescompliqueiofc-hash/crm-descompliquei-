@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
-import { differenceInDays, eachDayOfInterval, startOfDay, endOfDay, format, parseISO } from 'date-fns';
+import { differenceInDays, eachDayOfInterval, startOfDay, endOfDay, format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 
 interface ReportFilters {
@@ -30,7 +30,7 @@ const defaultReportData = {
   funnel: { 
     funnelData: [],
     overallConversion: "0",
-    detailedSteps: [] // Novo campo para análise detalhada
+    detailedSteps: []
   },
   financial: { 
     totalFaturado: 0, 
@@ -52,7 +52,7 @@ const defaultReportData = {
   }
 };
 
-// Etapas estritas do Funil de Vendas
+// Etapas estritas do Funil de Vendas (Ordem e Nomes Fixos)
 const SALES_FUNNEL_STAGES = [
   "Novo Lead",
   "Qualificação",
@@ -61,6 +61,16 @@ const SALES_FUNNEL_STAGES = [
   "Agendado",
   "Procedimento Fechado"
 ];
+
+// Cores padrão para fallback
+const STAGE_COLORS = {
+  "Novo Lead": "#94a3b8",
+  "Qualificação": "#64748b",
+  "Coletando Informações": "#a8a29e",
+  "Agendamento Solicitado": "#C5A47E",
+  "Agendado": "#4ade80",
+  "Procedimento Fechado": "#15803d"
+};
 
 export function useReports(dateRange: DateRange | undefined, filters: ReportFilters = { posicao_pipeline: "Todos", origem: "Todos", genero: "Todos", idade: "", tagId: "Todos" }) {
   const { user } = useAuth();
@@ -92,7 +102,6 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
       // 2. Construção das Queries
       const applyFilters = (query: any) => {
-        // Nota: O filtro de posicao_pipeline é aplicado aos dados gerais, mas o Funil recalcula baseado em todas as etapas
         if (filters.origem !== "Todos") query = query.eq(`origem`, filters.origem);
         if (filters.genero !== "Todos") query = query.eq(`genero`, filters.genero);
         if (filters.idade) {
@@ -103,11 +112,9 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         return query;
       };
 
-      // Leads Query (Base)
       let leadsQuery = supabase.from('leads').select('*').eq('organization_id', orgId).gte('criado_em', startDate).lte('criado_em', endDate);
       leadsQuery = applyFilters(leadsQuery);
 
-      // Vendas Query
       let vendasQuery = supabase.from('vendas').select('*, leads(id, nome, telefone, origem, criativo_id)').eq('organization_id', orgId).gte('data_fechamento', format(dateRange.from, 'yyyy-MM-dd')).lte('data_fechamento', format(safeEnd, 'yyyy-MM-dd'));
 
       const [
@@ -128,47 +135,64 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       const criativos = criativosData || [];
       const criativosMap = new Map(criativos.map(c => [c.id, c]));
 
-      // 3. Funil de Vendas Real (Estrito e Detalhado)
-      // Filtra apenas as etapas permitidas pelo usuário
-      const funnelStages = allStages.filter(stage => 
-        SALES_FUNNEL_STAGES.some(s => s.toLowerCase() === stage.nome.toLowerCase())
-      ).sort((a, b) => a.posicao_ordem - b.posicao_ordem);
+      // Identifica a posição da etapa "Perdido" para excluí-la da contagem acumulada
+      const lostStage = allStages.find(s => s.nome.toLowerCase() === 'perdido');
+      const lostPosition = lostStage?.posicao_ordem || 999;
 
-      const funnelData = funnelStages.map((stage, index) => {
-        // Volume Acumulado: Leads que passaram por esta etapa
-        // Consideramos que se um lead está em uma etapa posterior (mesmo que não listada no funil de vendas, ex: Perdido),
-        // ele passou por aqui, DESDE que a etapa atual seja menor que a etapa do lead.
-        // Porém, para manter a consistência com o pedido "Apenas etapas do funil", vamos considerar a progressão linear dessas etapas específicas.
+      // 3. Funil de Vendas Real (Corrigido: Mapeia sobre a lista fixa)
+      const funnelData = SALES_FUNNEL_STAGES.map((stageName, index) => {
+        // Tenta encontrar a etapa no banco para pegar a cor e posição real
+        const dbStage = allStages.find(s => s.nome.toLowerCase() === stageName.toLowerCase());
         
-        const volume = leads.filter(l => l.posicao_pipeline >= stage.posicao_ordem).length;
-        
+        // Se não encontrar no banco, assume a posição baseada no index + 1 (1 a 6)
+        const position = dbStage ? dbStage.posicao_ordem : (index + 1);
+        // @ts-ignore
+        const color = dbStage ? dbStage.cor : (STAGE_COLORS[stageName] || '#8884d8');
+
+        // Cálculo de Volume Acumulado
+        // Conta leads que estão nesta etapa OU em etapas posteriores (funil acumulado)
+        // EXCLUI leads que estão na etapa "Perdido" ou superior (fora do funil de sucesso)
+        const volume = leads.filter(l => 
+          l.posicao_pipeline >= position && l.posicao_pipeline < lostPosition
+        ).length;
+
         let conversionRate = 100;
         let dropOffRate = 0;
         let previousVolume = 0;
 
+        // Se não é a primeira etapa, calcula conversão baseada na anterior
         if (index > 0) {
-          const prevStage = funnelStages[index - 1];
-          previousVolume = leads.filter(l => l.posicao_pipeline >= prevStage.posicao_ordem).length;
+          // Precisamos pegar o volume da etapa anterior JÁ CALCULADO para ser consistente
+          // Porém, como estamos dentro do map, não temos acesso fácil ao array sendo construído.
+          // Recalculamos o volume da etapa anterior:
+          const prevStageName = SALES_FUNNEL_STAGES[index - 1];
+          const prevDbStage = allStages.find(s => s.nome.toLowerCase() === prevStageName.toLowerCase());
+          const prevPosition = prevDbStage ? prevDbStage.posicao_ordem : index;
+          
+          previousVolume = leads.filter(l => 
+            l.posicao_pipeline >= prevPosition && l.posicao_pipeline < lostPosition
+          ).length;
+
           conversionRate = previousVolume > 0 ? (volume / previousVolume) * 100 : 0;
           dropOffRate = 100 - conversionRate;
         }
 
         return {
-          etapa: stage.nome,
+          etapa: stageName,
           quantidade: volume,
           conversionRate: conversionRate.toFixed(1),
           dropOffRate: dropOffRate.toFixed(1),
-          fill: stage.cor,
+          fill: color,
           previousVolume
         };
       });
 
-      // Conversão Geral (Topo -> Fundo do Funil de Vendas)
+      // Conversão Geral (Topo -> Fundo)
       const topOfFunnel = funnelData[0]?.quantidade || 0;
       const bottomOfFunnel = funnelData[funnelData.length - 1]?.quantidade || 0;
       const overallConversion = topOfFunnel > 0 ? ((bottomOfFunnel / topOfFunnel) * 100).toFixed(1) : "0";
 
-      // 4. Cálculos de KPIs Gerais
+      // 4. KPIs Gerais
       const convertedStagePosition = allStages.find(s => s.nome.toLowerCase().includes('fechado') || s.nome.toLowerCase().includes('contrato'))?.posicao_ordem || 6;
       const convertedLeads = leads.filter(l => l.posicao_pipeline === convertedStagePosition);
       const kpiConversionRate = leads.length > 0 ? (convertedLeads.length / leads.length) * 100 : 0;
@@ -182,7 +206,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         ? convertedLeads.reduce((sum, lead) => differenceInDays(new Date(lead.atualizado_em), new Date(lead.criado_em)), 0) / convertedLeads.length
         : 0;
 
-      // 5. Gráficos - Evolução Diária
+      // 5. Gráficos Diários
       const leadsCapturedData = daysInInterval.map(day => {
         const dayStr = format(day, 'yyyy-MM-dd');
         return {
@@ -200,7 +224,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         };
       });
 
-      // 6. Gráficos - Distribuição
+      // 6. Distribuição
       const sourceCount = leads.reduce((acc, l) => {
         const key = l.origem || 'Desconhecida';
         acc[key] = (acc[key] || 0) + 1;
@@ -217,7 +241,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
       const metodosPagamentoData = Object.entries(metodosCount).map(([name, value]) => ({ name, value }));
 
-      // 7. Marketing e Performance de Criativos
+      // 7. Marketing
       const creativeStats = leads.reduce((acc, lead) => {
         if (!lead.criativo_id) return acc;
         const c = criativosMap.get(lead.criativo_id);
@@ -250,8 +274,6 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         avgTicket: item.converted > 0 ? item.value / item.converted : 0,
       }));
 
-      const bestSourceSorted = [...sourceData].sort((a, b) => b.leads - a.leads);
-
       return {
         kpis: {
           totalLeads: leads.length,
@@ -269,7 +291,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         funnel: { 
           funnelData,
           overallConversion,
-          detailedSteps: funnelData // Passa os dados detalhados
+          detailedSteps: funnelData
         },
         financial: { 
           totalFaturado, 
@@ -307,7 +329,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
           kpis: { 
             totalMarketingLeads: leads.filter(l => l.criativo_id).length, 
             bestCreative: topCreativesData[0] || null, 
-            bestSource: bestSourceSorted[0] || null 
+            bestSource: sourceData.sort((a, b) => b.leads - a.leads)[0] || null 
           },
           performanceTable,
           charts: { 
