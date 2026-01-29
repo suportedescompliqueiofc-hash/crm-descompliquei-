@@ -77,7 +77,7 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
     <Link
       to={`/conversas/${conversation.id}`}
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg transition-colors cursor-pointer border border-transparent group",
+        "flex gap-3 p-3 rounded-lg transition-colors cursor-pointer border border-transparent group relative items-center",
         isActive ? "bg-muted border-border" : "hover:bg-muted/50"
       )}
     >
@@ -87,12 +87,12 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
         </AvatarFallback>
       </Avatar>
       
-      {/* Container principal: min-w-0 é crucial para o truncate funcionar dentro do flex */}
+      {/* Container Principal de Texto */}
       <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
         
-        {/* Linha 1: Nome + Tags (Esquerda) e Horário (Direita) */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-2">
+        {/* Linha Superior: Nome e Horário */}
+        <div className="flex justify-between items-baseline w-full">
+          <div className="flex items-center gap-1.5 min-w-0 pr-2">
             <span className="font-semibold text-sm truncate text-foreground block">
               {conversation.nome || conversation.telefone}
             </span>
@@ -117,13 +117,13 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             )}
           </div>
           
-          <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap">
+          <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap ml-auto">
             {lastMessageTime}
           </span>
         </div>
 
-        {/* Linha 2: Prévia da Mensagem */}
-        <div className="flex items-center justify-between gap-2">
+        {/* Linha Inferior: Prévia da Mensagem */}
+        <div className="flex items-center justify-between gap-2 w-full">
           <div className="text-xs text-muted-foreground truncate flex-1 min-w-0">
             <MessagePreview 
               content={conversation.last_message_content} 
