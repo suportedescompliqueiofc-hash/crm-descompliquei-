@@ -212,7 +212,8 @@ export function useQuickMessages() {
         url_midia: url_midia,
         titulo_pdf: message.tipo === 'pdf' ? message.titulo : null,
         telefone: phone,
-        user_id: user.id
+        user_id: user.id,
+        remetente: 'bot' // Define explicitamente como bot para o backend
       };
 
       const response = await fetch(WEBHOOK_URL, {
@@ -245,7 +246,7 @@ export function useQuickMessages() {
         user_id: user.id,
         conteudo: message.conteudo || '',
         direcao: 'saida',
-        remetente: 'agente',
+        remetente: 'bot', // Define como bot no frontend para exibir o robô
         tipo_conteudo: message.tipo,
         criado_em: new Date().toISOString(),
         media_path: message.arquivo_path,
@@ -260,8 +261,6 @@ export function useQuickMessages() {
         if (message.tipo === 'imagem') fileType = 'imagem';
         else if (message.tipo === 'video') fileType = 'video';
         else if (message.tipo === 'audio') fileType = 'audio';
-        // Se for PDF, o componente geralmente espera 'arquivo' ou verifica extensão, 
-        // mas vamos garantir que passe algo compatível. Usando 'any' para aceitar 'pdf' se necessário
         const finalType = message.tipo === 'pdf' ? 'pdf' : fileType;
 
         optimisticMessage.message_attachments = [{
@@ -288,9 +287,6 @@ export function useQuickMessages() {
     onSuccess: () => {
       toast.success('Mensagem enviada!');
     },
-    // IMPORTANTE: onSettled REMOVIDO para evitar que a mensagem suma do front.
-    // A atualização da lista virá via Realtime (useConversations.ts), que invalidará o cache
-    // no momento correto em que a mensagem for inserida no banco de dados.
   });
 
   const updateMessagesOrder = useMutation({
