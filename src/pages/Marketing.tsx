@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy } from "lucide-react";
+import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreativeCard } from "@/components/marketing/CreativeCard";
-import { useMarketing } from "@/hooks/useMarketing";
+import { useMarketing, MetaMetrics } from "@/hooks/useMarketing";
 import { useReports } from "@/hooks/useReports";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -15,17 +15,20 @@ import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Toolti
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MetaImportModal } from "@/components/marketing/MetaImportModal";
+import { toast } from "sonner";
 
 export default function Marketing() {
   const today = new Date();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: startOfMonth(today), to: endOfMonth(today) });
   
-  const { criativos, isLoading: isLoadingCreatives, atualizarNomeCriativo, deletarCriativo } = useMarketing(dateRange);
+  const { criativos, isLoading: isLoadingCreatives, atualizarNomeCriativo, deletarCriativo, atualizarMetricasCriativo } = useMarketing(dateRange);
   const { reports, isLoading: isLoadingReports } = useReports(dateRange);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("creatives");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const criativosFiltrados = (criativos || []).filter(c => {
     const search = searchTerm.toLowerCase();
@@ -43,6 +46,21 @@ export default function Marketing() {
     }
   };
 
+  const handleMetricsImport = async (data: { id: string; metrics: MetaMetrics }[]) => {
+    let successCount = 0;
+    for (const item of data) {
+      try {
+        await atualizarMetricasCriativo({ id: item.id, metrics: item.metrics });
+        successCount++;
+      } catch (e) {
+        console.error("Falha ao atualizar métricas:", e);
+      }
+    }
+    if (successCount > 0) {
+      toast.success(`${successCount} criativos atualizados com sucesso!`);
+    }
+  };
+
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
   const formatValue = (val: any) => {
@@ -57,7 +75,12 @@ export default function Marketing() {
           <h1 className="text-3xl font-bold tracking-tight">Marketing</h1>
           <p className="text-muted-foreground mt-1">Gerencie seus criativos e acompanhe resultados.</p>
         </div>
-        <DateRangePicker date={dateRange} setDate={setDateRange} />
+        <div className="flex gap-2 items-center">
+          <DateRangePicker date={dateRange} setDate={setDateRange} />
+          <Button variant="outline" className="gap-2" onClick={() => setIsImportModalOpen(true)}>
+            <Upload className="h-4 w-4" /> Importar CSV Meta
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
@@ -196,6 +219,13 @@ export default function Marketing() {
           )}
         </TabsContent>
       </Tabs>
+
+      <MetaImportModal 
+        open={isImportModalOpen} 
+        onOpenChange={setIsImportModalOpen} 
+        criativos={criativos || []} 
+        onImport={handleMetricsImport} 
+      />
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>

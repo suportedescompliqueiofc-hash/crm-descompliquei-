@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ExternalLink, Save, Users, DollarSign, Target, Calendar, TrendingUp, CreditCard } from "lucide-react";
+import { ExternalLink, Save, Users, DollarSign, Target, Calendar, TrendingUp, CreditCard, BarChart2, MousePointerClick, Eye } from "lucide-react";
 import { Criativo } from "@/hooks/useMarketing";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -31,6 +31,7 @@ export function CreativeDetailsModal({ open, onOpenChange, criativo, onEditName 
   };
 
   const stats = criativo.stats || { contagem_leads: 0, contagem_vendas: 0, faturamento: 0 };
+  const metaMetrics = criativo.platform_metrics;
   
   const taxaConversao = stats.contagem_leads > 0 
     ? ((stats.contagem_vendas / stats.contagem_leads) * 100).toFixed(1) 
@@ -43,9 +44,11 @@ export function CreativeDetailsModal({ open, onOpenChange, criativo, onEditName 
   const formatCurrency = (value: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
 
+  const formatMoney = (value: number) => value.toFixed(2).replace('.', ',');
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Detalhes do Anúncio
@@ -108,12 +111,62 @@ export function CreativeDetailsModal({ open, onOpenChange, criativo, onEditName 
             </div>
           </div>
 
+          {/* Seção de Métricas do Meta (Novo) */}
+          {metaMetrics && metaMetrics.spend > 0 && (
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm flex items-center gap-2">
+                <BarChart2 className="h-4 w-4 text-blue-600" /> Métricas da Plataforma (Meta Ads)
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground uppercase font-bold">Valor Usado</span>
+                  <div className="text-xl font-bold text-foreground">R$ {formatMoney(metaMetrics.spend)}</div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground uppercase font-bold">Impressões</span>
+                  <div className="text-xl font-bold text-foreground flex items-center gap-2">
+                    {metaMetrics.impressions.toLocaleString('pt-BR')} 
+                    <Eye className="h-4 w-4 text-muted-foreground opacity-50" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground uppercase font-bold">Cliques (Link)</span>
+                  <div className="text-xl font-bold text-foreground flex items-center gap-2">
+                    {metaMetrics.clicks.toLocaleString('pt-BR')}
+                    <MousePointerClick className="h-4 w-4 text-muted-foreground opacity-50" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground uppercase font-bold">CTR</span>
+                  <div className="text-xl font-bold text-blue-600">{metaMetrics.ctr.toFixed(2)}%</div>
+                </div>
+                
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground uppercase font-bold">CPC (Custo/Clique)</span>
+                  <div className="text-base font-medium">R$ {formatMoney(metaMetrics.cpc)}</div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground uppercase font-bold">Alcance</span>
+                  <div className="text-base font-medium">{metaMetrics.reach.toLocaleString('pt-BR')}</div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground uppercase font-bold">Resultados</span>
+                  <div className="text-base font-medium">{metaMetrics.results}</div>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground uppercase font-bold">Custo/Resultado</span>
+                  <div className="text-base font-bold text-amber-600">R$ {formatMoney(metaMetrics.cost_per_result)}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <Separator />
 
-          {/* Stats Section */}
+          {/* Stats Section (CRM) */}
           <div className="space-y-3">
             <h4 className="font-semibold text-sm flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" /> Performance Financeira
+              <TrendingUp className="h-4 w-4 text-primary" /> Performance CRM (Interno)
             </h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {/* Card Leads */}
@@ -144,7 +197,7 @@ export function CreativeDetailsModal({ open, onOpenChange, criativo, onEditName 
                 </div>
               </div>
 
-              {/* Card Faturamento (Agora estilo padrão e menor) */}
+              {/* Card Faturamento */}
               <div className="border rounded-lg p-4 bg-card flex flex-col justify-between hover:border-primary/50 transition-colors">
                 <div className="flex items-center gap-2 text-muted-foreground mb-2">
                   <DollarSign className="h-4 w-4 text-primary" />
@@ -156,7 +209,7 @@ export function CreativeDetailsModal({ open, onOpenChange, criativo, onEditName 
                 </div>
               </div>
 
-              {/* Card Ticket Médio (Separado) */}
+              {/* Card Ticket Médio */}
               <div className="border rounded-lg p-4 bg-card flex flex-col justify-between hover:border-blue-500/50 transition-colors">
                 <div className="flex items-center gap-2 text-muted-foreground mb-2">
                   <CreditCard className="h-4 w-4 text-blue-600" />

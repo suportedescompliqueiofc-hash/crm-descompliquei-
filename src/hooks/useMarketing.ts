@@ -7,6 +7,18 @@ import { DateRange } from 'react-day-picker';
 import { startOfDay, endOfDay } from 'date-fns';
 import { useEffect } from 'react';
 
+export interface MetaMetrics {
+  spend: number;          // Valor usado (BRL)
+  impressions: number;    // Impressões
+  clicks: number;         // Cliques no link
+  ctr: number;            // CTR (taxa de cliques no link)
+  cpc: number;            // CPC (custo por clique no link)
+  reach: number;          // Alcance
+  results: number;        // Resultados
+  cost_per_result: number;// Custo por resultados
+  updated_at?: string;
+}
+
 export interface Criativo {
   id: string;
   organization_id: string;
@@ -18,6 +30,7 @@ export interface Criativo {
   plataforma: string | null;
   aplicativo: string | null;
   criado_em: string;
+  platform_metrics?: MetaMetrics; // Nova coluna JSONB
   stats?: {
     contagem_leads: number;
     contagem_vendas: number;
@@ -37,15 +50,12 @@ export function useMarketing(dateRange?: DateRange) {
 
     const channel = supabase
       .channel('marketing_realtime')
-      // Se novos criativos forem criados (via integração/webhook)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'criativos' }, () => {
         queryClient.invalidateQueries({ queryKey: ['criativos'] });
       })
-      // Se novos leads chegarem, as estatísticas dos criativos mudam
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
         queryClient.invalidateQueries({ queryKey: ['criativos'] });
       })
-      // Se novas vendas ocorrerem, o faturamento do criativo muda
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vendas' }, () => {
         queryClient.invalidateQueries({ queryKey: ['criativos'] });
       })
@@ -74,6 +84,8 @@ export function useMarketing(dateRange?: DateRange) {
         .order('criado_em', { ascending: false });
 
       if (startDate && endDate) {
+        // Nota: A filtragem de data aqui é sobre a criação do registro no banco.
+        // Se quisermos filtrar visualização por data do CSV, faríamos no front, mas o banco traz tudo.
         query = query.gte('criado_em', startDate).lte('criado_em', endDate);
       }
 
@@ -145,6 +157,20 @@ export function useMarketing(dateRange?: DateRange) {
     onError: (err: any) => toast.error(`Erro: ${err.message}`),
   });
 
+  const atualizarMetricasCriativo = useMutation({
+    mutationFn: async ({ id, metrics }: { id: string; metrics: MetaMetrics }) => {
+      const { error } = await supabase
+        .from('criativos')
+        .update({ platform_metrics: metrics as any })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['criativos', orgId] });
+    },
+    onError: (err: any) => toast.error(`Erro ao salvar métricas: ${err.message}`),
+  });
+
   const deletarCriativo = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -164,6 +190,7 @@ export function useMarketing(dateRange?: DateRange) {
     criativos,
     isLoading,
     atualizarNomeCriativo: atualizarNomeCriativo.mutate,
+    atualizarMetricasCriativo: atualizarMetricasCriativo.mutate,
     deletarCriativo: deletarCriativo.mutate,
   };
 }
