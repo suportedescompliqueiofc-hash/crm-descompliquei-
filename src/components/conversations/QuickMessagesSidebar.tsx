@@ -45,7 +45,7 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
 
   if (!lead) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-4 text-center text-muted-foreground bg-muted/10 border-l">
+      <div className="h-full flex flex-col items-center justify-center p-4 text-center text-muted-foreground bg-muted/10 border-l w-80 flex-shrink-0">
         <Zap className="h-12 w-12 mb-2 opacity-20" />
         <p className="text-sm">Selecione uma conversa para enviar mensagens rápidas.</p>
       </div>
