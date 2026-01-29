@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy, Upload, Facebook, Eye, MousePointerClick, Edit2, Trash2 } from "lucide-react";
+import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy, Upload, Facebook, Eye, MousePointerClick, Edit2, Trash2, Link as LinkIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,13 +18,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MetaImportModal } from "@/components/marketing/MetaImportModal";
 import { CreativeDetailsModal } from "@/components/marketing/CreativeDetailsModal";
+import { AssociateCreativeModal } from "@/components/marketing/AssociateCreativeModal";
 import { toast } from "sonner";
 
 export default function Marketing() {
   const today = new Date();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: startOfMonth(today), to: endOfMonth(today) });
   
-  const { criativos, isLoading: isLoadingCreatives, atualizarNomeCriativo, deletarCriativo, atualizarMetricasCriativo } = useMarketing(dateRange);
+  const { criativos, isLoading: isLoadingCreatives, atualizarNomeCriativo, deletarCriativo, atualizarMetricasCriativo, associarCriativo } = useMarketing(dateRange);
   const { reports, isLoading: isLoadingReports } = useReports(dateRange);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -32,19 +33,16 @@ export default function Marketing() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   
-  // Estado para edição na tabela
+  // Estado para edição e associação
   const [selectedCampaign, setSelectedCampaign] = useState<Criativo | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isAssociateModalOpen, setIsAssociateModalOpen] = useState(false);
+  const [creativeToAssociate, setCreativeToAssociate] = useState<Criativo | null>(null);
 
   // --- LÓGICA DE SEPARAÇÃO ---
-  
-  // 1. Campanhas Meta: Têm métricas e gasto > 0 (Importadas)
   const campanhasMeta = (criativos || []).filter(c => c.platform_metrics && c.platform_metrics.spend > 0);
-
-  // 2. Criativos Visuais (Assets): NÃO têm métricas ou gasto é 0 (Manuais/WhatsApp)
   const criativosAssets = (criativos || []).filter(c => !c.platform_metrics || c.platform_metrics.spend === 0);
 
-  // Filtro de busca aplicado APENAS à lista de assets visuais
   const criativosFiltrados = criativosAssets.filter(c => {
     const search = searchTerm.toLowerCase();
     return (
@@ -64,6 +62,17 @@ export default function Marketing() {
   const handleEditClick = (campaign: Criativo) => {
     setSelectedCampaign(campaign);
     setIsDetailsModalOpen(true);
+  };
+
+  const handleAssociateClick = (campaign: Criativo) => {
+    setCreativeToAssociate(campaign);
+    setIsAssociateModalOpen(true);
+  };
+
+  const handleAssociateConfirm = (targetId: string) => {
+    if (creativeToAssociate) {
+      associarCriativo({ sourceId: creativeToAssociate.id, targetId });
+    }
   };
 
   const handleMetricsImport = async (data: { id: string; metrics: MetaMetrics }[]) => {
@@ -119,7 +128,7 @@ export default function Marketing() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <TabsList>
             <TabsTrigger value="meta" className="gap-2"><Facebook className="h-4 w-4" /> Campanhas Meta</TabsTrigger>
-            <TabsTrigger value="creatives" className="gap-2"><Megaphone className="h-4 w-4" /> Criativos</TabsTrigger>
+            <TabsTrigger value="creatives" className="gap-2"><Megaphone className="h-4 w-4" /> Criativos (WhatsApp)</TabsTrigger>
             <TabsTrigger value="reports" className="gap-2"><BarChart2 className="h-4 w-4" /> Performance Geral</TabsTrigger>
           </TabsList>
           
@@ -176,7 +185,7 @@ export default function Marketing() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[250px]">Campanha / Criativo</TableHead>
+                        <TableHead className="w-[280px]">Campanha / Criativo</TableHead>
                         <TableHead className="text-center w-[120px]">Início</TableHead>
                         <TableHead className="text-center w-[120px]">Término</TableHead>
                         <TableHead className="text-right">Valor Usado</TableHead>
@@ -186,7 +195,7 @@ export default function Marketing() {
                         <TableHead className="text-right">Impressões</TableHead>
                         <TableHead className="text-right">CTR</TableHead>
                         <TableHead className="text-right">CPC</TableHead>
-                        <TableHead className="text-right w-[100px]">Ações</TableHead>
+                        <TableHead className="text-right w-[140px]">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -233,6 +242,15 @@ export default function Marketing() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" 
+                                  onClick={() => handleAssociateClick(campanha)} 
+                                  title="Associar a Criativo do CRM"
+                                >
+                                  <LinkIcon className="h-4 w-4" />
+                                </Button>
                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClick(campanha)} title="Editar">
                                   <Edit2 className="h-4 w-4" />
                                 </Button>
@@ -253,6 +271,7 @@ export default function Marketing() {
         </TabsContent>
 
         <TabsContent value="creatives" className="space-y-6">
+          {/* ... (mantido igual) ... */}
           {isLoadingCreatives ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-80 w-full rounded-lg" />)}
@@ -275,6 +294,7 @@ export default function Marketing() {
         </TabsContent>
 
         <TabsContent value="reports" className="space-y-6">
+          {/* ... (mantido igual) ... */}
           {isLoadingReports ? (
              <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
           ) : (
@@ -383,6 +403,16 @@ export default function Marketing() {
           onOpenChange={setIsDetailsModalOpen}
           criativo={selectedCampaign}
           onEditName={atualizarNomeCriativo}
+        />
+      )}
+
+      {creativeToAssociate && (
+        <AssociateCreativeModal
+          open={isAssociateModalOpen}
+          onOpenChange={setIsAssociateModalOpen}
+          sourceCreative={creativeToAssociate}
+          availableCreatives={criativosAssets} // Passa apenas os criativos internos/manuais como opção de destino
+          onConfirm={handleAssociateConfirm}
         />
       )}
 

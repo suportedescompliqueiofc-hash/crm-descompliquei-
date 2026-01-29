@@ -86,8 +86,6 @@ export function useMarketing(dateRange?: DateRange) {
         .order('criado_em', { ascending: false });
 
       if (startDate && endDate) {
-        // Nota: A filtragem de data aqui é sobre a criação do registro no banco.
-        // Se quisermos filtrar visualização por data do CSV, faríamos no front, mas o banco traz tudo.
         query = query.gte('criado_em', startDate).lte('criado_em', endDate);
       }
 
@@ -213,12 +211,59 @@ export function useMarketing(dateRange?: DateRange) {
     onError: (err: any) => toast.error(`Erro: ${err.message}`),
   });
 
+  const associarCriativo = useMutation({
+    mutationFn: async ({ sourceId, targetId }: { sourceId: string; targetId: string }) => {
+      if (!user || !orgId) throw new Error("Usuário não autenticado");
+
+      // 1. Obter métricas do Source
+      const { data: sourceData, error: sourceError } = await supabase
+        .from('criativos')
+        .select('platform_metrics')
+        .eq('id', sourceId)
+        .single();
+
+      if (sourceError || !sourceData) throw new Error("Erro ao buscar dados do criativo de origem.");
+
+      // 2. Atualizar métricas no Target
+      const { error: updateTargetError } = await supabase
+        .from('criativos')
+        .update({ platform_metrics: sourceData.platform_metrics })
+        .eq('id', targetId);
+
+      if (updateTargetError) throw new Error("Erro ao atualizar o criativo de destino.");
+
+      // 3. Mover leads do Source para o Target (caso existam)
+      const { error: updateLeadsError } = await supabase
+        .from('leads')
+        .update({ criativo_id: targetId })
+        .eq('criativo_id', sourceId);
+
+      if (updateLeadsError) throw new Error("Erro ao reatribuir leads.");
+
+      // 4. Deletar o Source (já que foi mesclado)
+      const { error: deleteSourceError } = await supabase
+        .from('criativos')
+        .delete()
+        .eq('id', sourceId);
+
+      if (deleteSourceError) throw new Error("Erro ao remover o criativo original.");
+
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['criativos', orgId] });
+      toast.success('Criativos associados e unificados com sucesso!');
+    },
+    onError: (err: any) => toast.error(`Erro na associação: ${err.message}`),
+  });
+
   return {
     criativos,
     isLoading,
-    createCriativo: createCriativo.mutateAsync, // Expondo como Async para usar await no modal
+    createCriativo: createCriativo.mutateAsync,
     atualizarNomeCriativo: atualizarNomeCriativo.mutate,
     atualizarMetricasCriativo: atualizarMetricasCriativo.mutate,
     deletarCriativo: deletarCriativo.mutate,
+    associarCriativo: associarCriativo.mutate, // Nova função exportada
   };
 }
