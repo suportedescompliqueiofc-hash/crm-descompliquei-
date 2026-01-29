@@ -1,11 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { MessageSquare, FileText, Phone, Calendar as CalendarIcon, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { DndContext, DragEndEvent, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors, useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { 
+  DndContext, 
+  DragEndEvent, 
+  DragOverEvent, 
+  DragOverlay, 
+  DragStartEvent,
+  closestCorners, 
+  PointerSensor, 
+  useSensor, 
+  useSensors, 
+  useDroppable,
+  defaultDropAnimationSideEffects,
+  DropAnimation
+} from "@dnd-kit/core";
+import { 
+  SortableContext, 
+  verticalListSortingStrategy,
+  arrayMove
+} from "@dnd-kit/sortable";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { LeadModal } from "@/components/leads/LeadModal";
@@ -19,15 +36,46 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 
-function StageColumn({ stage, leads, onCardClick, onUpdateLead }: { stage: { id: number; nome: string; cor: string; }; leads: Lead[]; onCardClick: (lead: Lead) => void; onUpdateLead: (leadId: string, updates: Partial<Lead>) => void }) {
-  const { setNodeRef } = useDroppable({
+// Configuração de animação para tornar o drop mais suave
+const dropAnimation: DropAnimation = {
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: {
+      active: {
+        opacity: '0.5',
+      },
+    },
+  }),
+};
+
+function StageColumn({ 
+  stage, 
+  leads, 
+  onCardClick, 
+  onUpdateLead 
+}: { 
+  stage: { id: number; nome: string; cor: string; }; 
+  leads: Lead[]; 
+  onCardClick: (lead: Lead) => void; 
+  onUpdateLead: (leadId: string, updates: Partial<Lead>) => void 
+}) {
+  const { setNodeRef, isOver } = useDroppable({
     id: `stage-${stage.id}`,
+    data: {
+      type: 'Column',
+      stageId: stage.id
+    }
   });
 
   return (
-    <div className="w-80 flex-shrink-0">
-      <Card className="h-full shadow-sm bg-muted/50">
-        <CardHeader className={`bg-card rounded-t-lg border-l-4`} style={{ borderColor: stage.cor }}>
+    <div className="w-80 flex-shrink-0 flex flex-col h-full">
+      <Card className={cn(
+        "h-full shadow-sm transition-colors duration-200 flex flex-col",
+        isOver ? "bg-muted/80 ring-2 ring-primary/20" : "bg-muted/50"
+      )}>
+        <CardHeader 
+          className="bg-card rounded-t-lg border-l-4 flex-shrink-0" 
+          style={{ borderColor: stage.cor }}
+        >
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">{stage.nome}</CardTitle>
             <Badge variant="secondary">
@@ -35,12 +83,12 @@ function StageColumn({ stage, leads, onCardClick, onUpdateLead }: { stage: { id:
             </Badge>
           </div>
         </CardHeader>
-        <CardContent 
+        <div 
           ref={setNodeRef}
-          className="p-4 space-y-3 min-h-[200px] max-h-[calc(100vh-300px)] overflow-y-auto"
+          className="flex-1 p-2 space-y-3 overflow-y-auto min-h-[150px]"
         >
           <SortableContext 
-            items={leads.map(l => l.id.toString())}
+            items={leads.map(l => l.id)}
             strategy={verticalListSortingStrategy}
           >
             {leads.map(lead => (
@@ -52,22 +100,44 @@ function StageColumn({ stage, leads, onCardClick, onUpdateLead }: { stage: { id:
               />
             ))}
           </SortableContext>
-        </CardContent>
+        </div>
       </Card>
     </div>
   );
 }
 
-function LeadCard({ lead, onClick, onUpdateLead }: { lead: Lead; onClick: () => void; onUpdateLead: (leadId: string, updates: Partial<Lead>) => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
-    id: lead.id.toString() 
+function LeadCard({ 
+  lead, 
+  onClick, 
+  onUpdateLead,
+  isOverlay = false 
+}: { 
+  lead: Lead; 
+  onClick?: () => void; 
+  onUpdateLead?: (leadId: string, updates: Partial<Lead>) => void;
+  isOverlay?: boolean;
+}) {
+  const { 
+    attributes, 
+    listeners, 
+    setNodeRef, 
+    transform, 
+    transition, 
+    isDragging 
+  } = useSortable({ 
+    id: lead.id,
+    data: {
+      type: 'Lead',
+      lead
+    }
   });
+
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Translate.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.3 : 1,
   };
   
   const lastContactTime = lead.ultimo_contato 
@@ -76,13 +146,14 @@ function LeadCard({ lead, onClick, onUpdateLead }: { lead: Lead; onClick: () => 
 
   const handleDateSelect = (date: Date | undefined) => {
     setIsCalendarOpen(false);
-    if (date) {
-        // Ajusta para o meio do dia para evitar problemas de fuso horário ao salvar apenas a data
-        const adjustedDate = new Date(date);
-        adjustedDate.setHours(12, 0, 0, 0);
-        onUpdateLead(lead.id, { agendamento: adjustedDate.toISOString() });
-    } else {
-        onUpdateLead(lead.id, { agendamento: null as any }); // Remove o agendamento
+    if (onUpdateLead) {
+      if (date) {
+          const adjustedDate = new Date(date);
+          adjustedDate.setHours(12, 0, 0, 0);
+          onUpdateLead(lead.id, { agendamento: adjustedDate.toISOString() });
+      } else {
+          onUpdateLead(lead.id, { agendamento: null as any });
+      }
     }
   };
 
@@ -105,15 +176,48 @@ function LeadCard({ lead, onClick, onUpdateLead }: { lead: Lead; onClick: () => 
     );
   };
 
+  // Se for o overlay, renderiza um card "limpo" sem listeners de drag para evitar conflitos
+  if (isOverlay) {
+    return (
+      <Card className="shadow-xl cursor-grabbing bg-card ring-2 ring-primary/50 rotate-2 scale-105">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0 pr-2">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <p className="font-semibold text-foreground truncate">{lead.nome}</p>
+                {getScheduleBadge()}
+              </div>
+              <p className="text-xs text-muted-foreground">{lead.telefone}</p>
+            </div>
+            <Avatar className="h-8 w-8 flex-shrink-0">
+              <AvatarFallback className="bg-accent text-accent-foreground text-xs">
+                {lead.nome?.split(' ').map(n => n[0]).join('')}
+              </AvatarFallback>
+            </Avatar>
+          </div>
+          <p className="text-sm text-foreground line-clamp-2 min-h-[40px]">
+            {lead.resumo || <span className="text-muted-foreground italic">Nenhum resumo disponível.</span>}
+          </p>
+          <div className="flex items-center justify-between pt-2 border-t">
+            <Badge variant="outline" className="text-xs font-normal max-w-[120px] truncate">
+              {lead.origem || 'Sem origem'}
+            </Badge>
+            <div className="flex items-center gap-2">
+               <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span className="font-medium text-sm text-muted-foreground">{lastContactTime}</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-    >
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <Card 
-        className="shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing bg-card"
+        className="shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing bg-card group"
         onClick={onClick}
       >
         <CardContent className="p-4 space-y-3">
@@ -197,52 +301,122 @@ export default function Pipeline() {
   
   const { leads, isLoading: leadsLoading, updateLead } = useLeads(dateRange);
   const { stages, isLoading: stagesLoading } = useStages();
-  const [activeId, setActiveId] = useState<string | null>(null);
+  
+  // Estado local otimista para UI fluida
+  const [optimisticLeads, setOptimisticLeads] = useState<Lead[]>([]);
+  const [activeLead, setActiveLead] = useState<Lead | null>(null);
+  
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Sincroniza o estado local com o backend quando os dados chegam
+  useEffect(() => {
+    if (leads) {
+      setOptimisticLeads(leads);
+    }
+  }, [leads]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5, // Reduzi para 5px para ser mais responsivo
       },
     })
   );
 
-  const handleDragStart = (event: DragEndEvent) => {
-    setActiveId(event.active.id as string);
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const lead = optimisticLeads.find(l => l.id === active.id);
+    if (lead) setActiveLead(lead);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = active.id;
+    const overId = over.id;
+
+    // Se estiver arrastando sobre o mesmo item, não faz nada
+    if (activeId === overId) return;
+
+    const isActiveALead = active.data.current?.type === 'Lead';
+    const isOverALead = over.data.current?.type === 'Lead';
+    const isOverAColumn = over.data.current?.type === 'Column';
+
+    if (!isActiveALead) return;
+
+    // Cenário 1: Arrastando sobre outro Lead (Reordenação ou mudança de coluna)
+    if (isActiveALead && isOverALead) {
+      setOptimisticLeads((leads) => {
+        const activeIndex = leads.findIndex((l) => l.id === activeId);
+        const overIndex = leads.findIndex((l) => l.id === overId);
+        
+        if (leads[activeIndex].etapa_id !== leads[overIndex].etapa_id) {
+          // Mudou de coluna: Atualiza o etapa_id imediatamente para "snapar" visualmente
+          const newLeads = [...leads];
+          newLeads[activeIndex] = {
+            ...newLeads[activeIndex],
+            etapa_id: leads[overIndex].etapa_id
+          };
+          return arrayMove(newLeads, activeIndex, overIndex);
+        }
+        
+        // Mesma coluna: Apenas reordena
+        return arrayMove(leads, activeIndex, overIndex);
+      });
+    }
+
+    // Cenário 2: Arrastando sobre uma Coluna vazia ou área da coluna
+    if (isActiveALead && isOverAColumn) {
+      setOptimisticLeads((leads) => {
+        const activeIndex = leads.findIndex((l) => l.id === activeId);
+        const newStageId = over.data.current?.stageId;
+
+        // Se já estiver na etapa certa, não faz nada
+        if (leads[activeIndex].etapa_id === newStageId) return leads;
+
+        // Move para a nova coluna
+        const newLeads = [...leads];
+        newLeads[activeIndex] = {
+          ...newLeads[activeIndex],
+          etapa_id: newStageId
+        };
+        return arrayMove(newLeads, activeIndex, activeIndex); // Mantém posição relativa mas muda dados
+      });
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    setActiveId(null);
+    setActiveLead(null);
 
-    if (!over || !active) {
-      return;
-    }
+    if (!over) return;
 
     const leadId = active.id as string;
+    const currentLead = optimisticLeads.find(l => l.id === leadId);
     
-    const overContainerId = (over.id as string).startsWith('stage-')
-      ? (over.id as string)
-      : over.data.current?.sortable?.containerId;
+    // Identificar a nova etapa
+    let newStageId: number | undefined;
 
-    if (!overContainerId) {
-      return;
+    if (over.data.current?.type === 'Column') {
+      newStageId = over.data.current.stageId;
+    } else if (over.data.current?.type === 'Lead') {
+      const overLead = optimisticLeads.find(l => l.id === over.id);
+      newStageId = overLead?.etapa_id;
     }
 
-    const newStageId = parseInt(overContainerId.replace('stage-', ''), 10);
-
-    if (isNaN(newStageId)) {
-      return;
-    }
+    // Se encontrou a nova etapa e ela é diferente da original (no banco de dados)
+    // Note: usamos 'leads' original para comparar o estado inicial do banco
+    const originalLead = leads.find(l => l.id === leadId);
     
-    const lead = leads.find(l => l.id === leadId);
-    if (!lead || lead.etapa_id === newStageId) {
-      return;
+    if (newStageId && originalLead && originalLead.etapa_id !== newStageId) {
+      // Persiste a mudança
+      updateLead({ id: leadId, etapa_id: newStageId });
+    } else {
+        // Se cancelou ou caiu no mesmo lugar, reseta o estado otimista para garantir consistência
+        setOptimisticLeads(leads);
     }
-
-    updateLead({ id: leadId, etapa_id: newStageId });
   };
 
   const handleCardClick = (lead: Lead) => {
@@ -254,8 +428,6 @@ export default function Pipeline() {
     updateLead({ id: leadId, ...updates });
   };
 
-  const activeLead = activeId ? leads.find(l => l.id.toString() === activeId) : null;
-
   if (leadsLoading || stagesLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -264,14 +436,10 @@ export default function Pipeline() {
     );
   }
 
-  // Removemos a lógica de filtragem manual que ocultava agendamentos futuros.
-  // Agora, confiamos que o useLeads trará os leads corretos baseados no DateRange selecionado.
-  const visibleLeads = leads;
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 flex-shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Pipeline de Vendas</h1>
           <p className="text-muted-foreground mt-1">Visualize e gerencie seu funil</p>
@@ -281,7 +449,7 @@ export default function Pipeline() {
           <Card className="shadow-sm">
             <CardContent className="p-4">
               <p className="text-sm text-muted-foreground">Total de Leads</p>
-              <p className="text-2xl font-bold text-foreground">{visibleLeads.length}</p>
+              <p className="text-2xl font-bold text-foreground">{optimisticLeads.length}</p>
             </CardContent>
           </Card>
         </div>
@@ -292,12 +460,18 @@ export default function Pipeline() {
         sensors={sensors} 
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        measuring={{
+          droppable: {
+            strategy: 1, // AlwaysMeasureStrategy
+          }
+        }}
       >
-        <div className="overflow-x-auto pb-4">
-          <div className="flex gap-4 min-w-max">
+        <div className="overflow-x-auto pb-4 flex-1">
+          <div className="flex gap-4 min-w-max h-full pb-2 px-1">
             {stages.map((stage) => {
-              const stageLeads = visibleLeads.filter(l => l.etapa_id === stage.id);
+              const stageLeads = optimisticLeads.filter(l => l.etapa_id === stage.id);
               
               return (
                 <StageColumn 
@@ -312,27 +486,13 @@ export default function Pipeline() {
           </div>
         </div>
 
-        <DragOverlay>
-          {activeLead && (
-            <Card className="w-80 shadow-lg opacity-90">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="font-semibold text-foreground">{activeLead.nome}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{activeLead.telefone}</p>
-                  </div>
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-accent text-accent-foreground text-xs">
-                      {activeLead.nome?.split(' ').map(n => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-                <p className="text-sm text-foreground line-clamp-2">
-                  {activeLead.resumo || <span className="text-muted-foreground italic">Nenhum resumo disponível.</span>}
-                </p>
-              </CardContent>
-            </Card>
-          )}
+        <DragOverlay dropAnimation={dropAnimation}>
+          {activeLead ? (
+            <LeadCard 
+              lead={activeLead} 
+              isOverlay 
+            />
+          ) : null}
         </DragOverlay>
       </DndContext>
 
