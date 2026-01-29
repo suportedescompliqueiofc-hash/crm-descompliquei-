@@ -59,10 +59,22 @@ export default function Reports() {
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>(initialDateRange);
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({ posicao_pipeline: "Todos", origem: "Todos", genero: "Todos", idade: "", tagId: "Todos" });
+  const [originFilter, setOriginFilter] = useState("Todos"); // Estado principal para as abas de origem
+  
+  // O estado 'filters' controla apenas os filtros AVANÇADOS (dentro do modal)
+  const [filters, setFilters] = useState({ 
+    posicao_pipeline: "Todos", 
+    // origem: REMOVIDO DAQUI pois agora é controlado pelo originFilter
+    genero: "Todos", 
+    idade: "", 
+    tagId: "Todos" 
+  });
   
   const { toast } = useToast();
-  const { reports, isLoading } = useReports(dateRange, filters);
+  
+  // Passamos o originFilter combinado com os outros filtros para o hook
+  const { reports, isLoading } = useReports(dateRange, { ...filters, origem: originFilter });
+  
   const { stages } = useStages();
   const { allSources } = useLeadSources();
   const { availableTags } = useTags();
@@ -76,7 +88,7 @@ export default function Reports() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `relatorio_${dateRange?.from ? format(dateRange.from, 'yyyyMMdd') : 'custom'}.csv`);
+    link.setAttribute("download", `relatorio_${originFilter}_${dateRange?.from ? format(dateRange.from, 'yyyyMMdd') : 'custom'}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -129,13 +141,24 @@ export default function Reports() {
         </div>
       </div>
 
+      {/* Tabs Principais de Origem */}
+      <Tabs value={originFilter} onValueChange={setOriginFilter} className="w-full">
+        <div className="border-b pb-4 mb-6">
+          <TabsList className="w-full md:w-auto grid grid-cols-3 md:inline-flex">
+            <TabsTrigger value="Todos">Visão Geral</TabsTrigger>
+            <TabsTrigger value="marketing">Marketing</TabsTrigger>
+            <TabsTrigger value="organico">Orgânico</TabsTrigger>
+          </TabsList>
+        </div>
+      </Tabs>
+
       {showFilters && (
-        <Card>
+        <Card className="animate-fade-in">
           <CardHeader>
             <CardTitle className="text-lg">Filtros Avançados</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <Label>Etapa do Funil</Label>
                 <Select value={filters.posicao_pipeline} onValueChange={(v) => handleFilterChange('posicao_pipeline', v)}>
@@ -146,7 +169,7 @@ export default function Reports() {
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Origem</Label><Select value={filters.origem} onValueChange={(v) => handleFilterChange('origem', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem>{allSources.map(origem => <SelectItem key={origem} value={origem}>{origem}</SelectItem>)}</SelectContent></Select></div>
+              {/* Filtro de Origem removido daqui, pois é controlado pelas abas principais */}
               <div><Label>Gênero</Label><Select value={filters.genero} onValueChange={(v) => handleFilterChange('genero', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem><SelectItem value="M">Masculino</SelectItem><SelectItem value="F">Feminino</SelectItem><SelectItem value="Outro">Outro</SelectItem></SelectContent></Select></div>
               <div><Label>Idade</Label><Input type="number" value={filters.idade} onChange={(e) => handleFilterChange('idade', e.target.value)} placeholder="Idade exata" /></div>
               <div><Label>Etiqueta</Label><Select value={filters.tagId} onValueChange={(v) => handleFilterChange('tagId', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas as Etiquetas</SelectItem>{availableTags.map(tag => (<SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>))}</SelectContent></Select></div>
@@ -155,9 +178,10 @@ export default function Reports() {
         </Card>
       )}
 
+      {/* Conteúdo das Abas Internas (Métricas) */}
       <Tabs defaultValue="overview" className="space-y-8">
         <TabsList>
-          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+          <TabsTrigger value="overview">Resumo</TabsTrigger>
           <TabsTrigger value="funnel">Funil Real</TabsTrigger>
           <TabsTrigger value="conversions">Conversões</TabsTrigger>
           <TabsTrigger value="financial">Financeiro</TabsTrigger>
@@ -210,7 +234,7 @@ export default function Reports() {
             </Card>
 
             <Card>
-              <CardHeader><CardTitle>Leads por Origem</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Leads por Fonte</CardTitle></CardHeader>
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -220,7 +244,7 @@ export default function Reports() {
                       <YAxis 
                         dataKey="source" 
                         type="category" 
-                        width={80} 
+                        width={100} 
                         fontSize={12} 
                         tickLine={false} 
                         axisLine={false} 
@@ -243,33 +267,35 @@ export default function Reports() {
             </Card>
           </div>
 
-          <Card>
-            <CardHeader><CardTitle>Top Criativos</CardTitle></CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow><TableHead>Criativo</TableHead><TableHead>Origem</TableHead><TableHead>Leads</TableHead><TableHead>Conversão</TableHead></TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(reports?.charts?.topCreativesData || []).map((item, i) => (
-                    <TableRow key={i}>
-                      <TableCell>{item.name}</TableCell>
-                      <TableCell><Badge variant="outline">{item.origin}</Badge></TableCell>
-                      <TableCell>{item.leads}</TableCell>
-                      <TableCell>{item.conversion}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          {originFilter !== 'organico' && (
+            <Card>
+              <CardHeader><CardTitle>Top Criativos (Marketing)</CardTitle></CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow><TableHead>Criativo</TableHead><TableHead>Fonte</TableHead><TableHead>Leads</TableHead><TableHead>Conversão</TableHead></TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(reports?.charts?.topCreativesData || []).map((item, i) => (
+                      <TableRow key={i}>
+                        <TableCell>{item.name}</TableCell>
+                        <TableCell><Badge variant="outline">{item.origin}</Badge></TableCell>
+                        <TableCell>{item.leads}</TableCell>
+                        <TableCell>{item.conversion}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="funnel" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Funil de Vendas (Acumulado)</CardTitle>
-              <CardDescription>Visualização do volume de leads que passaram por cada etapa do funil principal.</CardDescription>
+              <CardTitle>Funil de Vendas ({originFilter === 'Todos' ? 'Geral' : originFilter})</CardTitle>
+              <CardDescription>Visualização do volume de leads acumulado por etapa.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[500px] w-full">
@@ -371,7 +397,7 @@ export default function Reports() {
         <TabsContent value="conversions" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <CardHeader><CardTitle>Conversões por Origem</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Conversões por Fonte</CardTitle></CardHeader>
               <CardContent>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">

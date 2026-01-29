@@ -52,25 +52,15 @@ const defaultReportData = {
   }
 };
 
-// Etapas estritas do Funil de Vendas (Ordem e Nomes Fixos)
+// Lista ESTRITA de etapas padrão para o funil (Sincronizada com o Pipeline)
 const SALES_FUNNEL_STAGES = [
-  "Novo Lead",
-  "Qualificação",
-  "Coletando Informações",
-  "Agendamento Solicitado",
-  "Agendado",
-  "Procedimento Fechado"
+  { name: "Novo Lead", color: "#94a3b8", order: 1 },
+  { name: "Qualificação", color: "#64748b", order: 2 },
+  { name: "Coletando Informações", color: "#a8a29e", order: 3 },
+  { name: "Agendamento Solicitado", color: "#C5A47E", order: 4 },
+  { name: "Agendado", color: "#4ade80", order: 5 },
+  { name: "Procedimento Fechado", color: "#15803d", order: 6 }
 ];
-
-// Cores padrão para fallback
-const STAGE_COLORS = {
-  "Novo Lead": "#94a3b8",
-  "Qualificação": "#64748b",
-  "Coletando Informações": "#a8a29e",
-  "Agendamento Solicitado": "#C5A47E",
-  "Agendado": "#4ade80",
-  "Procedimento Fechado": "#15803d"
-};
 
 export function useReports(dateRange: DateRange | undefined, filters: ReportFilters = { posicao_pipeline: "Todos", origem: "Todos", genero: "Todos", idade: "", tagId: "Todos" }) {
   const { user } = useAuth();
@@ -139,15 +129,14 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       const lostStage = allStages.find(s => s.nome.toLowerCase() === 'perdido');
       const lostPosition = lostStage?.posicao_ordem || 999;
 
-      // 3. Funil de Vendas Real (Corrigido: Mapeia sobre a lista fixa)
-      const funnelData = SALES_FUNNEL_STAGES.map((stageName, index) => {
+      // 3. Funil de Vendas Real (Padronizado com o Pipeline)
+      const funnelData = SALES_FUNNEL_STAGES.map((stdStage, index) => {
         // Tenta encontrar a etapa no banco para pegar a cor e posição real
-        const dbStage = allStages.find(s => s.nome.toLowerCase() === stageName.toLowerCase());
+        const dbStage = allStages.find(s => s.nome.toLowerCase() === stdStage.name.toLowerCase());
         
-        // Se não encontrar no banco, assume a posição baseada no index + 1 (1 a 6)
-        const position = dbStage ? dbStage.posicao_ordem : (index + 1);
-        // @ts-ignore
-        const color = dbStage ? dbStage.cor : (STAGE_COLORS[stageName] || '#8884d8');
+        // Se não encontrar no banco, assume a posição baseada no padrão
+        const position = dbStage ? dbStage.posicao_ordem : stdStage.order;
+        const color = dbStage ? dbStage.cor : stdStage.color;
 
         // Cálculo de Volume Acumulado
         // Conta leads que estão nesta etapa OU em etapas posteriores (funil acumulado)
@@ -162,12 +151,10 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
         // Se não é a primeira etapa, calcula conversão baseada na anterior
         if (index > 0) {
-          // Precisamos pegar o volume da etapa anterior JÁ CALCULADO para ser consistente
-          // Porém, como estamos dentro do map, não temos acesso fácil ao array sendo construído.
-          // Recalculamos o volume da etapa anterior:
+          // Recalculamos o volume da etapa anterior para garantir consistência
           const prevStageName = SALES_FUNNEL_STAGES[index - 1];
-          const prevDbStage = allStages.find(s => s.nome.toLowerCase() === prevStageName.toLowerCase());
-          const prevPosition = prevDbStage ? prevDbStage.posicao_ordem : index;
+          const prevDbStage = allStages.find(s => s.nome.toLowerCase() === prevStageName.name.toLowerCase());
+          const prevPosition = prevDbStage ? prevDbStage.posicao_ordem : (index);
           
           previousVolume = leads.filter(l => 
             l.posicao_pipeline >= prevPosition && l.posicao_pipeline < lostPosition
@@ -178,7 +165,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         }
 
         return {
-          etapa: stageName,
+          etapa: stdStage.name,
           quantidade: volume,
           conversionRate: conversionRate.toFixed(1),
           dropOffRate: dropOffRate.toFixed(1),
@@ -192,15 +179,22 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       const bottomOfFunnel = funnelData[funnelData.length - 1]?.quantidade || 0;
       const overallConversion = topOfFunnel > 0 ? ((bottomOfFunnel / topOfFunnel) * 100).toFixed(1) : "0";
 
-      // 4. KPIs Gerais
+      // 4. KPIs Gerais (Filtrados automaticamente pela query de leads)
       const convertedStagePosition = allStages.find(s => s.nome.toLowerCase().includes('fechado') || s.nome.toLowerCase().includes('contrato'))?.posicao_ordem || 6;
       const convertedLeads = leads.filter(l => l.posicao_pipeline === convertedStagePosition);
       const kpiConversionRate = leads.length > 0 ? (convertedLeads.length / leads.length) * 100 : 0;
       
-      const totalFaturado = vendas.reduce((sum, v) => sum + Number(v.valor_fechado), 0);
-      const totalOrcado = vendas.reduce((sum, v) => sum + Number(v.valor_orcado || v.valor_fechado), 0);
+      // Filtrar vendas para bater com o filtro de origem (caso vendas não tenha origem explícita, usamos o join com leads)
+      const filteredVendas = vendas.filter(v => {
+        if (filters.origem === 'Todos') return true;
+        // Verifica se o lead da venda tem a origem correta
+        return v.leads && v.leads.origem === filters.origem;
+      });
+
+      const totalFaturado = filteredVendas.reduce((sum, v) => sum + Number(v.valor_fechado), 0);
+      const totalOrcado = filteredVendas.reduce((sum, v) => sum + Number(v.valor_orcado || v.valor_fechado), 0);
       const taxaEficiencia = totalOrcado > 0 ? (totalFaturado / totalOrcado) * 100 : 0;
-      const ticketMedio = vendas.length > 0 ? totalFaturado / vendas.length : 0;
+      const ticketMedio = filteredVendas.length > 0 ? totalFaturado / filteredVendas.length : 0;
 
       const tempoMedioFunil = convertedLeads.length > 0
         ? convertedLeads.reduce((sum, lead) => differenceInDays(new Date(lead.atualizado_em), new Date(lead.criado_em)), 0) / convertedLeads.length
@@ -220,20 +214,20 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         const dayStr = format(day, 'yyyy-MM-dd');
         return {
           day: format(day, 'dd/MM'),
-          valor: vendas.filter(v => v.data_fechamento === dayStr).reduce((sum, v) => sum + Number(v.valor_fechado), 0)
+          valor: filteredVendas.filter(v => v.data_fechamento === dayStr).reduce((sum, v) => sum + Number(v.valor_fechado), 0)
         };
       });
 
-      // 6. Distribuição
+      // 6. Distribuição (Apenas se o filtro for 'Todos', senão mostra 100% da origem selecionada)
       const sourceCount = leads.reduce((acc, l) => {
-        const key = l.origem || 'Desconhecida';
+        const key = l.fonte || l.origem || 'Desconhecida';
         acc[key] = (acc[key] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
       
       const sourceData = Object.entries(sourceCount).map(([source, count]) => ({ source, leads: count }));
 
-      const metodosCount = vendas.reduce((acc, v) => {
+      const metodosCount = filteredVendas.reduce((acc, v) => {
         const key = v.forma_pagamento || 'Outros';
         acc[key] = (acc[key] || 0) + Number(v.valor_fechado);
         return acc;
@@ -248,7 +242,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         const name = c?.nome || c?.titulo || 'Criativo sem nome';
         if (!acc[name]) acc[name] = { name, origin: lead.origem || 'N/A', leads: 0, converted: 0, value: 0 };
         acc[name].leads++;
-        const venda = vendas.find(v => v.lead_id === lead.id);
+        const venda = filteredVendas.find(v => v.lead_id === lead.id);
         if (venda) {
           acc[name].converted++;
           acc[name].value += Number(venda.valor_fechado);
@@ -296,7 +290,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         financial: { 
           totalFaturado, 
           ticketMedio, 
-          totalVendas: vendas.length, 
+          totalVendas: filteredVendas.length, 
           taxaEficiencia,
           faturamentoPorDia, 
           metodosPagamentoData 
@@ -320,7 +314,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
                 id: l.id,
                 nome: l.nome || l.telefone,
                 atendente: 'Sistema',
-                valor: vendas.find(v => v.lead_id === l.id)?.valor_fechado || 0,
+                valor: filteredVendas.find(v => v.lead_id === l.id)?.valor_fechado || 0,
                 atualizado_em: l.atualizado_em
               }))
           }
