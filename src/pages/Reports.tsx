@@ -13,11 +13,13 @@ import {
   Target,
   CreditCard,
   BarChart2,
-  Tag
+  Tag,
+  ArrowRight,
+  ArrowDown
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, LabelList } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import { useReports } from "@/hooks/useReports";
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
@@ -154,7 +156,7 @@ export default function Reports() {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList className="bg-muted">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-          <TabsTrigger value="funnel">Funil de Vendas</TabsTrigger>
+          <TabsTrigger value="funnel">Funil de Vendas Real</TabsTrigger>
           <TabsTrigger value="conversions">Conversões</TabsTrigger>
           <TabsTrigger value="financial">Financeiro</TabsTrigger>
         </TabsList>
@@ -267,22 +269,99 @@ export default function Reports() {
         </TabsContent>
 
         <TabsContent value="funnel" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="bg-primary/5 border-primary/20">
+              <CardHeader className="pb-2">
+                <CardDescription className="text-primary font-medium">Conversão Geral do Funil</CardDescription>
+                <CardTitle className="text-4xl font-bold">{reports?.funnel?.overallConversion || 0}%</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Dos leads que entraram no topo, esta porcentagem chegou ao final.</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">Entenda o Funil Real</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Este gráfico mostra o volume acumulado. Se um lead está na etapa 5, ele conta no volume das etapas 1, 2, 3 e 4, refletindo a jornada completa.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
             <CardHeader>
-              <CardTitle>Funil de Vendas</CardTitle>
-              <CardDescription>Visualização completa da jornada do lead</CardDescription>
+              <CardTitle>Jornada do Cliente (Volume Acumulado)</CardTitle>
+              <CardDescription>Visualize onde os leads estão parando no processo.</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={reports?.funnel?.funnelData || []} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" stroke="hsl(var(--muted-foreground))" className="text-xs" />
-                  <YAxis dataKey="etapa" type="category" stroke="hsl(var(--muted-foreground))" className="text-xs" width={150} />
-                  <Tooltip contentStyle={chartTooltipStyle} />
-                  <Legend />
-                  <Bar dataKey="quantidade" fill="hsl(var(--primary))" name="Quantidade" />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="h-[500px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={reports?.funnel?.funnelData || []} 
+                    layout="vertical"
+                    margin={{ top: 20, right: 120, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                    <XAxis type="number" hide />
+                    <YAxis 
+                      dataKey="etapa" 
+                      type="category" 
+                      width={180} 
+                      tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
+                    />
+                    <Tooltip 
+                      cursor={{ fill: 'transparent' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-popover border p-3 rounded-lg shadow-lg">
+                              <p className="font-semibold">{data.etapa}</p>
+                              <p className="text-sm">Volume: <span className="font-bold">{data.quantidade}</span> leads</p>
+                              <p className="text-xs text-muted-foreground mt-1">Taxa de Passagem: {data.conversionRate}%</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Bar 
+                      dataKey="quantidade" 
+                      barSize={40} 
+                      radius={[0, 4, 4, 0]}
+                    >
+                      {reports?.funnel?.funnelData.map((entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                      <LabelList 
+                        dataKey="quantidade" 
+                        position="right" 
+                        formatter={(val: number) => `${val}`}
+                        style={{ fill: 'hsl(var(--foreground))', fontWeight: 'bold' }}
+                      />
+                      <LabelList 
+                        dataKey="conversionRate" 
+                        position="right" 
+                        content={(props: any) => {
+                          const { x, y, width, value, index } = props;
+                          // Não mostra conversão para a primeira barra (sempre 100% ou N/A)
+                          if (index === 0) return null; 
+                          return (
+                            <g transform={`translate(${x + 40},${y + 12})`}>
+                              <text x={0} y={0} dy={4} fill="#666" fontSize={11} textAnchor="start">
+                                ({value}% conv.)
+                              </text>
+                            </g>
+                          );
+                        }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
