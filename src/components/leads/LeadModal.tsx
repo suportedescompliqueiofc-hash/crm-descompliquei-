@@ -15,10 +15,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { CreatableSelect } from "@/components/ui/CreatableSelect";
 import { useLeadSources } from "@/hooks/useLeadSources";
-import { useMarketing } from "@/hooks/useMarketing"; // Hook de Marketing
+import { useMarketing } from "@/hooks/useMarketing"; 
 import { VendaModal } from "@/components/vendas/VendaModal";
 
-// --- Funções Auxiliares ---
+// --- Funções Auxiliares (mantidas) ---
 const calculateAge = (dobString: string | undefined): number | '' => {
   if (!dobString || dobString.length !== 10) return '';
   const dob = parse(dobString, 'dd/MM/yyyy', new Date());
@@ -63,10 +63,11 @@ const cleanPhoneNumber = (phone: string): string => phone.replace(/\D/g, '');
 
 const initialFormData = {
   nome: "", telefone: "", resumo: "", origem: "",
-  etapa_id: 1, status: "Ativo", email: "", cpf: "", idade: "",
+  posicao_pipeline: 1, // Usando posicao_pipeline padrão
+  status: "Ativo", email: "", cpf: "", idade: "",
   genero: "", endereco: "", 
-  procedimento_interesse: "", // Campo novo
-  criativo_id: "none", // ID do criativo selecionado
+  procedimento_interesse: "",
+  criativo_id: "none",
   data_nascimento_display: "",
   criado_em_display: "",
 };
@@ -74,7 +75,7 @@ const initialFormData = {
 // --- Componentes de UI ---
 
 const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[], creativeName?: string }) => {
-  const currentStage = stages.find(s => s.id === lead?.etapa_id);
+  const currentStage = stages.find(s => s.posicao_ordem === lead?.posicao_pipeline); // Busca por posição
   return (
     <div className="space-y-6 py-4 max-h-[70vh] overflow-y-auto px-4">
       <div className="flex items-center justify-between">
@@ -113,7 +114,7 @@ const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[
 
 const FormContent = ({ formData, handleInputChange, handleSubmit, stages, handleClose, isEdit, handleSourceChange }: any) => {
   const { allSources } = useLeadSources();
-  const { criativos } = useMarketing(); // Hook de Marketing
+  const { criativos } = useMarketing();
   
   return (
     <form onSubmit={handleSubmit} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-4">
@@ -172,9 +173,9 @@ const FormContent = ({ formData, handleInputChange, handleSubmit, stages, handle
         </div>
         <div>
           <Label>Etapa</Label>
-          <Select value={formData.etapa_id.toString()} onValueChange={(value) => handleInputChange('etapa_id', parseInt(value))}>
+          <Select value={formData.posicao_pipeline.toString()} onValueChange={(value) => handleInputChange('posicao_pipeline', parseInt(value))}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{stages.map((stage: Stage) => <SelectItem key={stage.id} value={stage.id.toString()}>{stage.nome}</SelectItem>)}</SelectContent>
+            <SelectContent>{stages.map((stage: Stage) => <SelectItem key={stage.id} value={stage.posicao_ordem.toString()}>{stage.nome}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div>
@@ -210,7 +211,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
   const { createLead, updateLead } = useLeads();
   const { stages } = useStages();
   const { allSources, createSource } = useLeadSources();
-  const { criativos } = useMarketing(); // Hook para buscar nome do criativo no modo view
+  const { criativos } = useMarketing();
   const [formData, setFormData] = useState(initialFormData);
   const [currentMode, setCurrentMode] = useState(mode);
   const [isVendaModalOpen, setIsVendaModalOpen] = useState(false);
@@ -225,11 +226,12 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
       if (lead) {
         setFormData({
           nome: lead.nome || "", telefone: lead.telefone || "",
-          resumo: lead.resumo || "", origem: lead.origem || "", etapa_id: lead.etapa_id || 1,
+          resumo: lead.resumo || "", origem: lead.origem || "", 
+          posicao_pipeline: lead.posicao_pipeline || 1, // Mapeado
           status: lead.status || "Ativo", email: lead.email || "", cpf: lead.cpf || "",
           idade: lead.idade?.toString() || "", genero: lead.genero || "", endereco: lead.endereco || "",
-          procedimento_interesse: lead.procedimento_interesse || "", // Mapeamento
-          criativo_id: lead.criativo_id || "none", // Usar ID do relacionamento
+          procedimento_interesse: lead.procedimento_interesse || "",
+          criativo_id: lead.criativo_id || "none",
           data_nascimento_display: toDisplayDate(lead.data_nascimento),
           criado_em_display: toDisplayDateFromTimestamp(lead.criado_em),
         });
@@ -267,14 +269,12 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
       return;
     }
     
-    // Preparar dados para envio
     const data = {
       ...formData,
       telefone: cleanedPhone,
       idade: formData.idade ? parseInt(formData.idade) : undefined,
       data_nascimento: toSupabaseDate(formData.data_nascimento_display),
       criado_em: toSupabaseTimestamp(formData.criado_em_display),
-      // Campos opcionais
       nome: formData.nome || undefined, 
       origem: formData.origem || undefined, 
       resumo: formData.resumo || undefined,
@@ -283,11 +283,9 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
       genero: formData.genero || undefined, 
       endereco: formData.endereco || undefined,
       procedimento_interesse: formData.procedimento_interesse || undefined,
-      // Tratar criativo_id: enviar null se for "none"
       criativo_id: formData.criativo_id === "none" ? null : formData.criativo_id,
     };
     
-    // Remover campos de exibição e limpar campos não usados
     delete (data as any).data_nascimento_display;
     delete (data as any).criado_em_display;
 
@@ -309,10 +307,9 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
     }
   };
 
-  const currentStage = stages.find(s => s.id === lead?.etapa_id);
+  const currentStage = stages.find(s => s.posicao_ordem === lead?.posicao_pipeline); // Busca por ordem
   const isContratoFechado = currentStage?.nome === 'Contrato Fechado';
   
-  // Buscar nome do criativo para o modo de visualização - AGORA USA APENAS O RELACIONAMENTO
   const creativeName = lead?.criativo_id 
     ? criativos.find((c: any) => c.id === lead.criativo_id)?.nome || criativos.find((c: any) => c.id === lead.criativo_id)?.titulo 
     : undefined;

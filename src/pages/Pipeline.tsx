@@ -53,16 +53,16 @@ function StageColumn({
   onCardClick, 
   onUpdateLead 
 }: { 
-  stage: { id: number; nome: string; cor: string; }; 
+  stage: { id: number; nome: string; cor: string; posicao_ordem: number }; 
   leads: Lead[]; 
   onCardClick: (lead: Lead) => void; 
   onUpdateLead: (leadId: string, updates: Partial<Lead>) => void 
 }) {
   const { setNodeRef, isOver } = useDroppable({
-    id: `stage-${stage.id}`,
+    id: `stage-${stage.posicao_ordem}`, // ID agora é baseado na ordem
     data: {
       type: 'Column',
-      stageId: stage.id
+      stageOrder: stage.posicao_ordem // Passando a ordem
     }
   });
 
@@ -340,7 +340,6 @@ export default function Pipeline() {
     const activeId = active.id;
     const overId = over.id;
 
-    // Se estiver arrastando sobre o mesmo item, não faz nada
     if (activeId === overId) return;
 
     const isActiveALead = active.data.current?.type === 'Lead';
@@ -355,37 +354,34 @@ export default function Pipeline() {
         const activeIndex = leads.findIndex((l) => l.id === activeId);
         const overIndex = leads.findIndex((l) => l.id === overId);
         
-        if (leads[activeIndex].etapa_id !== leads[overIndex].etapa_id) {
-          // Mudou de coluna: Atualiza o etapa_id imediatamente para "snapar" visualmente
+        if (leads[activeIndex].posicao_pipeline !== leads[overIndex].posicao_pipeline) {
+          // Mudou de coluna: Atualiza a posicao_pipeline
           const newLeads = [...leads];
           newLeads[activeIndex] = {
             ...newLeads[activeIndex],
-            etapa_id: leads[overIndex].etapa_id
+            posicao_pipeline: leads[overIndex].posicao_pipeline // USA POSICAO AGORA
           };
           return arrayMove(newLeads, activeIndex, overIndex);
         }
         
-        // Mesma coluna: Apenas reordena
         return arrayMove(leads, activeIndex, overIndex);
       });
     }
 
-    // Cenário 2: Arrastando sobre uma Coluna vazia ou área da coluna
+    // Cenário 2: Arrastando sobre uma Coluna
     if (isActiveALead && isOverAColumn) {
       setOptimisticLeads((leads) => {
         const activeIndex = leads.findIndex((l) => l.id === activeId);
-        const newStageId = over.data.current?.stageId;
+        const newStageOrder = over.data.current?.stageOrder; // USA ORDER AGORA
 
-        // Se já estiver na etapa certa, não faz nada
-        if (leads[activeIndex].etapa_id === newStageId) return leads;
+        if (leads[activeIndex].posicao_pipeline === newStageOrder) return leads;
 
-        // Move para a nova coluna
         const newLeads = [...leads];
         newLeads[activeIndex] = {
           ...newLeads[activeIndex],
-          etapa_id: newStageId
+          posicao_pipeline: newStageOrder
         };
-        return arrayMove(newLeads, activeIndex, activeIndex); // Mantém posição relativa mas muda dados
+        return arrayMove(newLeads, activeIndex, activeIndex);
       });
     }
   };
@@ -398,25 +394,22 @@ export default function Pipeline() {
 
     const leadId = active.id as string;
     
-    // Identificar a nova etapa
-    let newStageId: number | undefined;
+    // Identificar a nova posição
+    let newStageOrder: number | undefined;
 
     if (over.data.current?.type === 'Column') {
-      newStageId = over.data.current.stageId;
+      newStageOrder = over.data.current.stageOrder;
     } else if (over.data.current?.type === 'Lead') {
       const overLead = optimisticLeads.find(l => l.id === over.id);
-      newStageId = overLead?.etapa_id;
+      newStageOrder = overLead?.posicao_pipeline;
     }
 
-    // Se encontrou a nova etapa e ela é diferente da original (no banco de dados)
-    // Note: usamos 'leads' original para comparar o estado inicial do banco
     const originalLead = leads.find(l => l.id === leadId);
     
-    if (newStageId && originalLead && originalLead.etapa_id !== newStageId) {
-      // Persiste a mudança
-      updateLead({ id: leadId, etapa_id: newStageId });
+    if (newStageOrder && originalLead && originalLead.posicao_pipeline !== newStageOrder) {
+      // Persiste a mudança usando posicao_pipeline
+      updateLead({ id: leadId, posicao_pipeline: newStageOrder });
     } else {
-        // Se cancelou ou caiu no mesmo lugar, reseta o estado otimista para garantir consistência
         setOptimisticLeads(leads);
     }
   };
@@ -473,7 +466,7 @@ export default function Pipeline() {
         <div className="overflow-x-auto pb-4 flex-1">
           <div className="flex gap-4 min-w-max h-full pb-2 px-1">
             {stages.map((stage) => {
-              const stageLeads = optimisticLeads.filter(l => l.etapa_id === stage.id);
+              const stageLeads = optimisticLeads.filter(l => l.posicao_pipeline === stage.posicao_ordem);
               
               return (
                 <StageColumn 

@@ -3,11 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { differenceInDays, eachDayOfInterval, startOfDay, endOfDay, format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { DateRange } from 'react-day-picker';
 
 interface ReportFilters {
-  etapa_id: string;
+  posicao_pipeline: string; // Renomeado
   origem: string;
   genero: string;
   idade: string;
@@ -49,7 +48,7 @@ const defaultReportData = {
   }
 };
 
-export function useReports(dateRange: DateRange | undefined, filters: ReportFilters = { etapa_id: "Todos", origem: "Todos", genero: "Todos", idade: "", tagId: "Todos" }) {
+export function useReports(dateRange: DateRange | undefined, filters: ReportFilters = { posicao_pipeline: "Todos", origem: "Todos", genero: "Todos", idade: "", tagId: "Todos" }) {
   const { user } = useAuth();
   const { profile } = useProfile();
   const orgId = profile?.organization_id;
@@ -79,7 +78,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
       // 2. Busca de Dados Base
       const applyFilters = (query: any) => {
-        if (filters.etapa_id !== "Todos") query = query.eq(`etapa_id`, parseInt(filters.etapa_id));
+        if (filters.posicao_pipeline !== "Todos") query = query.eq(`posicao_pipeline`, parseInt(filters.posicao_pipeline));
         if (filters.origem !== "Todos") query = query.eq(`origem`, filters.origem);
         if (filters.genero !== "Todos") query = query.eq(`genero`, filters.genero);
         if (filters.idade) {
@@ -114,8 +113,8 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       const criativosMap = new Map(criativos.map(c => [c.id, c]));
 
       // 3. Cálculos de KPIs Gerais
-      const convertedStageId = stages.find(s => s.nome.toLowerCase().includes('fechado'))?.id;
-      const convertedLeads = leads.filter(l => l.etapa_id === convertedStageId);
+      const convertedStagePosition = stages.find(s => s.nome.toLowerCase().includes('fechado'))?.posicao_ordem; // Usa posição
+      const convertedLeads = leads.filter(l => l.posicao_pipeline === convertedStagePosition);
       const conversionRate = leads.length > 0 ? (convertedLeads.length / leads.length) * 100 : 0;
       
       const totalFaturado = vendas.reduce((sum, v) => sum + Number(v.valor_fechado), 0);
@@ -133,7 +132,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         return {
           day: format(day, 'dd/MM'),
           captados: leads.filter(l => l.criado_em.startsWith(dayStr)).length,
-          convertidos: leads.filter(l => l.etapa_id === convertedStageId && l.atualizado_em?.startsWith(dayStr)).length
+          convertidos: leads.filter(l => l.posicao_pipeline === convertedStagePosition && l.atualizado_em?.startsWith(dayStr)).length
         };
       });
 
@@ -164,7 +163,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
       const funnelData = stages.map(s => ({
         etapa: s.nome,
-        quantidade: leads.filter(l => l.etapa_id === s.id).length
+        quantidade: leads.filter(l => l.posicao_pipeline === s.posicao_ordem).length // Usa posição
       }));
 
       // 6. Marketing e Performance de Criativos
@@ -200,7 +199,6 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         avgTicket: item.converted > 0 ? item.value / item.converted : 0,
       }));
 
-      // Copia sourceData para evitar mutação no sort
       const bestSourceSorted = [...sourceData].sort((a, b) => b.leads - a.leads);
 
       return {
@@ -229,7 +227,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         conversions: {
           kpis: { totalConvertido: totalFaturado, leadsConvertidos: convertedLeads.length, conversionRate: conversionRate.toFixed(1), ticketMedio },
           charts: { 
-            conversoesPorOrigemData: Object.entries(leads.filter(l => l.etapa_id === convertedStageId).reduce((acc, l) => {
+            conversoesPorOrigemData: Object.entries(leads.filter(l => l.posicao_pipeline === convertedStagePosition).reduce((acc, l) => {
               const key = l.origem || 'Desconhecida';
               acc[key] = (acc[key] || 0) + 1;
               return acc;
@@ -238,7 +236,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
           },
           tables: { 
             ultimasConversoes: leads
-              .filter(l => l.etapa_id === convertedStageId)
+              .filter(l => l.posicao_pipeline === convertedStagePosition)
               .sort((a, b) => new Date(b.atualizado_em).getTime() - new Date(a.atualizado_em).getTime())
               .slice(0, 5)
               .map(l => ({

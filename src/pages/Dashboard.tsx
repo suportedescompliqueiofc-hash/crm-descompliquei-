@@ -22,13 +22,16 @@ export default function Dashboard() {
 
   const stageDistribution = useMemo(() => {
     if (!metrics?.leadsByStage || !stages.length) return [];
+    
+    // metrics.leadsByStage retorna { etapa_id: number } que agora é a POSIÇÃO
     const stageCounts = metrics.leadsByStage.reduce((acc, lead) => {
       acc[lead.etapa_id] = (acc[lead.etapa_id] || 0) + 1;
       return acc;
     }, {} as Record<number, number>);
+
     return stages.map(stage => ({
       name: stage.nome,
-      value: stageCounts[stage.id] || 0,
+      value: stageCounts[stage.posicao_ordem] || 0, // Usa posicao_ordem como chave
       color: stage.cor,
     })).filter(s => s.value > 0);
   }, [metrics?.leadsByStage, stages]);

@@ -20,12 +20,12 @@ export interface Lead {
   genero?: string;
   endereco?: string;
   queixa_principal?: string;
-  procedimento_interesse?: string; // Novo campo
+  procedimento_interesse?: string;
   resumo?: string;
   origem?: string;
   criativo_id?: string; 
   status: string;
-  etapa_id: number;
+  posicao_pipeline: number; // Alterado de etapa_id para posicao_pipeline
   ultimo_contato?: string;
   criado_em: string;
   atualizado_em: string;
@@ -52,9 +52,7 @@ export function useLeads(dateRange?: DateRange) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads' },
         (payload) => {
-          // Invalida a query para forçar o recarregamento dos dados
           queryClient.invalidateQueries({ queryKey: ['leads'] });
-          // Se for uma atualização de um lead específico que está aberto em algum modal, também atualiza
           if (payload.new && 'id' in payload.new) {
              queryClient.invalidateQueries({ queryKey: ['lead', payload.new.id] });
           }
@@ -121,7 +119,6 @@ export function useLeads(dateRange?: DateRange) {
       return data;
     },
     onSuccess: () => {
-      // Invalidation handled by realtime, but we keep this for optimistic feeling or fallback
       queryClient.invalidateQueries({ queryKey: ['leads', orgId] });
       toast.success('Lead criado com sucesso!', { closeButton: true });
     },
@@ -196,7 +193,6 @@ export function useLead(leadId: string | null) {
   const orgId = profile?.organization_id;
   const queryClient = useQueryClient();
 
-  // Subscription específica para um único lead (útil no modal ou na tela de conversa)
   useEffect(() => {
     if (!leadId) return;
 

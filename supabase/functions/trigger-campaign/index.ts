@@ -117,14 +117,16 @@ serve(async (req) => {
           const now = new Date();
           const sixMonthsAgo = subMonths(now, 6);
           const threeMonthsAgo = subMonths(now, 3);
-          const finalStageIds = allStages.filter(s => ['Convertido', 'Perdido'].includes(s.nome)).map(s => s.id);
+          // Mapeia para a posição (posicao_ordem) em vez do ID
+          const finalStagePositions = allStages.filter(s => ['Convertido', 'Perdido', 'Contrato Fechado'].includes(s.nome)).map(s => s.posicao_ordem);
 
           targetedLeads = allLeads.filter(lead => {
               return config.predefined.some(segment => {
                   if (segment === 'active') return lead.ultimo_contato && isAfter(new Date(lead.ultimo_contato), sixMonthsAgo);
                   if (segment === 'inactive') return !lead.ultimo_contato || isBefore(new Date(lead.ultimo_contato), sixMonthsAgo);
                   if (segment === 'new') return isAfter(new Date(lead.criado_em), threeMonthsAgo);
-                  if (segment === 'in_treatment') return !finalStageIds.includes(lead.etapa_id);
+                  // Verifica pela posição do pipeline
+                  if (segment === 'in_treatment') return !finalStagePositions.includes(lead.posicao_pipeline);
                   return false;
               });
           });

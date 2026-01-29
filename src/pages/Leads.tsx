@@ -64,22 +64,22 @@ export default function Leads() {
   const [filters, setFilters] = useState({
     searchTerm: "",
     status: "Todos",
-    etapa_id: "Todos",
+    posicao_pipeline: "Todos", // Renomeado
     origem: "Todos",
     genero: "Todos",
     criativo: "",
     idade: "",
     cadastroMes: "",
     tagId: "Todos",
-    procedimento: "", // Filtro de procedimento
+    procedimento: "", 
   });
 
   const handleFilterChange = (filterName: string, value: string) => {
     setFilters(prev => ({ ...prev, [filterName]: value }));
   };
 
-  const getStageById = (stageId: number) => {
-    return stages.find(s => s.id === stageId);
+  const getStageByPosition = (position: number) => {
+    return stages.find(s => s.posicao_ordem === position);
   };
 
   const filteredLeads = useMemo(() => {
@@ -89,10 +89,11 @@ export default function Leads() {
         lead.telefone.includes(filters.searchTerm);
       
       const statusMatch = filters.status === "Todos" || lead.status === filters.status;
-      const etapaMatch = filters.etapa_id === "Todos" || lead.etapa_id.toString() === filters.etapa_id;
+      // Filtro por posição
+      const etapaMatch = filters.posicao_pipeline === "Todos" || lead.posicao_pipeline.toString() === filters.posicao_pipeline;
       const origemMatch = filters.origem === "Todos" || lead.origem === filters.origem;
       const generoMatch = filters.genero === "Todos" || lead.genero === filters.genero;
-      const criativoMatch = !filters.criativo || (lead.criativo && lead.criativo.toLowerCase().includes(filters.criativo.toLowerCase()));
+      const criativoMatch = !filters.criativo || (lead.criativo_id && lead.criativo_id.toLowerCase().includes(filters.criativo.toLowerCase())); // Correção de propriedade se necessário, assumindo que criativo_id existe ou 'criativo'
       const idadeMatch = !filters.idade || (lead.idade?.toString() === filters.idade);
       const cadastroMesMatch = !filters.cadastroMes || (lead.criado_em && lead.criado_em.startsWith(filters.cadastroMes));
       
@@ -225,12 +226,12 @@ export default function Leads() {
               </div>
               <div>
                 <Label>Etapa do Funil</Label>
-                <Select value={filters.etapa_id} onValueChange={(v) => handleFilterChange('etapa_id', v)}>
+                <Select value={filters.posicao_pipeline} onValueChange={(v) => handleFilterChange('posicao_pipeline', v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todos">Todas</SelectItem>
                     {stages.map(stage => (
-                      <SelectItem key={stage.id} value={stage.id.toString()}>{stage.nome}</SelectItem>
+                      <SelectItem key={stage.id} value={stage.posicao_ordem.toString()}>{stage.nome}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -277,7 +278,7 @@ export default function Leads() {
                 />
               </div>
               <div>
-                <Label>Criativo</Label>
+                <Label>Criativo (ID ou Nome)</Label>
                 <Input value={filters.criativo} onChange={(e) => handleFilterChange('criativo', e.target.value)} />
               </div>
               <div>
@@ -335,7 +336,7 @@ export default function Leads() {
                 </TableRow>
               ) : (
                 filteredLeads.map((lead) => {
-                  const stage = getStageById(lead.etapa_id);
+                  const stage = getStageByPosition(lead.posicao_pipeline);
                   return (
                     <TableRow key={lead.id} className="hover:bg-muted/50">
                       <TableCell>

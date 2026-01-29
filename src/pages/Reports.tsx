@@ -35,7 +35,7 @@ export default function Reports() {
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>(initialDateRange);
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({ etapa_id: "Todos", origem: "Todos", genero: "Todos", idade: "", tagId: "Todos" });
+  const [filters, setFilters] = useState({ posicao_pipeline: "Todos", origem: "Todos", genero: "Todos", idade: "", tagId: "Todos" });
   
   const { toast } = useToast();
   const { reports, isLoading } = useReports(dateRange, filters);
@@ -70,7 +70,6 @@ export default function Reports() {
     );
   }
   
-  // Proteção extra: se reports for null/undefined mesmo não carregando
   if (!reports) return null;
 
   const periodDisplay = dateRange?.from && dateRange.to ? `${format(dateRange.from, 'dd/MM/yyyy')} a ${format(dateRange.to, 'dd/MM/yyyy')}` : 'Período Selecionado';
@@ -101,11 +100,11 @@ export default function Reports() {
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
                 <Label>Etapa do Funil</Label>
-                <Select value={filters.etapa_id} onValueChange={(v) => handleFilterChange('etapa_id', v)}>
+                <Select value={filters.posicao_pipeline} onValueChange={(v) => handleFilterChange('posicao_pipeline', v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todos">Todas as Etapas</SelectItem>
-                    {stages.map(stage => <SelectItem key={stage.id} value={stage.id.toString()}>{stage.nome}</SelectItem>)}
+                    {stages.map(stage => <SelectItem key={stage.id} value={stage.posicao_ordem.toString()}>{stage.nome}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
