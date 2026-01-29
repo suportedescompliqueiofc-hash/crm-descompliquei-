@@ -27,11 +27,20 @@ export default function Marketing() {
   const { reports, isLoading: isLoadingReports } = useReports(dateRange);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("meta"); // Aba padrão alterada para a nova
+  const [activeTab, setActiveTab] = useState("meta");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  const criativosFiltrados = (criativos || []).filter(c => {
+  // --- LÓGICA DE SEPARAÇÃO ---
+  
+  // 1. Campanhas Meta: Têm métricas e gasto > 0 (Importadas)
+  const campanhasMeta = (criativos || []).filter(c => c.platform_metrics && c.platform_metrics.spend > 0);
+
+  // 2. Criativos Visuais (Assets): NÃO têm métricas ou gasto é 0 (Manuais/WhatsApp)
+  const criativosAssets = (criativos || []).filter(c => !c.platform_metrics || c.platform_metrics.spend === 0);
+
+  // Filtro de busca aplicado APENAS à lista de assets visuais
+  const criativosFiltrados = criativosAssets.filter(c => {
     const search = searchTerm.toLowerCase();
     return (
       (c.nome && c.nome.toLowerCase().includes(search)) ||
@@ -39,9 +48,6 @@ export default function Marketing() {
       (c.conteudo && c.conteudo.toLowerCase().includes(search))
     );
   });
-
-  // Filtra apenas criativos que possuem métricas do Meta
-  const campanhasMeta = (criativos || []).filter(c => c.platform_metrics && c.platform_metrics.spend > 0);
 
   const handleDeleteConfirm = () => {
     if (deleteId) {
@@ -76,7 +82,6 @@ export default function Marketing() {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  // Helper para formatar data ISO (YYYY-MM-DD) para DD/MM/YYYY
   const formatDateDisplay = (dateString?: string | null) => {
     if (!dateString) return '-';
     try {
@@ -104,7 +109,7 @@ export default function Marketing() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <TabsList>
             <TabsTrigger value="meta" className="gap-2"><Facebook className="h-4 w-4" /> Campanhas Meta</TabsTrigger>
-            <TabsTrigger value="creatives" className="gap-2"><Megaphone className="h-4 w-4" /> Criativos</TabsTrigger>
+            <TabsTrigger value="creatives" className="gap-2"><Megaphone className="h-4 w-4" /> Criativos (WhatsApp)</TabsTrigger>
             <TabsTrigger value="reports" className="gap-2"><BarChart2 className="h-4 w-4" /> Performance Geral</TabsTrigger>
           </TabsList>
           
@@ -121,7 +126,7 @@ export default function Marketing() {
           )}
         </div>
 
-        {/* NOVA ABA: CAMPANHAS META */}
+        {/* ABA: CAMPANHAS META (IMPORTADAS) */}
         <TabsContent value="meta" className="space-y-6">
           <div className="flex justify-end">
             <Button variant="default" className="gap-2 bg-[#1877F2] hover:bg-[#1877F2]/90 text-white" onClick={() => setIsImportModalOpen(true)}>
@@ -161,7 +166,7 @@ export default function Marketing() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[280px]">Campanha / Criativo</TableHead>
+                        <TableHead className="w-[300px]">Campanha / Criativo</TableHead>
                         <TableHead className="text-center w-[120px]">Início</TableHead>
                         <TableHead className="text-center w-[120px]">Término</TableHead>
                         <TableHead className="text-right">Valor Usado</TableHead>
@@ -181,7 +186,7 @@ export default function Marketing() {
                             <TableCell className="font-medium">
                               <div className="flex flex-col">
                                 <span className="text-sm font-semibold text-foreground">{campanha.nome}</span>
-                                <span className="text-xs text-muted-foreground truncate max-w-[260px]" title={campanha.titulo || ''}>
+                                <span className="text-xs text-muted-foreground truncate max-w-[280px]" title={campanha.titulo || ''}>
                                   Original: {campanha.titulo || '-'}
                                 </span>
                               </div>
@@ -226,6 +231,7 @@ export default function Marketing() {
           </Card>
         </TabsContent>
 
+        {/* ABA: CRIATIVOS (ASSETS MANUAIS) */}
         <TabsContent value="creatives" className="space-y-6">
           {isLoadingCreatives ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -235,7 +241,7 @@ export default function Marketing() {
             <div className="flex flex-col items-center justify-center py-20 text-center border rounded-lg bg-muted/10">
               <Megaphone className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
               <h3 className="text-xl font-semibold mb-1">Nenhum criativo encontrado</h3>
-              <p className="text-muted-foreground">Tente buscar outro termo ou ajuste os filtros.</p>
+              <p className="text-muted-foreground">Aqui aparecem apenas os criativos cadastrados manualmente para o CRM/WhatsApp.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -248,6 +254,7 @@ export default function Marketing() {
           )}
         </TabsContent>
 
+        {/* ABA: PERFORMANCE GERAL */}
         <TabsContent value="reports" className="space-y-6">
           {isLoadingReports ? (
              <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
