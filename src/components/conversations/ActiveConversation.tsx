@@ -342,7 +342,8 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
               if (item.type === 'separator') return <DateSeparator key={`sep-${index}`} dateString={item.date} />;
 
               const msg = item as Message;
-              const isOutgoing = msg.remetente === 'agente' || msg.remetente === 'bot';
+              const isOutgoing = msg.remetente === 'agente' || msg.remetente === 'bot' || msg.remetente === 'agente_crm';
+              const isAi = msg.remetente === 'bot' || msg.remetente === 'agente_crm';
               const hasNewAttachments = msg.message_attachments && msg.message_attachments.length > 0;
               const legacyAttachmentIndex = msg.conteudo?.toLowerCase().indexOf('attachments:');
               const hasLegacyAttachments = !hasNewAttachments && legacyAttachmentIndex !== -1;
@@ -377,6 +378,11 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                       
                       {/* Timestamp e Status */}
                       <div className={cn("flex items-center justify-end gap-1 mt-1 opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                        {isOutgoing && (
+                            <span className="flex items-center gap-0.5 mr-1.5" title={isAi ? "Inteligência Artificial" : "Humano"}>
+                                {isAi ? <Bot className="h-2.5 w-2.5" /> : <User className="h-2.5 w-2.5" />}
+                            </span>
+                        )}
                         <span className="text-[9px] sm:text-[10px] tabular-nums">{format(new Date(msg.criado_em), 'HH:mm')}</span>
                         {isOutgoing && <CheckCircle className="h-2.5 w-2.5" />}
                       </div>
