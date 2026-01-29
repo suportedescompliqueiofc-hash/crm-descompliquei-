@@ -22,6 +22,36 @@ import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { useLeadSources } from "@/hooks/useLeadSources";
 import { useTags } from "@/hooks/useTags";
 
+// Componente de Tooltip Personalizado
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-popover/95 backdrop-blur-sm border border-border p-3 rounded-lg shadow-lg outline-none">
+        <p className="font-semibold text-foreground mb-1">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex items-center gap-2 py-0.5">
+            <div 
+              className="w-2 h-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.3)]" 
+              style={{ 
+                backgroundColor: entry.color, 
+                boxShadow: `0 0 4px ${entry.color}` 
+              }} 
+            />
+            <span className="text-sm text-muted-foreground capitalize">{entry.name}:</span>
+            <span className="text-sm font-bold text-foreground">
+              {entry.name === 'Valor' || entry.name === 'Faturamento' 
+                ? `R$ ${Number(entry.value).toLocaleString('pt-BR')}`
+                : entry.value
+              }
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function Reports() {
   const today = new Date();
   const initialDateRange: DateRange = { from: startOfMonth(today), to: endOfMonth(today) };
@@ -65,7 +95,24 @@ export default function Reports() {
   
   if (!reports) return null;
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+  // Paleta de cores moderna
+  const COLORS = ['#8b5cf6', '#10b981', '#f59e0b', '#3b82f6', '#ec4899'];
+  const GRADIENTS = (
+    <defs>
+      <linearGradient id="colorCaptados" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
+        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+      </linearGradient>
+      <linearGradient id="colorConvertidos" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+      </linearGradient>
+      <linearGradient id="colorFaturamento" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+      </linearGradient>
+    </defs>
+  );
 
   return (
     <div className="space-y-8">
@@ -131,13 +178,30 @@ export default function Reports() {
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={reports?.charts?.leadsCapturedData || []}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} />
-                      <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                      <Tooltip />
-                      <Legend />
-                      <Area type="monotone" dataKey="captados" name="Captados" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
-                      <Area type="monotone" dataKey="convertidos" name="Convertidos" stroke="#82ca9d" fill="#82ca9d" fillOpacity={0.3} />
+                      {GRADIENTS}
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
+                      <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                      <YAxis fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend iconType="circle" />
+                      <Area 
+                        type="monotone" 
+                        dataKey="captados" 
+                        name="Captados" 
+                        stroke="#8b5cf6" 
+                        strokeWidth={2}
+                        fill="url(#colorCaptados)" 
+                        activeDot={{ r: 6, strokeWidth: 0 }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="convertidos" 
+                        name="Convertidos" 
+                        stroke="#10b981" 
+                        strokeWidth={2}
+                        fill="url(#colorConvertidos)" 
+                        activeDot={{ r: 6, strokeWidth: 0 }}
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -150,12 +214,26 @@ export default function Reports() {
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={reports?.charts?.sourceData || []} layout="vertical" margin={{ left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
                       <XAxis type="number" hide />
-                      <YAxis dataKey="source" type="category" width={80} fontSize={12} tickLine={false} axisLine={false} />
-                      <Tooltip />
-                      <Bar dataKey="leads" fill="#8884d8" radius={[0, 4, 4, 0]}>
-                        <LabelList dataKey="leads" position="right" fontSize={12} />
+                      <YAxis 
+                        dataKey="source" 
+                        type="category" 
+                        width={80} 
+                        fontSize={12} 
+                        tickLine={false} 
+                        axisLine={false} 
+                        tick={{ fill: 'hsl(var(--muted-foreground))' }} 
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar 
+                        dataKey="leads" 
+                        fill="#8b5cf6" 
+                        radius={[0, 4, 4, 0]}
+                        name="Leads"
+                        barSize={32}
+                      >
+                        <LabelList dataKey="leads" position="right" fontSize={12} fill="hsl(var(--foreground))" />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -200,15 +278,32 @@ export default function Reports() {
                     layout="vertical"
                     margin={{ top: 20, right: 120, left: 20, bottom: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
                     <XAxis type="number" hide />
-                    <YAxis dataKey="etapa" type="category" width={180} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-                    <Tooltip cursor={{ fill: 'transparent' }} />
-                    <Bar dataKey="quantidade" barSize={32} radius={[0, 4, 4, 0]}>
+                    <YAxis 
+                      dataKey="etapa" 
+                      type="category" 
+                      width={180} 
+                      tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} 
+                      tickLine={false} 
+                      axisLine={false} 
+                    />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--muted)/0.4)' }} />
+                    <Bar 
+                      dataKey="quantidade" 
+                      barSize={32} 
+                      radius={[0, 4, 4, 0]}
+                      name="Leads"
+                    >
                       {reports?.funnel?.funnelData.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill || '#8884d8'} />
+                        <Cell key={`cell-${index}`} fill={entry.fill || '#8b5cf6'} />
                       ))}
-                      <LabelList dataKey="quantidade" position="right" formatter={(val: number) => `${val}`} style={{ fontWeight: 'bold' }} />
+                      <LabelList 
+                        dataKey="quantidade" 
+                        position="right" 
+                        formatter={(val: number) => `${val}`}
+                        style={{ fontWeight: 'bold', fill: 'hsl(var(--foreground))' }} 
+                      />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -232,13 +327,17 @@ export default function Reports() {
                         cx="50%" 
                         cy="50%" 
                         outerRadius={80} 
+                        innerRadius={50}
+                        paddingAngle={5}
+                        stroke="hsl(var(--card))"
+                        strokeWidth={2}
                       >
                         {(reports?.conversions?.charts?.conversoesPorOrigemData || []).map((_, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip />
-                      <Legend />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend iconType="circle" />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -250,11 +349,16 @@ export default function Reports() {
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={reports?.conversions?.charts?.valorConvertidoPorDia || []}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} />
-                      <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                      <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} />
-                      <Bar dataKey="valor" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
+                      <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                      <YAxis fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar 
+                        dataKey="valor" 
+                        fill="#10b981" 
+                        radius={[6, 6, 0, 0]} 
+                        name="Valor"
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -271,11 +375,21 @@ export default function Reports() {
                 <div className="h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={reports?.financial?.faturamentoPorDia || []}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} />
-                      <YAxis fontSize={12} tickFormatter={(value) => `R$${value/1000}k`} tickLine={false} axisLine={false} />
-                      <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} />
-                      <Area type="monotone" dataKey="valor" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
+                      {GRADIENTS}
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
+                      <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                      <YAxis fontSize={12} tickFormatter={(value) => `R$${value/1000}k`} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area 
+                        type="monotone" 
+                        dataKey="valor" 
+                        stroke="#3b82f6" 
+                        strokeWidth={2}
+                        fill="url(#colorFaturamento)" 
+                        fillOpacity={1}
+                        name="Faturamento"
+                        activeDot={{ r: 6, strokeWidth: 0 }}
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -296,11 +410,13 @@ export default function Reports() {
                         innerRadius={60} 
                         outerRadius={100} 
                         paddingAngle={5}
+                        stroke="hsl(var(--card))"
+                        strokeWidth={2}
                       >
                         {(reports?.financial?.metodosPagamentoData || []).map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                       </Pie>
-                      <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} />
-                      <Legend verticalAlign="bottom" />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend verticalAlign="bottom" iconType="circle" />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
