@@ -5,6 +5,7 @@ import { QuickMessagesSidebar } from "@/components/conversations/QuickMessagesSi
 import { MessageSquare } from "lucide-react";
 import { useLead } from "@/hooks/useLeads";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 export default function Conversations() {
   const { leadId } = useParams<{ leadId: string }>();
@@ -14,21 +15,29 @@ export default function Conversations() {
   return (
     <div className="h-[calc(100vh-4rem)]">
       {/* Container principal com borda e cantos arredondados */}
-      <div className="flex h-full w-full rounded-lg border bg-background overflow-hidden">
+      <div className="flex h-full w-full lg:rounded-lg lg:border bg-background overflow-hidden relative">
         
         {/* Área Flexível (Lista + Chat) */}
-        <div className="flex-1 min-w-0 h-full flex">
+        <div className="flex-1 min-w-0 h-full flex relative overflow-hidden">
             
-            {/* Painel Esquerdo: Lista (Largura Otimizada) 
-                Antes: w-80 lg:w-96
-                Agora: w-72 (notebooks) -> w-80 (monitores grandes)
+            {/* Painel Esquerdo: Lista
+                No mobile: ocupa 100% se não houver lead selecionado, some se houver.
+                No desktop: ocupa largura fixa ao lado do chat.
             */}
-            <div className="hidden md:block w-72 xl:w-80 flex-shrink-0 h-full border-r bg-card/50">
+            <div className={cn(
+              "flex-shrink-0 h-full border-r bg-card/50 transition-all duration-300",
+              leadId ? "hidden md:block w-72 xl:w-80" : "w-full md:w-72 xl:w-80"
+            )}>
               <ConversationsList />
             </div>
             
-            {/* Painel Central: Chat Ativo */}
-            <div className="flex-1 min-w-0 h-full bg-background relative">
+            {/* Painel Central: Chat Ativo
+                No mobile: ocupa 100% se houver lead, some se não houver (para dar lugar à lista).
+            */}
+            <div className={cn(
+              "flex-1 min-w-0 h-full bg-background relative transition-all duration-300",
+              !leadId && "hidden md:block"
+            )}>
               {leadId ? (
                 <div className="flex flex-col h-full relative">
                   <div className="flex-1 overflow-hidden">
@@ -45,13 +54,15 @@ export default function Conversations() {
                     <MessageSquare className="h-12 w-12 text-muted-foreground/50" />
                   </div>
                   <h2 className="text-xl font-semibold text-foreground">Selecione uma conversa</h2>
-                  <p>Escolha um cliente na lista para iniciar o atendimento.</p>
+                  <p className="px-4">Escolha um cliente na lista para iniciar o atendimento.</p>
                 </div>
               )}
             </div>
         </div>
 
-        {/* Painel Direito Fixo: Mensagens Rápidas */}
+        {/* Painel Direito Fixo: Mensagens Rápidas
+            Escondido em mobile, visível apenas em telas grandes (lg+)
+        */}
         {showQuickMessages && leadId && (
           <div className="hidden lg:block h-full flex-shrink-0 border-l bg-card">
             <QuickMessagesSidebar lead={lead || null} />
