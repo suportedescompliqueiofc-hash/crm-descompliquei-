@@ -122,8 +122,8 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
   return (
     <div className={cn(
         "flex flex-col gap-1",
-        // Larguras ajustadas para serem maiores e responsivas
-        "w-[260px] xs:w-[320px] sm:w-[420px] md:w-[500px]"
+        // Larguras ajustadas: mantive mobile (260/320) e reduzi desktop para 360px
+        "w-[260px] xs:w-[320px] sm:w-[340px] md:w-[360px]"
     )}>
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
       
