@@ -127,27 +127,22 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Lógica de Desduplicação de Mensagens
   const processedMessages = useMemo(() => {
     if (!messages) return [];
     
     const res: Message[] = [];
     const seenIds = new Set<string>();
     
-    // Ordena para garantir sequência temporal correta (antigas primeiro)
     const sorted = [...messages].sort((a, b) => new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime());
 
     for (let i = 0; i < sorted.length; i++) {
       const msg = sorted[i];
       
-      // 1. Verificação básica de ID duplicado
       if (seenIds.has(msg.id)) continue;
       
-      // 2. Lógica específica para desduplicar áudios
       if (msg.tipo_conteudo === 'audio') {
         const lastMsg = res[res.length - 1];
         
-        // Verifica se a mensagem anterior é um áudio do mesmo remetente
         if (lastMsg && 
             lastMsg.tipo_conteudo === 'audio' && 
             lastMsg.remetente === msg.remetente) {
@@ -155,12 +150,10 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
             const t1 = new Date(lastMsg.criado_em).getTime();
             const t2 = new Date(msg.criado_em).getTime();
             
-            // Tolerância de 20 segundos para lidar com diferenças de relógio (client/server)
             if (Math.abs(t2 - t1) < 20000) {
                const isLastTemp = lastMsg.id.startsWith('temp-');
                const isCurrTemp = msg.id.startsWith('temp-');
 
-               // Caso 1: A anterior era Temporária e a Atual é Real -> Substitui a Temporária pela Real
                if (isLastTemp && !isCurrTemp) {
                    res.pop();
                    seenIds.delete(lastMsg.id);
@@ -169,14 +162,10 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
                    continue;
                }
                
-               // Caso 2: A anterior era Real e a Atual é Temporária -> Ignora a Temporária
-               // Isso acontece se a ordenação colocar a Real antes da Temp (ex: relógio server atrasado em relação ao client)
                if (!isLastTemp && isCurrTemp) {
                    continue;
                }
 
-               // Caso 3: Ambas Temporárias ou Ambas Reais
-               // Se forem muito próximas, assumimos duplicidade para evitar repetição visual
                continue;
             }
         }
@@ -197,7 +186,7 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
 
   useLayoutEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [processedMessages, isRecordingMode]); // Atualizado para observar processedMessages
+  }, [processedMessages, isRecordingMode]);
 
   const handleAiToggle = async (checked: boolean) => {
     if (!lead) return;
@@ -227,10 +216,11 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
     }
   };
 
-  const handleStageChange = (newStageId: string) => {
+  const handleStageChange = (newPosition: string) => {
     if (!lead) return;
-    const stageIdNumber = parseInt(newStageId, 10);
-    updateLead({ id: lead.id, etapa_id: stageIdNumber });
+    const stagePosition = parseInt(newPosition, 10);
+    // CORREÇÃO: Usa posicao_pipeline em vez de etapa_id
+    updateLead({ id: lead.id, posicao_pipeline: stagePosition });
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -252,7 +242,9 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
   };
 
   const isLoading = leadLoading || stagesLoading;
-  const currentStage = stages.find(s => s.id === lead?.etapa_id);
+  
+  // CORREÇÃO: Busca a etapa pela posição
+  const currentStage = stages.find(s => s.posicao_ordem === lead?.posicao_pipeline);
 
   if (isLoading) return <Skeleton className="h-full w-full" />;
 
@@ -273,7 +265,11 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
         </div>
         <div className="flex items-center gap-2 md:gap-4 flex-wrap md:flex-nowrap justify-end">
           {lead && stages.length > 0 && (
-            <Select value={lead.etapa_id.toString()} onValueChange={handleStageChange}>
+            // CORREÇÃO: Usa posicao_pipeline como value e posicao_ordem nas opções
+            <Select 
+              value={lead.posicao_pipeline?.toString() || "1"} 
+              onValueChange={handleStageChange}
+            >
               <SelectTrigger className="w-[180px] h-9">
                 <div className="flex items-center gap-2 truncate">
                   <SelectValue placeholder="Selecione a etapa">
@@ -281,7 +277,16 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
                   </SelectValue>
                 </div>
               </SelectTrigger>
-              <SelectContent>{stages.map(stage => <SelectItem key={stage.id} value={stage.id.toString()}><div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.cor }} />{stage.nome}</div></SelectItem>)}</SelectContent>
+              <SelectContent>
+                {stages.map(stage => (
+                  <SelectItem key={stage.id} value={stage.posicao_ordem.toString()}>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.cor }} />
+                      {stage.nome}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           )}
           <div className="h-6 w-px bg-border mx-1 hidden md:block"></div>
