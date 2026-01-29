@@ -6,7 +6,7 @@ import { DateRange } from 'react-day-picker';
 import { format, startOfDay, endOfDay } from 'date-fns';
 
 export interface FunnelStep {
-  stageId: number;
+  stageId: number | null;
   stageName: string;
   stageOrder: number;
   color: string;
@@ -14,16 +14,17 @@ export interface FunnelStep {
   dropoffCount: number; // Quantos pararam aqui
   conversionToNext: number; // % que foi para a próxima
   conversionFromStart: number; // % do total inicial
+  dbOrder?: number; // Para uso interno
 }
 
-// Lista estrita de etapas para análise do funil
-const TARGET_STAGE_NAMES = [
-  "Novo Lead",
-  "Qualificação",
-  "Agendamento Solicitado",
-  "Coletando Informações",
-  "Agendado",
-  "Procedimento Fechado"
+// Lista ESTRITA de etapas padrão para o funil
+const STANDARD_STAGES = [
+  { name: "Novo Lead", color: "#94a3b8", order: 1 },
+  { name: "Qualificação", color: "#64748b", order: 2 },
+  { name: "Agendamento Solicitado", color: "#C5A47E", order: 3 }, // Gold Brand
+  { name: "Coletando Informações", color: "#a8a29e", order: 4 },
+  { name: "Agendado", color: "#4ade80", order: 5 }, // Green
+  { name: "Procedimento Fechado", color: "#15803d", order: 6 } // Dark Green
 ];
 
 export function useFunnelMetrics(dateRange: DateRange | undefined) {
@@ -42,25 +43,44 @@ export function useFunnelMetrics(dateRange: DateRange | undefined) {
         : endOfDay(dateRange.from).toISOString();
 
       // 1. Buscar todas as etapas disponíveis no banco
-      const { data: allStages, error: stagesError } = await supabase
+      const { data: dbStages, error: stagesError } = await supabase
         .from('etapas')
-        .select('*')
-        .order('posicao_ordem', { ascending: true });
+        .select('*');
 
       if (stagesError) throw stagesError;
 
-      // 2. Filtrar e Ordenar apenas as etapas alvo
-      // Isso remove etapas como "Lead Desqualificado" da visualização
-      const funnelStages = allStages
-        .filter(stage => TARGET_STAGE_NAMES.includes(stage.nome))
-        .sort((a, b) => {
-          return TARGET_STAGE_NAMES.indexOf(a.nome) - TARGET_STAGE_NAMES.indexOf(b.nome);
-        });
+      // 2. Construir o esqueleto do funil baseado na lista PADRÃO
+      // Isso garante que as 6 etapas sempre apareçam, mesmo que não existam no banco
+      const funnelData: FunnelStep[] = STANDARD_STAGES.map(stdStage => {
+        // Tenta encontrar a etapa correspondente no banco (comparação flexível)
+        const matchedDbStage = dbStages.find(
+          s => s.nome.trim().toLowerCase() === stdStage.name.toLowerCase()
+        );
 
-      // Cria um Set com os IDs de ordem das etapas válidas para filtragem rápida do histórico
-      const validStageOrders = new Set(funnelStages.map(s => s.posicao_ordem));
+        return {
+          stageId: matchedDbStage ? matchedDbStage.id : null,
+          stageName: stdStage.name,
+          stageOrder: stdStage.order,
+          color: matchedDbStage ? matchedDbStage.cor : stdStage.color,
+          count: 0,
+          dropoffCount: 0,
+          conversionToNext: 0,
+          conversionFromStart: 0,
+          // Armazena a ordem real no banco para filtrar o histórico
+          dbOrder: matchedDbStage ? matchedDbStage.posicao_ordem : -1 
+        };
+      });
 
-      // 3. Buscar histórico de movimentação no período
+      // Cria um mapa para saber quais ordens do banco correspondem a qual ordem do funil padrão
+      // Ex: No banco "Novo Lead" pode ser ordem 10, mas aqui mapeamos para ordem 1
+      const dbOrderToStandardOrder = new Map<number, number>();
+      funnelData.forEach(f => {
+        if (f.dbOrder !== -1) {
+          dbOrderToStandardOrder.set(f.dbOrder!, f.stageOrder);
+        }
+      });
+
+      // 3. Buscar histórico de movimentação
       const { data: history, error: historyError } = await supabase
         .from('lead_stage_history')
         .select('lead_id, stage_position')
@@ -70,68 +90,54 @@ export function useFunnelMetrics(dateRange: DateRange | undefined) {
 
       if (historyError) throw historyError;
 
-      // 4. Processamento Lógico (Funil Acumulado)
-      
-      // Agrupar por Lead para descobrir a etapa MÁXIMA atingida por cada um
-      // APENAS considerando as etapas do funil padrão.
-      // Se um lead foi de "Novo Lead" -> "Lead Desqualificado", para o funil ele parou em "Novo Lead".
+      // 4. Calcular o progresso máximo de cada lead no Funil Padrão
       const maxStagePerLead = new Map<string, number>();
 
       history?.forEach(entry => {
-        // Ignora histórico de etapas que não estão no nosso funil alvo (ex: Desqualificado)
-        if (validStageOrders.has(entry.stage_position)) {
+        // Verifica se a etapa do histórico faz parte do nosso funil padrão
+        if (dbOrderToStandardOrder.has(entry.stage_position)) {
+          const standardOrder = dbOrderToStandardOrder.get(entry.stage_position)!;
+          
           const currentMax = maxStagePerLead.get(entry.lead_id) || 0;
-          // Assume-se que posicao_ordem maior = avanço no funil
-          if (entry.stage_position > currentMax) {
-            maxStagePerLead.set(entry.lead_id, entry.stage_position);
+          // Se o lead avançou mais no funil padrão, atualizamos
+          if (standardOrder > currentMax) {
+            maxStagePerLead.set(entry.lead_id, standardOrder);
           }
         }
       });
 
-      // Inicializar estrutura de dados do funil
-      const funnelData: FunnelStep[] = funnelStages.map(stage => ({
-        stageId: stage.id,
-        stageName: stage.nome,
-        stageOrder: stage.posicao_ordem,
-        color: stage.cor,
-        count: 0,
-        dropoffCount: 0,
-        conversionToNext: 0,
-        conversionFromStart: 0
-      }));
-
-      // Calcular volumes acumulados
-      // Lógica: Se o lead chegou na etapa X, ele conta para todas as etapas anteriores a X.
-      maxStagePerLead.forEach((maxStageOrder) => {
+      // 5. Calcular volumes acumulados (Lógica de Funil)
+      // Se um lead chegou na etapa 5, ele conta para 1, 2, 3, 4 e 5.
+      maxStagePerLead.forEach((maxStandardOrder) => {
         funnelData.forEach(step => {
-          if (maxStageOrder >= step.stageOrder) {
+          if (maxStandardOrder >= step.stageOrder) {
             step.count++;
           }
         });
       });
 
-      // Calcular taxas de conversão
+      // 6. Calcular taxas de conversão e perdas
       const totalLeads = funnelData[0]?.count || 0;
 
       for (let i = 0; i < funnelData.length; i++) {
         const current = funnelData[i];
         const next = funnelData[i + 1];
 
-        // Conversão Geral (Benchmark em relação ao topo)
+        // Conversão em relação ao topo
         current.conversionFromStart = totalLeads > 0 
           ? (current.count / totalLeads) * 100 
           : 0;
 
-        // Conversão de Passagem (Pass-through) para a próxima etapa
+        // Conversão para a próxima etapa (Pass-through)
         if (next) {
           current.conversionToNext = current.count > 0 
             ? (next.count / current.count) * 100 
             : 0;
           
-          // Dropoff: Quantos pararam EXATAMENTE nesta etapa do funil
+          // Dropoff: Quem estava aqui mas não foi para a próxima
           current.dropoffCount = current.count - next.count;
         } else {
-          // Última etapa (Procedimento Fechado)
+          // Última etapa
           current.conversionToNext = 0;
           current.dropoffCount = 0;
         }
