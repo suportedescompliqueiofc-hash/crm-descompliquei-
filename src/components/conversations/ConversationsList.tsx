@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConversationsList, Conversation } from "@/hooks/useConversations";
-import { format, isToday, isYesterday, isValid, parseISO } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { TAG_COLORS } from "@/hooks/useTags";
@@ -16,25 +16,27 @@ import { TAG_COLORS } from "@/hooks/useTags";
 const formatLastMessageTime = (timestamp?: string | null) => {
   if (!timestamp) return '';
   
-  let date: Date;
   try {
-    date = typeof timestamp === 'string' ? parseISO(timestamp) : new Date(timestamp);
+    // Usa o construtor Date diretamente para maior compatibilidade com ISO strings do DB
+    const date = new Date(timestamp);
+    
+    // Verifica se a data é válida
+    if (isNaN(date.getTime())) return '';
+
+    if (isToday(date)) {
+      return format(date, 'HH:mm');
+    }
+    
+    if (isYesterday(date)) {
+      return 'Ontem';
+    }
+    
+    // Formato curto para datas anteriores
+    return format(date, 'dd/MM');
   } catch (e) {
+    console.error("Erro ao formatar data:", e);
     return '';
   }
-  
-  if (!isValid(date)) return '';
-
-  if (isToday(date)) {
-    return format(date, 'HH:mm');
-  }
-  
-  if (isYesterday(date)) {
-    return 'Ontem';
-  }
-  
-  // Formato para datas mais antigas: 28/01
-  return format(date, 'dd/MM');
 };
 
 const MessagePreview = ({ content, type, sender }: { content?: string, type?: string, sender?: string }) => {
@@ -88,8 +90,9 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
       <div className="flex-1 min-w-0 flex flex-col justify-center h-full pt-0.5">
         
         {/* Linha Superior: Nome e Horário */}
-        <div className="flex items-center justify-between gap-2 w-full mb-1">
-          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+        <div className="flex items-start justify-between w-full mb-1">
+          {/* Lado Esquerdo: Nome + Tags */}
+          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden pr-2">
             <span className="font-semibold text-sm truncate text-foreground block">
               {conversation.nome || conversation.telefone}
             </span>
@@ -114,8 +117,8 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             )}
           </div>
           
-          {/* Horário fixo na direita - Estilo WhatsApp */}
-          <span className="text-[11px] text-muted-foreground/70 flex-shrink-0 whitespace-nowrap font-medium ml-auto">
+          {/* Lado Direito: Horário fixo */}
+          <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap font-medium">
             {lastMessageTime}
           </span>
         </div>
