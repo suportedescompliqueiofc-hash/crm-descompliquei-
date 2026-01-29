@@ -94,7 +94,7 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
         </AvatarFallback>
       </Avatar>
       
-      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+      <div className="flex-1 flex flex-col justify-center gap-0.5">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
             <span className="font-bold text-sm truncate text-foreground">
