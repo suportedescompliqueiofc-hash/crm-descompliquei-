@@ -13,6 +13,16 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface QuickMessagesSidebarProps {
   lead: Lead | null;
@@ -22,15 +32,21 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   const { quickMessages, sendQuickMessage, isLoading: isLoadingMsgs } = useQuickMessages();
   const { folders, isLoading: isLoadingFolders } = useQuickMessageFolders();
   const [searchTerm, setSearchTerm] = useState("");
+  const [messageToConfirm, setMessageToConfirm] = useState<QuickMessage | null>(null);
 
   const filteredMessages = quickMessages.filter(msg => 
     msg.titulo.toLowerCase().includes(searchTerm.toLowerCase()) || 
     (msg.conteudo && msg.conteudo.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleSend = (msg: QuickMessage) => {
-    if (!lead) return;
-    sendQuickMessage({ message: msg, leadId: lead.id, phone: lead.telefone });
+  const handleClickMessage = (msg: QuickMessage) => {
+    setMessageToConfirm(msg);
+  };
+
+  const handleConfirmSend = () => {
+    if (!lead || !messageToConfirm) return;
+    sendQuickMessage({ message: messageToConfirm, leadId: lead.id, phone: lead.telefone });
+    setMessageToConfirm(null);
   };
 
   const getIcon = (tipo: string) => {
@@ -61,7 +77,7 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
       key={msg.id}
       variant="outline"
       className="w-full justify-start h-auto py-2.5 px-3 relative group hover:border-primary/50 hover:bg-primary/5 text-left whitespace-normal mb-2"
-      onClick={() => handleSend(msg)}
+      onClick={() => handleClickMessage(msg)}
     >
       <div className="flex items-start gap-3 w-full">
         <div className="mt-0.5 flex-shrink-0 bg-muted rounded p-1.5 group-hover:bg-background transition-colors">
@@ -151,6 +167,23 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
           </div>
         )}
       </ScrollArea>
+
+      <AlertDialog open={!!messageToConfirm} onOpenChange={(open) => !open && setMessageToConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar envio</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja enviar a mensagem <strong>"{messageToConfirm?.titulo}"</strong> para {lead?.nome}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmSend} className="bg-primary hover:bg-primary/90">
+              Confirmar Envio
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
