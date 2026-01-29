@@ -6,8 +6,6 @@ import { QuickMessagesSidebar } from "@/components/conversations/QuickMessagesSi
 import { MessageSquare } from "lucide-react";
 import { useLead } from "@/hooks/useLeads";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Zap } from "lucide-react";
 
 export default function Conversations() {
   const { leadId } = useParams<{ leadId: string }>();
@@ -30,18 +28,11 @@ export default function Conversations() {
           {leadId ? (
             <div className="flex flex-col h-full relative">
               <div className="flex-1 overflow-hidden">
-                <ActiveConversation leadId={leadId} />
-              </div>
-              {/* Toggle de Quick Messages Mobile/Desktop */}
-              <div className="absolute top-3 right-4 z-10 md:hidden">
-                 <Button 
-                    size="icon" 
-                    variant={showQuickMessages ? "default" : "outline"} 
-                    className="h-8 w-8 rounded-full shadow-md"
-                    onClick={() => setShowQuickMessages(!showQuickMessages)}
-                 >
-                    <Zap className="h-4 w-4" />
-                 </Button>
+                <ActiveConversation 
+                  leadId={leadId} 
+                  showQuickMessages={showQuickMessages}
+                  onToggleQuickMessages={() => setShowQuickMessages(!showQuickMessages)}
+                />
               </div>
             </div>
           ) : (

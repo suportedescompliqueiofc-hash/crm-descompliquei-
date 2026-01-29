@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic } from "lucide-react";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,7 +109,13 @@ const groupMessagesByDay = (messages: Message[]) => {
 
 // --- COMPONENTE PRINCIPAL ---
 
-export function ActiveConversation({ leadId }: { leadId: string }) {
+interface ActiveConversationProps {
+  leadId: string;
+  showQuickMessages?: boolean;
+  onToggleQuickMessages?: () => void;
+}
+
+export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMessages }: ActiveConversationProps) {
   const { data: lead, isLoading: leadLoading } = useLead(leadId);
   const { data: messages, isLoading: messagesLoading } = useMessages(leadId);
   const { data: notifications } = useNotifications(leadId);
@@ -292,6 +298,21 @@ export function ActiveConversation({ leadId }: { leadId: string }) {
           <div className="h-6 w-px bg-border mx-1 hidden md:block"></div>
           {lead && <AiLockControl lead={lead} />}
           <div className="flex items-center space-x-2"><Switch id="ai-toggle" checked={isAiActive} onCheckedChange={handleAiToggle} disabled={!lead} /></div>
+          
+          {onToggleQuickMessages && (
+            <>
+              <div className="h-6 w-px bg-border mx-1 hidden md:block"></div>
+              <Button 
+                variant={showQuickMessages ? "default" : "outline"}
+                size="icon"
+                className={cn("h-9 w-9 transition-all", showQuickMessages ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-muted-foreground hover:text-foreground")}
+                onClick={onToggleQuickMessages}
+                title="Mensagens Rápidas"
+              >
+                <Zap className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </header>
 
