@@ -357,8 +357,22 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
               return (
                 <div key={msg.id} className={cn("group relative flex flex-col gap-0.5 py-0.5", isOutgoing ? "items-end" : "items-start")}>
                   <div className={cn("flex items-end gap-2 max-w-[90%] sm:max-w-[85%]", isOutgoing ? "flex-row-reverse" : "flex-row")}>
+                    
+                    {/* AVATAR DO REMETENTE */}
+                    <Avatar className="h-8 w-8 flex-shrink-0 border shadow-sm">
+                      {isOutgoing ? (
+                        <AvatarFallback className={cn(isAi ? "bg-primary/20 text-primary" : "bg-amber-100 text-amber-700")}>
+                          {isAi ? <Bot className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                        </AvatarFallback>
+                      ) : (
+                        <AvatarFallback className="bg-muted text-muted-foreground text-xs font-medium">
+                          {getInitials(lead?.nome)}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+
                     <div className={cn(
-                        "p-2 sm:p-3 rounded-2xl relative shadow-sm transition-all", 
+                        "p-2 sm:p-3 rounded-2xl relative shadow-sm transition-all min-w-[100px]", 
                         isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border border-border/40 rounded-bl-none"
                     )}>
                       {/* Anexos */}
@@ -378,11 +392,6 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                       
                       {/* Timestamp e Status */}
                       <div className={cn("flex items-center justify-end gap-1 mt-1 opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                        {isOutgoing && (
-                            <span className="flex items-center gap-0.5 mr-1.5" title={isAi ? "Inteligência Artificial" : "Humano"}>
-                                {isAi ? <Bot className="h-2.5 w-2.5" /> : <User className="h-2.5 w-2.5" />}
-                            </span>
-                        )}
                         <span className="text-[9px] sm:text-[10px] tabular-nums">{format(new Date(msg.criado_em), 'HH:mm')}</span>
                         {isOutgoing && <CheckCircle className="h-2.5 w-2.5" />}
                       </div>
