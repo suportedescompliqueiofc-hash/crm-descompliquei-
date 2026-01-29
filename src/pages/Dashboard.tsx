@@ -9,6 +9,36 @@ import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { Button } from "@/components/ui/button";
 
+// Componente de Tooltip Personalizado (igual ao de Relatórios)
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-popover/95 backdrop-blur-sm border border-border p-3 rounded-lg shadow-lg outline-none">
+        <p className="font-semibold text-foreground mb-1">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex items-center gap-2 py-0.5">
+            <div 
+              className="w-2 h-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.3)]" 
+              style={{ 
+                backgroundColor: entry.color, 
+                boxShadow: `0 0 4px ${entry.color}` 
+              }} 
+            />
+            <span className="text-sm text-muted-foreground capitalize">{entry.name}:</span>
+            <span className="text-sm font-bold text-foreground">
+              {entry.name === 'Faturamento' 
+                ? `R$ ${Number(entry.value).toLocaleString('pt-BR')}`
+                : entry.value
+              }
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function Dashboard() {
   const today = new Date();
   const initialDateRange: DateRange = { from: startOfMonth(today), to: endOfMonth(today) };
@@ -36,6 +66,19 @@ export default function Dashboard() {
       color: stage.cor || COLORS[index % COLORS.length],
     })).filter(s => s.value > 0);
   }, [metrics?.leadsByStage, stages]);
+
+  const GRADIENTS = (
+    <defs>
+      <linearGradient id="colorCaptados" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
+        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+      </linearGradient>
+      <linearGradient id="colorConvertidos" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+      </linearGradient>
+    </defs>
+  );
 
   if (metricsError) {
     return (
@@ -90,7 +133,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="col-span-1">
+        <Card className="col-span-1 shadow-sm border-border/60">
           <CardHeader>
             <CardTitle>Evolução de Leads</CardTitle>
           </CardHeader>
@@ -98,20 +141,37 @@ export default function Dashboard() {
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={metrics.leadsOverTime} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip />
-                  <Legend />
-                  <Area type="monotone" dataKey="captados" name="Captados" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.2} />
-                  <Area type="monotone" dataKey="convertidos" name="Convertidos" stroke="#10b981" fill="#10b981" fillOpacity={0.2} />
+                  {GRADIENTS}
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
+                  <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend iconType="circle" />
+                  <Area 
+                    type="monotone" 
+                    dataKey="captados" 
+                    name="Captados" 
+                    stroke="hsl(var(--primary))" 
+                    strokeWidth={2}
+                    fill="url(#colorCaptados)" 
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="convertidos" 
+                    name="Convertidos" 
+                    stroke="#10b981" 
+                    strokeWidth={2}
+                    fill="url(#colorConvertidos)" 
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="col-span-1">
+        <Card className="col-span-1 shadow-sm border-border/60">
           <CardHeader>
             <CardTitle>Distribuição do Funil</CardTitle>
           </CardHeader>
@@ -128,13 +188,21 @@ export default function Dashboard() {
                     paddingAngle={5} 
                     dataKey="value" 
                     nameKey="name"
+                    stroke="hsl(var(--card))"
+                    strokeWidth={2}
                   >
                     {stageDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip />
-                  <Legend />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend 
+                    layout="vertical" 
+                    verticalAlign="middle" 
+                    align="right"
+                    iconType="circle"
+                    formatter={(value) => <span className="text-xs text-foreground font-medium ml-1">{value}</span>}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
