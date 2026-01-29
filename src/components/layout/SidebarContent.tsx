@@ -33,7 +33,7 @@ const menuItems = [
   { title: "Marketing", icon: Target, path: "/marketing" },
   { title: "Campanhas", icon: Megaphone, path: "/campaigns" },
   { title: "Templates", icon: FileText, path: "/templates" },
-  { title: "Msgs Rápidas", icon: Zap, path: "/quick-messages" }, // Novo Item
+  { title: "Msgs Rápidas", icon: Zap, path: "/quick-messages" },
   { title: "IA", icon: Bot, path: "/ia" },
   { title: "Configurações", icon: Settings, path: "/settings" },
 ];
@@ -58,37 +58,58 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
       <div className="flex flex-col h-full bg-sidebar">
         {/* Logo & Toggle */}
         <div className={`flex items-center transition-all h-24 flex-shrink-0 ${isCollapsed ? 'px-2 justify-center' : 'px-6'}`}>
-          <div className={`flex items-center gap-3 whitespace-nowrap overflow-hidden transition-all ${isCollapsed ? 'w-0' : 'w-full'}`}>
+          <div className="flex items-center gap-3 overflow-hidden w-full">
+            {/* Logo Icon - Sempre visível ou ajustado */}
             <img 
               src="https://iuutktzsbdoadkqaoudq.supabase.co/storage/v1/object/public/media-mensagens/CRM/logo%20principal%20sem%20fundo%20cor%20original%202.png" 
               alt="Logo Monção" 
-              className="h-12 w-auto object-contain"
+              className={`h-10 w-auto object-contain transition-all duration-300 ${isCollapsed ? 'mx-auto' : ''}`}
             />
-            <div className="flex flex-col">
+            
+            {/* Logo Text - Colapsável */}
+            <div className={`flex flex-col whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}`}>
               <h1 className="text-sm font-bold text-sidebar-foreground uppercase tracking-widest font-serif">MONÇÃO</h1>
               <p className="text-[9px] text-sidebar-primary tracking-[0.1em] uppercase">Odontologia & Estética</p>
             </div>
           </div>
-          {toggleCollapse && (
-            <Button variant="ghost" size="icon" className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ml-auto" onClick={toggleCollapse}>
-              <ChevronLeft className={`h-5 w-5 transition-transform duration-300 ${isCollapsed && 'rotate-180'}`} />
+          
+          {toggleCollapse && !isCollapsed && (
+            <Button variant="ghost" size="icon" className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ml-auto flex-shrink-0" onClick={toggleCollapse}>
+              <ChevronLeft className="h-5 w-5" />
             </Button>
           )}
         </div>
+        
+        {/* Toggle Button for Collapsed State (Centered) */}
+        {toggleCollapse && isCollapsed && (
+          <div className="flex justify-center pb-2">
+             <Button variant="ghost" size="icon" className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50" onClick={toggleCollapse}>
+              <ChevronLeft className="h-5 w-5 rotate-180" />
+            </Button>
+          </div>
+        )}
 
         {/* Menu Items */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-sidebar-accent/20 scrollbar-track-transparent">
+        <nav className={`flex-1 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-sidebar-accent/20 scrollbar-track-transparent ${isCollapsed ? 'p-2' : 'p-4'}`}>
           {menuItems.map((item) => {
             const isActive = location.pathname.startsWith(item.path) && (item.path !== '/' || location.pathname === '/');
             const Icon = item.icon;
             
-            const linkClasses = `flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isCollapsed ? 'justify-center' : ''} ${isActive ? 'bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-sidebar-primary' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/30 hover:text-sidebar-foreground'}`;
+            const linkClasses = `flex items-center gap-3 py-3 rounded-lg transition-all ${
+              isCollapsed 
+                ? 'justify-center px-2' 
+                : 'px-4'
+            } ${
+              isActive 
+                ? 'bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-sidebar-primary' 
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/30 hover:text-sidebar-foreground'
+            }`;
 
             return isCollapsed ? (
               <Tooltip key={item.path} delayDuration={0}>
                 <TooltipTrigger asChild>
                   <Link to={item.path} className={linkClasses}>
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-5 w-5 flex-shrink-0" />
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent side="right">{item.title}</TooltipContent>
@@ -103,7 +124,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
         </nav>
 
         {/* User Section */}
-        <div className="p-4 border-t border-sidebar-border flex-shrink-0">
+        <div className={`${isCollapsed ? 'p-2' : 'p-4'} border-t border-sidebar-border flex-shrink-0`}>
           <div className={`flex items-center gap-3 mb-3 ${isCollapsed ? 'justify-center' : ''}`}>
             <Avatar className="h-10 w-10 flex-shrink-0 border border-sidebar-border">
               <AvatarImage src={profile?.url_avatar || ''} />
@@ -111,7 +132,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
                 {getInitials(profile?.nome_completo)}
               </AvatarFallback>
             </Avatar>
-            <div className={`flex-1 overflow-hidden whitespace-nowrap transition-all ${isCollapsed ? 'w-0' : 'w-full'}`}>
+            <div className={`flex-1 overflow-hidden whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
               <p className="text-sm font-medium text-sidebar-foreground truncate" title={profile?.nome_completo || 'Usuário'}>
                 {profile?.nome_completo || 'Colaborador'}
               </p>
@@ -122,11 +143,12 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
           </div>
           <Button 
             variant="ghost" 
-            className={`w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ${isCollapsed ? 'justify-center' : 'justify-start'}`}
+            className={`w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ${isCollapsed ? 'justify-center px-0' : 'justify-start'}`}
             onClick={signOut}
+            title={isCollapsed ? "Sair" : undefined}
           >
             <LogOut className="h-4 w-4 flex-shrink-0" />
-            <span className={`ml-2 whitespace-nowrap ${isCollapsed ? 'hidden' : 'block'}`}>Sair</span>
+            <span className={`ml-2 whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}`}>Sair</span>
           </Button>
         </div>
       </div>
