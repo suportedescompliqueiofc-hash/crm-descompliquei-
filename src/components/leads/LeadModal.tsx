@@ -336,7 +336,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
   };
 
   const currentStage = stages.find(s => s.posicao_ordem === lead?.posicao_pipeline); 
-  const isContratoFechado = currentStage?.nome === 'Contrato Fechado';
+  const isContratoFechado = currentStage?.nome === 'Contrato Fechado' || currentStage?.nome === 'Procedimento Fechado';
   
   const creativeName = lead?.criativo_id 
     ? criativos.find((c: any) => c.id === lead.criativo_id)?.nome || criativos.find((c: any) => c.id === lead.criativo_id)?.titulo 
