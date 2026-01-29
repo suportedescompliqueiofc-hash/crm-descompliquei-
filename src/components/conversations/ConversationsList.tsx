@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConversationsList, Conversation } from "@/hooks/useConversations";
-import { format, isToday, isYesterday, differenceInDays, isValid, parseISO } from "date-fns";
+import { format, isToday, isYesterday, isValid, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { TAG_COLORS } from "@/hooks/useTags";
@@ -31,14 +31,8 @@ const formatLastMessageTime = (timestamp?: string | null) => {
     return 'Ontem';
   }
   
-  const now = new Date();
-  if (differenceInDays(now, date) < 7) {
-    const dayOfWeek = format(date, 'EEEE', { locale: ptBR });
-    // Primeira letra maiúscula
-    return dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1).split('-')[0];
-  }
-  
-  return format(date, 'dd/MM/yy');
+  // Formato abreviado para datas mais antigas (ex: 28/01)
+  return format(date, 'dd/MM');
 };
 
 const MessagePreview = ({ content, type, sender }: { content?: string, type?: string, sender?: string }) => {
@@ -48,21 +42,21 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
   const prefix = isOutgoing ? <span className="mr-1">Você:</span> : null;
 
   if (type === 'audio') {
-    return <div className="flex items-center gap-1 text-foreground/80"><Mic className="h-3 w-3 flex-shrink-0" /> <span>Áudio</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/70"><Mic className="h-3 w-3 flex-shrink-0" /> <span>Áudio</span></div>;
   }
   if (type === 'imagem') {
-    return <div className="flex items-center gap-1 text-foreground/80"><ImageIcon className="h-3 w-3 flex-shrink-0" /> <span>Foto</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/70"><ImageIcon className="h-3 w-3 flex-shrink-0" /> <span>Foto</span></div>;
   }
   if (type === 'video') {
-    return <div className="flex items-center gap-1 text-foreground/80"><Video className="h-3 w-3 flex-shrink-0" /> <span>Vídeo</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/70"><Video className="h-3 w-3 flex-shrink-0" /> <span>Vídeo</span></div>;
   }
   if (type === 'pdf' || type === 'arquivo') {
-    return <div className="flex items-center gap-1 text-foreground/80"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Arquivo</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/70"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Arquivo</span></div>;
   }
 
-  // Fallback para quando o conteúdo é apenas o caminho do arquivo mas o tipo não foi detectado corretamente
-  if (content && (content.includes('audio-mensagens/') || content.includes('media-mensagens/'))) {
-    return <div className="flex items-center gap-1 text-foreground/80"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Mídia</span></div>;
+  // Fallback para quando o conteúdo é apenas o caminho do arquivo
+  if (content && (content.includes('audio-mensagens/') || content.includes('media-mensagens/') || content.includes('campaign-media/'))) {
+    return <div className="flex items-center gap-1 text-foreground/70"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Mídia</span></div>;
   }
 
   return <span className="truncate flex items-center">{prefix}{content}</span>;
@@ -83,39 +77,40 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
     <Link
       to={`/conversas/${conversation.id}`}
       className={cn(
-        "flex gap-3 p-3 rounded-lg transition-colors cursor-pointer border border-transparent group relative items-center w-full",
-        isActive ? "bg-muted border-border" : "hover:bg-muted/50"
+        "flex gap-3 p-3 transition-colors cursor-pointer border-b border-border/40 hover:bg-muted/50 relative items-start group",
+        isActive ? "bg-muted border-l-4 border-l-primary" : "bg-transparent"
       )}
     >
-      <Avatar className="h-12 w-12 flex-shrink-0">
-        <AvatarFallback className={cn("text-sm font-semibold", isActive ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground")}>
+      <Avatar className="h-12 w-12 flex-shrink-0 mt-0.5">
+        <AvatarFallback className={cn("text-sm font-semibold", isActive ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground")}>
           {getInitials(conversation.nome)}
         </AvatarFallback>
       </Avatar>
       
-      {/* Container Principal de Texto - Flex Column */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center h-full">
+      {/* Container Principal */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center min-h-[44px]">
         
-        {/* Linha Superior: Nome (Esq) e Horário (Dir) */}
-        <div className="flex items-center justify-between mb-0.5 w-full">
-          {/* Container do Nome + Tags com Truncate */}
-          <div className="flex items-center gap-1.5 min-w-0 pr-1 flex-1">
-            <span className="font-semibold text-sm truncate text-foreground block">
+        {/* Linha Superior: Nome + Tags + Horário */}
+        <div className="flex justify-between items-center mb-1">
+          {/* Lado Esquerdo: Nome e Tags */}
+          <div className="flex items-center gap-2 min-w-0 overflow-hidden pr-2">
+            <span className="font-semibold text-sm truncate text-foreground">
               {conversation.nome || conversation.telefone}
             </span>
             
-            {/* Tags */}
+            {/* Tags (Pontos Coloridos) */}
             {conversation.tags && conversation.tags.length > 0 && (
               <div className="flex items-center gap-1 flex-shrink-0">
                 {conversation.tags.slice(0, 3).map(tag => {
                   const preset = TAG_COLORS.find(c => c.name === tag.color);
                   const isHex = tag.color && tag.color.startsWith('#');
+                  const bgColor = isHex ? tag.color : (preset ? undefined : '#ccc');
                   
                   return (
                     <div 
                       key={tag.id} 
-                      className={cn("w-2 h-2 rounded-full ring-1 ring-background", preset?.selector)} 
-                      style={isHex ? { backgroundColor: tag.color } : undefined}
+                      className={cn("w-2 h-2 rounded-full ring-1 ring-background", !isHex && preset?.selector)} 
+                      style={isHex ? { backgroundColor: bgColor } : undefined}
                       title={tag.name} 
                     />
                   );
@@ -124,21 +119,22 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             )}
           </div>
           
-          {/* Horário Fixo */}
-          <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap ml-2">
+          {/* Lado Direito: Horário (Sempre visível) */}
+          <span className="text-[11px] text-muted-foreground flex-shrink-0 whitespace-nowrap font-medium">
             {lastMessageTime}
           </span>
         </div>
 
         {/* Linha Inferior: Prévia da Mensagem */}
-        <div className="flex items-center w-full">
-          <div className="text-xs text-muted-foreground truncate flex-1 min-w-0 block">
+        <div className="flex items-center justify-between w-full">
+          <div className="text-xs text-muted-foreground truncate flex-1 min-w-0">
             <MessagePreview 
               content={conversation.last_message_content} 
               type={conversation.last_message_type} 
               sender={conversation.last_message_sender} 
             />
           </div>
+          {/* Espaço reservado para contador de não lidas se implementar futuramente */}
         </div>
       </div>
     </Link>
@@ -157,36 +153,40 @@ export function ConversationsList() {
   return (
     <div className="flex flex-col h-full bg-card border-r w-full">
       <div className="p-4 border-b">
-        <h2 className="text-xl font-bold mb-4">Conversas</h2>
+        <h2 className="text-xl font-bold mb-4 text-foreground">Conversas</h2>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar conversas..."
-            className="pl-10 h-9"
+            className="pl-10 h-10 bg-muted/30 border-muted-foreground/20"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
       </div>
       <ScrollArea className="flex-1 w-full">
-        <div className="p-2 space-y-1">
+        <div className="space-y-0">
           {isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 p-3">
+              <div key={i} className="flex items-center gap-3 p-3 border-b border-border/40">
                 <Skeleton className="h-12 w-12 rounded-full flex-shrink-0" />
                 <div className="flex-1 space-y-2 min-w-0">
                   <div className="flex justify-between">
                     <Skeleton className="h-4 w-24" />
                     <Skeleton className="h-3 w-8" />
                   </div>
-                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-32" />
                 </div>
               </div>
             ))
-          ) : (
-            filteredConversations?.map(conversation => (
+          ) : filteredConversations && filteredConversations.length > 0 ? (
+            filteredConversations.map(conversation => (
               <ConversationItem key={conversation.id} conversation={conversation} />
             ))
+          ) : (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              Nenhuma conversa encontrada.
+            </div>
           )}
         </div>
       </ScrollArea>
