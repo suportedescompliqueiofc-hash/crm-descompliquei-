@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy, Upload, Facebook, Eye, MousePointerClick, Edit2, Trash2, Link as LinkIcon } from "lucide-react";
+import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy, Upload, Facebook, Eye, MousePointerClick, Edit2, Trash2, Link as LinkIcon, Activity } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,6 +42,17 @@ export default function Marketing() {
   // --- LÓGICA DE SEPARAÇÃO ---
   const campanhasMeta = (criativos || []).filter(c => c.platform_metrics && c.platform_metrics.spend > 0);
   const criativosAssets = (criativos || []).filter(c => !c.platform_metrics || c.platform_metrics.spend === 0);
+
+  // Cálculos Acumulados (Meta Ads)
+  const totalSpend = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.spend || 0), 0);
+  const totalResults = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.results || 0), 0);
+  const totalReach = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.reach || 0), 0);
+  const totalImpressions = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.impressions || 0), 0);
+  const totalClicks = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.clicks || 0), 0);
+  
+  const avgCostPerResult = totalResults > 0 ? totalSpend / totalResults : 0;
+  const avgCTR = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+  const avgCPC = totalClicks > 0 ? totalSpend / totalClicks : 0;
 
   const criativosFiltrados = criativosAssets.filter(c => {
     const search = searchTerm.toLowerCase();
@@ -181,97 +192,151 @@ export default function Marketing() {
                   </Button>
                 </div>
               ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[280px]">Campanha / Criativo</TableHead>
-                        <TableHead className="text-center w-[120px]">Início</TableHead>
-                        <TableHead className="text-center w-[120px]">Término</TableHead>
-                        <TableHead className="text-right">Valor Usado</TableHead>
-                        <TableHead className="text-right">Resultados</TableHead>
-                        <TableHead className="text-right">Custo p/ Res.</TableHead>
-                        <TableHead className="text-right">Alcance</TableHead>
-                        <TableHead className="text-right">Impressões</TableHead>
-                        <TableHead className="text-right">CTR</TableHead>
-                        <TableHead className="text-right">CPC</TableHead>
-                        <TableHead className="text-right w-[140px]">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {campanhasMeta.map((campanha) => {
-                        const m = campanha.platform_metrics!;
-                        return (
-                          <TableRow key={campanha.id}>
-                            <TableCell className="font-medium">
-                              <div className="flex flex-col">
-                                <span className="text-sm font-semibold text-foreground">{campanha.nome}</span>
-                                <span className="text-xs text-muted-foreground truncate max-w-[260px]" title={campanha.titulo || ''}>
-                                  Original: {campanha.titulo || '-'}
+                <>
+                  <div className="rounded-md border mb-6">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[280px]">Campanha / Criativo</TableHead>
+                          <TableHead className="text-center w-[120px]">Início</TableHead>
+                          <TableHead className="text-center w-[120px]">Término</TableHead>
+                          <TableHead className="text-right">Valor Usado</TableHead>
+                          <TableHead className="text-right">Resultados</TableHead>
+                          <TableHead className="text-right">Custo p/ Res.</TableHead>
+                          <TableHead className="text-right">Alcance</TableHead>
+                          <TableHead className="text-right">Impressões</TableHead>
+                          <TableHead className="text-right">CTR</TableHead>
+                          <TableHead className="text-right">CPC</TableHead>
+                          <TableHead className="text-right w-[140px]">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {campanhasMeta.map((campanha) => {
+                          const m = campanha.platform_metrics!;
+                          return (
+                            <TableRow key={campanha.id}>
+                              <TableCell className="font-medium">
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-semibold text-foreground">{campanha.nome}</span>
+                                  <span className="text-xs text-muted-foreground truncate max-w-[260px]" title={campanha.titulo || ''}>
+                                    Original: {campanha.titulo || '-'}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center text-xs text-muted-foreground">
+                                {formatDateDisplay(m.reporting_start)}
+                              </TableCell>
+                              <TableCell className="text-center text-xs text-muted-foreground">
+                                {formatDateDisplay(m.reporting_end)}
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                {formatMoney(m.spend)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant="secondary" className="font-bold">{m.results}</Badge>
+                              </TableCell>
+                              <TableCell className="text-right text-amber-700 font-medium">
+                                {formatMoney(m.cost_per_result)}
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground text-xs">
+                                {m.reach.toLocaleString('pt-BR')}
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground text-xs">
+                                {m.impressions.toLocaleString('pt-BR')}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className={m.ctr > 1 ? "text-green-600 font-medium" : "text-muted-foreground"}>
+                                  {m.ctr.toFixed(2)}%
                                 </span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center text-xs text-muted-foreground">
-                              {formatDateDisplay(m.reporting_start)}
-                            </TableCell>
-                            <TableCell className="text-center text-xs text-muted-foreground">
-                              {formatDateDisplay(m.reporting_end)}
-                            </TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatMoney(m.spend)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Badge variant="secondary" className="font-bold">{m.results}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right text-amber-700 font-medium">
-                              {formatMoney(m.cost_per_result)}
-                            </TableCell>
-                            <TableCell className="text-right text-muted-foreground text-xs">
-                              {m.reach.toLocaleString('pt-BR')}
-                            </TableCell>
-                            <TableCell className="text-right text-muted-foreground text-xs">
-                              {m.impressions.toLocaleString('pt-BR')}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <span className={m.ctr > 1 ? "text-green-600 font-medium" : "text-muted-foreground"}>
-                                {m.ctr.toFixed(2)}%
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right text-xs">
-                              {formatMoney(m.cpc)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-1">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" 
-                                  onClick={() => handleAssociateClick(campanha)} 
-                                  title="Associar a Criativo do CRM"
-                                >
-                                  <LinkIcon className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClick(campanha)} title="Editar">
-                                  <Edit2 className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(campanha.id)} title="Excluir">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+                              </TableCell>
+                              <TableCell className="text-right text-xs">
+                                {formatMoney(m.cpc)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" 
+                                    onClick={() => handleAssociateClick(campanha)} 
+                                    title="Associar a Criativo do CRM"
+                                  >
+                                    <LinkIcon className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClick(campanha)} title="Editar">
+                                    <Edit2 className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(campanha.id)} title="Excluir">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* CARDS DE RESUMO ACUMULADO */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-4 border-t">
+                    <div className="p-4 bg-muted/20 border rounded-lg flex flex-col gap-1">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Valor Total Usado</span>
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-primary" />
+                        <span className="text-2xl font-bold">{formatMoney(totalSpend)}</span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-muted/20 border rounded-lg flex flex-col gap-1">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Total Resultados</span>
+                      <div className="flex items-center gap-2">
+                        <Target className="h-4 w-4 text-green-600" />
+                        <span className="text-2xl font-bold">{totalResults}</span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-muted/20 border rounded-lg flex flex-col gap-1">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Custo Médio / Res.</span>
+                      <div className="flex items-center gap-2">
+                        <Activity className="h-4 w-4 text-amber-600" />
+                        <span className="text-2xl font-bold">{formatMoney(avgCostPerResult)}</span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-muted/20 border rounded-lg flex flex-col gap-1">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Alcance Total</span>
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-blue-500" />
+                        <span className="text-2xl font-bold">{totalReach.toLocaleString('pt-BR')}</span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-muted/20 border rounded-lg flex flex-col gap-1 md:col-span-2 lg:col-span-1">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Métricas Secundárias</span>
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">CTR Médio:</span>
+                          <span className="font-medium text-green-600">{avgCTR.toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">CPC Médio:</span>
+                          <span className="font-medium">{formatMoney(avgCPC)}</span>
+                        </div>
+                        <div className="flex justify-between col-span-2">
+                          <span className="text-muted-foreground">Impressões:</span>
+                          <span className="font-medium">{totalImpressions.toLocaleString('pt-BR', { notation: 'compact' })}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="creatives" className="space-y-6">
-          {/* ... (mantido igual) ... */}
           {isLoadingCreatives ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-80 w-full rounded-lg" />)}
@@ -294,7 +359,6 @@ export default function Marketing() {
         </TabsContent>
 
         <TabsContent value="reports" className="space-y-6">
-          {/* ... (mantido igual) ... */}
           {isLoadingReports ? (
              <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
           ) : (
