@@ -22,6 +22,12 @@ export function useDashboard(dateRange: DateRange | undefined) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vendas' }, () => {
         queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'marketing_expenses' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'criativos' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      })
       .subscribe();
 
     return () => {
@@ -36,17 +42,23 @@ export function useDashboard(dateRange: DateRange | undefined) {
 
       const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
       const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
+      const startDayStr = format(startOfDay(dateRange.from), 'yyyy-MM-dd');
+      const endDayStr = format(endOfDay(dateRange.to), 'yyyy-MM-dd');
 
       const [
         { data: leadsData },
         { data: stagesData },
         { data: activitiesData },
-        { data: vendasData }
+        { data: vendasData },
+        { data: expensesData },
+        { data: criativosData }
       ] = await Promise.all([
         supabase.from('leads').select('*').eq('organization_id', orgId).gte('criado_em', startDate).lte('criado_em', endDate),
         supabase.from('etapas').select('id, nome, posicao_ordem'),
         supabase.from('atividades').select('*').eq('organization_id', orgId).gte('criado_em', startDate).lte('criado_em', endDate).limit(10),
-        supabase.from('vendas').select('valor_fechado').eq('organization_id', orgId).gte('data_fechamento', format(startOfDay(dateRange.from), 'yyyy-MM-dd')).lte('data_fechamento', format(endOfDay(dateRange.to), 'yyyy-MM-dd'))
+        supabase.from('vendas').select('valor_fechado').eq('organization_id', orgId).gte('data_fechamento', startDayStr).lte('data_fechamento', endDayStr),
+        supabase.from('marketing_expenses').select('amount').eq('organization_id', orgId).gte('expense_date', startDayStr).lte('expense_date', endDayStr),
+        supabase.from('criativos').select('platform_metrics').eq('organization_id', orgId).gte('criado_em', startDate).lte('criado_em', endDate)
       ]);
 
       const leads = leadsData || [];
@@ -61,7 +73,22 @@ export function useDashboard(dateRange: DateRange | undefined) {
 
       const convertedLeads = leads.filter(l => l.posicao_pipeline === convertedStagePosition);
       const conversionRate = totalContatos > 0 ? (convertedLeads.length / totalContatos) * 100 : 0;
+      
+      // Financeiro e CAC
       const faturamentoTotal = (vendasData || []).reduce((sum, v) => sum + v.valor_fechado, 0);
+      const totalVendasCount = vendasData?.length || 0;
+
+      const manualSpend = expensesData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+      const metaSpend = criativosData?.reduce((acc, curr) => {
+        const metrics = curr.platform_metrics as any;
+        if (metrics && metrics.included_in_dashboard && metrics.spend) {
+          return acc + Number(metrics.spend);
+        }
+        return acc;
+      }, 0) || 0;
+
+      const totalInvestment = manualSpend + metaSpend;
+      const cac = totalVendasCount > 0 ? totalInvestment / totalVendasCount : 0;
 
       const daysInInterval = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
       const leadsOverTime = daysInInterval.map(day => {
@@ -79,6 +106,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
         organicLeads,
         conversionRate: conversionRate.toFixed(1),
         faturamentoTotal,
+        cac,
         activities: activitiesData || [],
         leadsByStage: leads.map(l => ({ etapa_id: l.posicao_pipeline })),
         leadsOverTime,
