@@ -21,6 +21,7 @@ import { CreativeDetailsModal } from "@/components/marketing/CreativeDetailsModa
 import { AssociateCreativeModal } from "@/components/marketing/AssociateCreativeModal";
 import { MarketingSpendModal } from "@/components/marketing/MarketingSpendModal";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function Marketing() {
   const today = new Date();
@@ -336,10 +337,10 @@ export default function Marketing() {
                   {/* CARDS DE RESUMO ACUMULADO */}
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-4 border-t">
                     <div className="p-4 bg-muted/20 border rounded-lg flex flex-col gap-1">
-                      <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Valor Meta Ads</span>
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Valor Total Usado</span>
                       <div className="flex items-center gap-2">
                         <DollarSign className="h-4 w-4 text-primary" />
-                        <span className="text-2xl font-bold">{formatMoney(metaSpend)}</span>
+                        <span className="text-2xl font-bold">{formatMoney(totalSpend)}</span>
                       </div>
                     </div>
 
