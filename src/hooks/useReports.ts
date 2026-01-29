@@ -125,22 +125,28 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       const criativos = criativosData || [];
       const criativosMap = new Map(criativos.map(c => [c.id, c]));
 
-      // Identifica a posição da etapa "Perdido" para excluí-la da contagem acumulada
+      // Definição Robusta da Etapa de Conversão e Perda
+      // Usa a mesma lógica que o componente de Funil
+      const stdConvertedStage = SALES_FUNNEL_STAGES.find(s => s.name === "Procedimento Fechado");
+      const dbConvertedStage = allStages.find(s => s.nome.toLowerCase() === stdConvertedStage?.name.toLowerCase());
+      const convertedStagePosition = dbConvertedStage ? dbConvertedStage.posicao_ordem : (stdConvertedStage?.order || 6);
+
       const lostStage = allStages.find(s => s.nome.toLowerCase() === 'perdido');
       const lostPosition = lostStage?.posicao_ordem || 999;
 
-      // 3. Funil de Vendas Real (Padronizado com o Pipeline)
+      // Função helper para verificar se um lead é convertido
+      // Um lead é convertido se alcançou ou passou da etapa de fechamento, mas não está perdido
+      const isLeadConverted = (lead: any) => {
+        return lead.posicao_pipeline >= convertedStagePosition && lead.posicao_pipeline < lostPosition;
+      };
+
+      // 3. Funil de Vendas Real (Padronizado)
       const funnelData = SALES_FUNNEL_STAGES.map((stdStage, index) => {
-        // Tenta encontrar a etapa no banco para pegar a cor e posição real
         const dbStage = allStages.find(s => s.nome.toLowerCase() === stdStage.name.toLowerCase());
-        
-        // Se não encontrar no banco, assume a posição baseada no padrão
         const position = dbStage ? dbStage.posicao_ordem : stdStage.order;
         const color = dbStage ? dbStage.cor : stdStage.color;
 
-        // Cálculo de Volume Acumulado
-        // Conta leads que estão nesta etapa OU em etapas posteriores (funil acumulado)
-        // EXCLUI leads que estão na etapa "Perdido" ou superior (fora do funil de sucesso)
+        // Volume Acumulado
         const volume = leads.filter(l => 
           l.posicao_pipeline >= position && l.posicao_pipeline < lostPosition
         ).length;
@@ -149,9 +155,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         let dropOffRate = 0;
         let previousVolume = 0;
 
-        // Se não é a primeira etapa, calcula conversão baseada na anterior
         if (index > 0) {
-          // Recalculamos o volume da etapa anterior para garantir consistência
           const prevStageName = SALES_FUNNEL_STAGES[index - 1];
           const prevDbStage = allStages.find(s => s.nome.toLowerCase() === prevStageName.name.toLowerCase());
           const prevPosition = prevDbStage ? prevDbStage.posicao_ordem : (index);
@@ -174,20 +178,17 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         };
       });
 
-      // Conversão Geral (Topo -> Fundo)
       const topOfFunnel = funnelData[0]?.quantidade || 0;
       const bottomOfFunnel = funnelData[funnelData.length - 1]?.quantidade || 0;
       const overallConversion = topOfFunnel > 0 ? ((bottomOfFunnel / topOfFunnel) * 100).toFixed(1) : "0";
 
-      // 4. KPIs Gerais (Filtrados automaticamente pela query de leads)
-      const convertedStagePosition = allStages.find(s => s.nome.toLowerCase().includes('fechado') || s.nome.toLowerCase().includes('contrato'))?.posicao_ordem || 6;
-      const convertedLeads = leads.filter(l => l.posicao_pipeline === convertedStagePosition);
+      // 4. KPIs Gerais (Recalculados com lógica corrigida)
+      // Filtra leads que estão na etapa de conversão OU adiante (mas não perdidos)
+      const convertedLeads = leads.filter(isLeadConverted);
       const kpiConversionRate = leads.length > 0 ? (convertedLeads.length / leads.length) * 100 : 0;
       
-      // Filtrar vendas para bater com o filtro de origem (caso vendas não tenha origem explícita, usamos o join com leads)
       const filteredVendas = vendas.filter(v => {
         if (filters.origem === 'Todos') return true;
-        // Verifica se o lead da venda tem a origem correta
         return v.leads && v.leads.origem === filters.origem;
       });
 
@@ -200,13 +201,14 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         ? convertedLeads.reduce((sum, lead) => differenceInDays(new Date(lead.atualizado_em), new Date(lead.criado_em)), 0) / convertedLeads.length
         : 0;
 
-      // 5. Gráficos Diários
+      // 5. Gráficos Diários (Lógica de conversão alinhada)
       const leadsCapturedData = daysInInterval.map(day => {
         const dayStr = format(day, 'yyyy-MM-dd');
         return {
           day: format(day, 'dd/MM'),
           captados: leads.filter(l => l.criado_em.startsWith(dayStr)).length,
-          convertidos: leads.filter(l => l.posicao_pipeline === convertedStagePosition && l.atualizado_em?.startsWith(dayStr)).length
+          // Conta como convertido no dia se ele é convertido AGORA e foi atualizado NESTE DIA
+          convertidos: leads.filter(l => isLeadConverted(l) && l.atualizado_em?.startsWith(dayStr)).length
         };
       });
 
@@ -218,7 +220,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         };
       });
 
-      // 6. Distribuição (Apenas se o filtro for 'Todos', senão mostra 100% da origem selecionada)
+      // 6. Distribuição
       const sourceCount = leads.reduce((acc, l) => {
         const key = l.fonte || l.origem || 'Desconhecida';
         acc[key] = (acc[key] || 0) + 1;
@@ -298,7 +300,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         conversions: {
           kpis: { totalConvertido: totalFaturado, leadsConvertidos: convertedLeads.length, conversionRate: kpiConversionRate.toFixed(1), ticketMedio },
           charts: { 
-            conversoesPorOrigemData: Object.entries(leads.filter(l => l.posicao_pipeline === convertedStagePosition).reduce((acc, l) => {
+            conversoesPorOrigemData: Object.entries(leads.filter(isLeadConverted).reduce((acc, l) => {
               const key = l.origem || 'Desconhecida';
               acc[key] = (acc[key] || 0) + 1;
               return acc;
@@ -307,7 +309,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
           },
           tables: { 
             ultimasConversoes: leads
-              .filter(l => l.posicao_pipeline === convertedStagePosition)
+              .filter(isLeadConverted)
               .sort((a, b) => new Date(b.atualizado_em).getTime() - new Date(a.atualizado_em).getTime())
               .slice(0, 5)
               .map(l => ({
