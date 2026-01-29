@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, CheckCircle, AlertCircle, FileSpreadsheet } from "lucide-react";
-import { Criativo, MetaMetrics } from "@/hooks/useMarketing";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, Plus, Loader2 } from "lucide-react";
+import { Criativo, MetaMetrics, useMarketing } from "@/hooks/useMarketing";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -21,18 +22,15 @@ interface CSVRow {
 }
 
 export function MetaImportModal({ open, onOpenChange, criativos, onImport }: MetaImportModalProps) {
+  const { createCriativo } = useMarketing(); // Hook para criar criativos
   const [csvData, setCsvData] = useState<CSVRow[]>([]);
   const [matchedData, setMatchedData] = useState<{ row: CSVRow; creativeId: string | null }[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [creatingIndexes, setCreatingIndexes] = useState<number[]>([]); // Track loading state for specific rows
 
   const parseNumber = (value: string) => {
     if (!value) return 0;
-    // Remove aspas se houver
     const cleanValue = value.replace(/"/g, '');
-    // Se for formato brasileiro (1.000,00), converte para (1000.00)
-    // Mas o CSV do Meta geralmente vem com ponto decimal se for exportado em EN ou vírgula em PT
-    // O exemplo mostra: 27.42 (ponto) e 1.148135 (ponto). Parece formato internacional ou misto.
-    // Vamos assumir ponto como decimal baseado no exemplo.
     const floatVal = parseFloat(cleanValue);
     return isNaN(floatVal) ? 0 : floatVal;
   };
@@ -48,23 +46,18 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
       const text = event.target?.result as string;
       if (!text) return;
 
-      // Split lines handling different line endings
       const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
       if (lines.length < 2) {
         toast.error("Arquivo CSV inválido ou vazio.");
         return;
       }
 
-      // Parse headers
-      // Regex para splitar por vírgula mas ignorar vírgulas dentro de aspas
       const splitCSV = (str: string) => {
         const matches = str.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
-        // Fallback simples se o regex falhar ou para linhas simples
         if (!matches) return str.split(',');
-        return matches.map(m => m.replace(/^"|"$/g, '')); // Remove surrounding quotes
+        return matches.map(m => m.replace(/^"|"$/g, ''));
       };
 
-      // Mapeamento de índices baseado no cabeçalho
       const headers = splitCSV(lines[0]).map(h => h.trim().replace(/"/g, ''));
       
       const idxName = headers.indexOf('Nome da campanha');
@@ -83,7 +76,6 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
       }
 
       const parsedRows: CSVRow[] = lines.slice(1).map(line => {
-        // Regex mais robusto para CSV parsing (trata vírgulas dentro de aspas)
         const values = [];
         let inQuote = false;
         let currentVal = '';
@@ -99,9 +91,8 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
             currentVal += char;
           }
         }
-        values.push(currentVal.trim()); // Push last value
+        values.push(currentVal.trim());
 
-        // Se a linha estiver vazia ou mal formatada, ignora
         if (values.length < headers.length * 0.5) return null; 
 
         return {
@@ -122,9 +113,7 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
 
       setCsvData(parsedRows);
 
-      // Auto-match logic
       const matches = parsedRows.map(row => {
-        // Tenta encontrar correspondência exata ou parcial
         const creative = criativos.find(c => 
           (c.nome && row.campaignName.toLowerCase().includes(c.nome.toLowerCase())) ||
           (c.titulo && row.campaignName.toLowerCase().includes(c.titulo.toLowerCase())) ||
@@ -137,9 +126,42 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
     };
 
     reader.readAsText(file);
-    
-    // Limpa o valor do input para permitir selecionar o mesmo arquivo novamente se necessário
     e.target.value = '';
+  };
+
+  const handleManualAssociation = (index: number, creativeId: string) => {
+    setMatchedData(prev => {
+      const newData = [...prev];
+      newData[index].creativeId = creativeId === "none" ? null : creativeId;
+      return newData;
+    });
+  };
+
+  const handleCreateFromRow = async (index: number) => {
+    const row = matchedData[index].row;
+    if (!row.campaignName) return;
+
+    setCreatingIndexes(prev => [...prev, index]);
+
+    try {
+      const newCreative = await createCriativo({
+        nome: row.campaignName,
+        titulo: row.campaignName
+      });
+
+      if (newCreative) {
+        setMatchedData(prev => {
+          const newData = [...prev];
+          newData[index].creativeId = newCreative.id;
+          return newData;
+        });
+        toast.success(`Criativo "${row.campaignName}" criado e associado!`);
+      }
+    } catch (error) {
+      console.error("Erro ao criar criativo:", error);
+    } finally {
+      setCreatingIndexes(prev => prev.filter(i => i !== index));
+    }
   };
 
   const handleConfirm = () => {
@@ -161,14 +183,14 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-green-600" />
             Importar Métricas do Meta Ads
           </DialogTitle>
           <DialogDescription>
-            Faça upload do CSV exportado do Gerenciador de Anúncios. O sistema tentará associar as campanhas aos seus criativos.
+            Faça upload do CSV. O sistema tentará associar automaticamente, mas você pode ajustar ou criar novos criativos.
           </DialogDescription>
         </DialogHeader>
 
@@ -178,7 +200,6 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
               <Upload className="h-8 w-8 text-muted-foreground mb-2" />
               <p className="text-sm font-medium text-foreground">Clique para selecionar o arquivo CSV</p>
               <p className="text-xs text-muted-foreground mt-1">Formatos suportados: .csv</p>
-              {/* Usando input nativo para garantir que o w-full h-full funcione corretamente com inset-0 */}
               <input 
                 type="file" 
                 accept=".csv" 
@@ -191,45 +212,77 @@ export function MetaImportModal({ open, onOpenChange, criativos, onImport }: Met
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Campanha (CSV)</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Criativo Associado (Sistema)</TableHead>
+                    <TableHead className="w-[250px]">Campanha (CSV)</TableHead>
+                    <TableHead className="w-[300px]">Criativo Associado</TableHead>
                     <TableHead className="text-right">Valor Usado</TableHead>
                     <TableHead className="text-right">Resultados</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {matchedData.map((match, idx) => (
-                    <TableRow key={idx} className={!match.creativeId ? "opacity-50" : ""}>
-                      <TableCell className="font-medium max-w-[200px] truncate" title={match.row.campaignName}>
-                        {match.row.campaignName}
-                      </TableCell>
-                      <TableCell>
-                        {match.creativeId ? (
-                          <div className="flex items-center gap-1 text-green-600 text-xs font-medium">
-                            <CheckCircle className="h-3 w-3" /> Encontrado
+                  {matchedData.map((match, idx) => {
+                    const isAssociated = !!match.creativeId;
+                    const isCreating = creatingIndexes.includes(idx);
+
+                    return (
+                      <TableRow key={idx} className={!isAssociated ? "bg-muted/10" : ""}>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm truncate max-w-[230px]" title={match.row.campaignName}>
+                              {match.row.campaignName}
+                            </span>
+                            {!isAssociated && (
+                              <span className="text-[10px] text-amber-600 flex items-center gap-1 mt-1">
+                                <AlertCircle className="h-3 w-3" /> Não associado
+                              </span>
+                            )}
                           </div>
-                        ) : (
-                          <div className="flex items-center gap-1 text-amber-600 text-xs font-medium">
-                            <AlertCircle className="h-3 w-3" /> Não associado
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2 items-center">
+                            <Select 
+                              value={match.creativeId || "none"} 
+                              onValueChange={(val) => handleManualAssociation(idx, val)}
+                            >
+                              <SelectTrigger className={cn("h-8 text-xs", !match.creativeId && "text-muted-foreground")}>
+                                <SelectValue placeholder="Selecione um criativo..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">-- Selecione --</SelectItem>
+                                {criativos.map(c => (
+                                  <SelectItem key={c.id} value={c.id}>
+                                    {c.nome || c.titulo || "Sem Nome"}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            
+                            {!isAssociated && (
+                              <Button 
+                                size="icon" 
+                                variant="outline" 
+                                className="h-8 w-8 flex-shrink-0"
+                                onClick={() => handleCreateFromRow(idx)}
+                                disabled={isCreating}
+                                title="Criar novo criativo com este nome"
+                              >
+                                {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                              </Button>
+                            )}
                           </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {match.creativeId ? (
-                          <span className="text-sm">{criativos.find(c => c.id === match.creativeId)?.nome}</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">Sem correspondência automática</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right text-xs">
-                        R$ {match.row.metrics.spend.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right text-xs">
-                        {match.row.metrics.results}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">
+                          R$ {match.row.metrics.spend.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">
+                          {match.row.metrics.results}
+                        </TableCell>
+                        <TableCell>
+                          {isAssociated && <CheckCircle className="h-4 w-4 text-green-600 mx-auto" />}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

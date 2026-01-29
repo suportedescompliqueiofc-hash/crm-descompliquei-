@@ -142,6 +142,31 @@ export function useMarketing(dateRange?: DateRange) {
     enabled: !!user && !!orgId,
   });
 
+  const createCriativo = useMutation({
+    mutationFn: async (newCriativo: { nome: string; titulo?: string; plataforma?: string }) => {
+      if (!user || !orgId) throw new Error("Usuário não autenticado");
+      
+      const { data, error } = await supabase
+        .from('criativos')
+        .insert([{ 
+          ...newCriativo, 
+          organization_id: orgId,
+          plataforma: 'Meta Ads',
+          aplicativo: 'Instagram/Facebook'
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['criativos', orgId] });
+      toast.success('Criativo criado com sucesso!');
+    },
+    onError: (err: any) => toast.error(`Erro ao criar criativo: ${err.message}`),
+  });
+
   const atualizarNomeCriativo = useMutation({
     mutationFn: async ({ id, nome }: { id: string; nome: string }) => {
       const { error } = await supabase
@@ -189,6 +214,7 @@ export function useMarketing(dateRange?: DateRange) {
   return {
     criativos,
     isLoading,
+    createCriativo: createCriativo.mutateAsync, // Expondo como Async para usar await no modal
     atualizarNomeCriativo: atualizarNomeCriativo.mutate,
     atualizarMetricasCriativo: atualizarMetricasCriativo.mutate,
     deletarCriativo: deletarCriativo.mutate,
