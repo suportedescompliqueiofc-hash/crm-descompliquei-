@@ -29,7 +29,8 @@ const defaultReportData = {
   },
   funnel: { 
     funnelData: [],
-    overallConversion: "0" 
+    overallConversion: "0",
+    detailedSteps: [] // Novo campo para análise detalhada
   },
   financial: { 
     totalFaturado: 0, 
@@ -50,6 +51,16 @@ const defaultReportData = {
     charts: { leadsVsConversionsByCreative: [], revenueBySourceData: [] }
   }
 };
+
+// Etapas estritas do Funil de Vendas
+const SALES_FUNNEL_STAGES = [
+  "Novo Lead",
+  "Qualificação",
+  "Coletando Informações",
+  "Agendamento Solicitado",
+  "Agendado",
+  "Procedimento Fechado"
+];
 
 export function useReports(dateRange: DateRange | undefined, filters: ReportFilters = { posicao_pipeline: "Todos", origem: "Todos", genero: "Todos", idade: "", tagId: "Todos" }) {
   const { user } = useAuth();
@@ -81,7 +92,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
 
       // 2. Construção das Queries
       const applyFilters = (query: any) => {
-        if (filters.posicao_pipeline !== "Todos") query = query.eq(`posicao_pipeline`, parseInt(filters.posicao_pipeline));
+        // Nota: O filtro de posicao_pipeline é aplicado aos dados gerais, mas o Funil recalcula baseado em todas as etapas
         if (filters.origem !== "Todos") query = query.eq(`origem`, filters.origem);
         if (filters.genero !== "Todos") query = query.eq(`genero`, filters.genero);
         if (filters.idade) {
@@ -112,43 +123,55 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
       ]);
       
       const leads = leadsData || [];
-      const stages = stagesData || [];
+      const allStages = stagesData || [];
       const vendas = vendasData || [];
       const criativos = criativosData || [];
       const criativosMap = new Map(criativos.map(c => [c.id, c]));
 
-      // 3. Funil de Vendas Real (Acumulado)
-      // Lógica: Se um lead está na etapa 3, ele conta para 1, 2 e 3.
-      const funnelData = stages.map((stage, index) => {
-        // Volume Acumulado: Leads que estão nesta etapa OU em qualquer etapa posterior
+      // 3. Funil de Vendas Real (Estrito e Detalhado)
+      // Filtra apenas as etapas permitidas pelo usuário
+      const funnelStages = allStages.filter(stage => 
+        SALES_FUNNEL_STAGES.some(s => s.toLowerCase() === stage.nome.toLowerCase())
+      ).sort((a, b) => a.posicao_ordem - b.posicao_ordem);
+
+      const funnelData = funnelStages.map((stage, index) => {
+        // Volume Acumulado: Leads que passaram por esta etapa
+        // Consideramos que se um lead está em uma etapa posterior (mesmo que não listada no funil de vendas, ex: Perdido),
+        // ele passou por aqui, DESDE que a etapa atual seja menor que a etapa do lead.
+        // Porém, para manter a consistência com o pedido "Apenas etapas do funil", vamos considerar a progressão linear dessas etapas específicas.
+        
         const volume = leads.filter(l => l.posicao_pipeline >= stage.posicao_ordem).length;
         
         let conversionRate = 100;
+        let dropOffRate = 0;
         let previousVolume = 0;
 
         if (index > 0) {
-          const prevStageOrder = stages[index - 1].posicao_ordem;
-          previousVolume = leads.filter(l => l.posicao_pipeline >= prevStageOrder).length;
+          const prevStage = funnelStages[index - 1];
+          previousVolume = leads.filter(l => l.posicao_pipeline >= prevStage.posicao_ordem).length;
           conversionRate = previousVolume > 0 ? (volume / previousVolume) * 100 : 0;
+          dropOffRate = 100 - conversionRate;
         }
 
         return {
           etapa: stage.nome,
-          quantidade: volume, // Volume Acumulado
-          conversionRate: conversionRate.toFixed(1), // Conversão da etapa anterior para esta
-          fill: stage.cor
+          quantidade: volume,
+          conversionRate: conversionRate.toFixed(1),
+          dropOffRate: dropOffRate.toFixed(1),
+          fill: stage.cor,
+          previousVolume
         };
       });
 
-      // Conversão Geral (Topo -> Fundo)
+      // Conversão Geral (Topo -> Fundo do Funil de Vendas)
       const topOfFunnel = funnelData[0]?.quantidade || 0;
       const bottomOfFunnel = funnelData[funnelData.length - 1]?.quantidade || 0;
       const overallConversion = topOfFunnel > 0 ? ((bottomOfFunnel / topOfFunnel) * 100).toFixed(1) : "0";
 
       // 4. Cálculos de KPIs Gerais
-      const convertedStagePosition = stages.find(s => s.nome.toLowerCase().includes('fechado') || s.nome.toLowerCase().includes('contrato'))?.posicao_ordem || 7;
+      const convertedStagePosition = allStages.find(s => s.nome.toLowerCase().includes('fechado') || s.nome.toLowerCase().includes('contrato'))?.posicao_ordem || 6;
       const convertedLeads = leads.filter(l => l.posicao_pipeline === convertedStagePosition);
-      const conversionRate = leads.length > 0 ? (convertedLeads.length / leads.length) * 100 : 0;
+      const kpiConversionRate = leads.length > 0 ? (convertedLeads.length / leads.length) * 100 : 0;
       
       const totalFaturado = vendas.reduce((sum, v) => sum + Number(v.valor_fechado), 0);
       const totalOrcado = vendas.reduce((sum, v) => sum + Number(v.valor_orcado || v.valor_fechado), 0);
@@ -234,7 +257,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
           totalLeads: leads.length,
           totalContatos: leads.length,
           totalNovosLeads: leads.length,
-          conversionRate: conversionRate.toFixed(1),
+          conversionRate: kpiConversionRate.toFixed(1),
           ticketMedio,
           tempoMedioFunil: tempoMedioFunil.toFixed(1)
         },
@@ -245,7 +268,8 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
         },
         funnel: { 
           funnelData,
-          overallConversion
+          overallConversion,
+          detailedSteps: funnelData // Passa os dados detalhados
         },
         financial: { 
           totalFaturado, 
@@ -256,7 +280,7 @@ export function useReports(dateRange: DateRange | undefined, filters: ReportFilt
           metodosPagamentoData 
         },
         conversions: {
-          kpis: { totalConvertido: totalFaturado, leadsConvertidos: convertedLeads.length, conversionRate: conversionRate.toFixed(1), ticketMedio },
+          kpis: { totalConvertido: totalFaturado, leadsConvertidos: convertedLeads.length, conversionRate: kpiConversionRate.toFixed(1), ticketMedio },
           charts: { 
             conversoesPorOrigemData: Object.entries(leads.filter(l => l.posicao_pipeline === convertedStagePosition).reduce((acc, l) => {
               const key = l.origem || 'Desconhecida';

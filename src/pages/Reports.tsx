@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  Download, TrendingUp, Users, DollarSign, Clock, Filter, BarChart2, Tag, ArrowUpRight
+  Download, TrendingUp, TrendingDown, Users, DollarSign, Clock, Filter, BarChart2, Tag, ArrowUpRight, ArrowDownRight, ArrowRight
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { useLeadSources } from "@/hooks/useLeadSources";
 import { useTags } from "@/hooks/useTags";
+import { Separator } from "@/components/ui/separator";
 
 // Componente de Tooltip Personalizado
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -95,8 +96,6 @@ export default function Reports() {
   
   if (!reports) return null;
 
-  // Paleta de cores moderna
-  const COLORS = ['#8b5cf6', '#10b981', '#f59e0b', '#3b82f6', '#ec4899'];
   const GRADIENTS = (
     <defs>
       <linearGradient id="colorCaptados" x1="0" y1="0" x2="0" y2="1">
@@ -113,6 +112,8 @@ export default function Reports() {
       </linearGradient>
     </defs>
   );
+
+  const COLORS = ['#8b5cf6', '#10b981', '#f59e0b', '#3b82f6', '#ec4899'];
 
   return (
     <div className="space-y-8">
@@ -268,7 +269,7 @@ export default function Reports() {
           <Card>
             <CardHeader>
               <CardTitle>Funil de Vendas (Acumulado)</CardTitle>
-              <CardDescription>Visualização do volume de leads que passaram por cada etapa.</CardDescription>
+              <CardDescription>Visualização do volume de leads que passaram por cada etapa do funil principal.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[500px] w-full">
@@ -276,7 +277,7 @@ export default function Reports() {
                   <BarChart 
                     data={reports?.funnel?.funnelData || []} 
                     layout="vertical"
-                    margin={{ top: 20, right: 120, left: 20, bottom: 5 }}
+                    margin={{ top: 20, right: 60, left: 40, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
                     <XAxis type="number" hide />
@@ -284,15 +285,15 @@ export default function Reports() {
                       dataKey="etapa" 
                       type="category" 
                       width={180} 
-                      tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} 
+                      tick={{ fontSize: 13, fill: 'hsl(var(--foreground))', fontWeight: 500 }} 
                       tickLine={false} 
                       axisLine={false} 
                     />
                     <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--muted)/0.4)' }} />
                     <Bar 
                       dataKey="quantidade" 
-                      barSize={32} 
-                      radius={[0, 4, 4, 0]}
+                      barSize={40} 
+                      radius={[0, 6, 6, 0]}
                       name="Leads"
                     >
                       {reports?.funnel?.funnelData.map((entry: any, index: number) => (
@@ -302,7 +303,7 @@ export default function Reports() {
                         dataKey="quantidade" 
                         position="right" 
                         formatter={(val: number) => `${val}`}
-                        style={{ fontWeight: 'bold', fill: 'hsl(var(--foreground))' }} 
+                        style={{ fontWeight: 'bold', fill: 'hsl(var(--foreground))', fontSize: 14 }} 
                       />
                     </Bar>
                   </BarChart>
@@ -310,6 +311,61 @@ export default function Reports() {
               </div>
             </CardContent>
           </Card>
+
+          <div className="space-y-4">
+            <h3 className="text-xl font-semibold px-1">Análise de Conversão por Etapa</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {reports?.funnel?.detailedSteps?.map((step: any, index: number) => {
+                const isLast = index === (reports?.funnel?.detailedSteps?.length || 0) - 1;
+                
+                return (
+                  <Card key={index} className="relative overflow-hidden border-l-4" style={{ borderLeftColor: step.fill || '#8b5cf6' }}>
+                    <CardContent className="p-5">
+                      <div className="flex justify-between items-start mb-2">
+                        <Badge variant="outline" className="mb-2" style={{ borderColor: step.fill, color: step.fill }}>
+                          Etapa {index + 1}
+                        </Badge>
+                        <span className="font-bold text-2xl">{step.quantidade}</span>
+                      </div>
+                      
+                      <h4 className="font-bold text-lg mb-4 truncate" title={step.etapa}>{step.etapa}</h4>
+                      
+                      <Separator className="my-3" />
+                      
+                      {!isLast ? (
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground flex items-center gap-1">
+                              <TrendingUp className="h-4 w-4 text-emerald-500" /> Conversão
+                            </span>
+                            <span className="font-semibold text-emerald-600">{step.conversionRate}%</span>
+                          </div>
+                          
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground flex items-center gap-1">
+                              <TrendingDown className="h-4 w-4 text-red-500" /> Perda (Drop-off)
+                            </span>
+                            <span className="font-semibold text-red-600">{step.dropOffRate}%</span>
+                          </div>
+
+                          <div className="text-xs text-muted-foreground mt-2 text-right">
+                            Próxima etapa: {reports?.funnel?.detailedSteps[index + 1]?.etapa}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-20 text-center">
+                          <Badge className="bg-emerald-500 hover:bg-emerald-600 mb-1">
+                            Meta Atingida
+                          </Badge>
+                          <p className="text-xs text-muted-foreground">Etapa final do funil de vendas</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="conversions" className="space-y-6">
