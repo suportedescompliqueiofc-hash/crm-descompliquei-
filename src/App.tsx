@@ -22,6 +22,7 @@ import NotFound from "./pages/NotFound";
 import Conversations from "./pages/Conversas";
 import Notifications from "./pages/Notifications";
 import Vendas from "./pages/Vendas";
+import QuickMessagesPage from "./pages/QuickMessagesPage";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { SidebarContent } from "@/components/layout/SidebarContent";
 import { useLocalStorage } from "./hooks/use-local-storage";
@@ -85,6 +86,7 @@ const App = () => (
             <Route path="/marketing" element={<ProtectedRoute><AppLayout><Marketing /></AppLayout></ProtectedRoute>} />
             <Route path="/campaigns" element={<ProtectedRoute><AppLayout><Campaigns /></AppLayout></ProtectedRoute>} />
             <Route path="/templates" element={<ProtectedRoute><AppLayout><Templates /></AppLayout></ProtectedRoute>} />
+            <Route path="/quick-messages" element={<ProtectedRoute><AppLayout><QuickMessagesPage /></AppLayout></ProtectedRoute>} />
             <Route path="/ia" element={<ProtectedRoute><AppLayout><AiSettings /></AppLayout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>} />
             <Route path="/conversas" element={<ProtectedRoute><AppLayout><Conversations /></AppLayout></ProtectedRoute>} />

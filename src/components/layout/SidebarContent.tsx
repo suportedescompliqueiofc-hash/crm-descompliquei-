@@ -13,7 +13,8 @@ import {
   Bell,
   ShoppingCart,
   Bot,
-  Target
+  Target,
+  Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -27,11 +28,12 @@ const menuItems = [
   { title: "Pipeline", icon: GitBranch, path: "/pipeline" },
   { title: "Conversas", icon: MessageSquare, path: "/conversas" },
   { title: "Notificações", icon: Bell, path: "/notificacoes" },
-  { title: "Vendas", icon: ShoppingCart, path: "/vendas" }, // Voltei para Vendas (padrão comercial) ou mantém Contratos se preferir
+  { title: "Vendas", icon: ShoppingCart, path: "/vendas" }, 
   { title: "Relatórios", icon: BarChart3, path: "/reports" },
   { title: "Marketing", icon: Target, path: "/marketing" },
   { title: "Campanhas", icon: Megaphone, path: "/campaigns" },
   { title: "Templates", icon: FileText, path: "/templates" },
+  { title: "Msgs Rápidas", icon: Zap, path: "/quick-messages" }, // Novo Item
   { title: "IA", icon: Bot, path: "/ia" },
   { title: "Configurações", icon: Settings, path: "/settings" },
 ];
