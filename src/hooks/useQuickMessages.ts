@@ -149,12 +149,13 @@ export function useQuickMessages() {
 
       const payload = {
         lead_id: leadId,
-        user_id: user.id,
-        telefone: phone,
+        mensagem: message.conteudo || '',
         tipo: message.tipo,
-        conteudo: message.conteudo,
         url_midia: url_midia,
-        titulo_botao: message.titulo
+        titulo_pdf: message.tipo === 'pdf' ? message.titulo : null,
+        // Mantendo dados de contexto para garantir o envio
+        telefone: phone,
+        user_id: user.id
       };
 
       const response = await fetch(WEBHOOK_URL, {
