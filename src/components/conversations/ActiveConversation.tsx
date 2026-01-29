@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical } from "lucide-react";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { TagManager } from "@/components/tags/TagManager";
 import { AudioRecorder } from "./AudioRecorder";
+import { useNavigate } from "react-router-dom";
 
 // --- COMPONENTES AUXILIARES ---
 
@@ -116,6 +117,7 @@ interface ActiveConversationProps {
 }
 
 export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMessages }: ActiveConversationProps) {
+  const navigate = useNavigate();
   const { data: lead, isLoading: leadLoading } = useLead(leadId);
   const { data: messages, isLoading: messagesLoading } = useMessages(leadId);
   const { data: notifications } = useNotifications(leadId);
@@ -143,23 +145,16 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
 
     for (let i = 0; i < sorted.length; i++) {
       const msg = sorted[i];
-      
       if (seenIds.has(msg.id)) continue;
       
       if (msg.tipo_conteudo === 'audio') {
         const lastMsg = res[res.length - 1];
-        
-        if (lastMsg && 
-            lastMsg.tipo_conteudo === 'audio' && 
-            lastMsg.remetente === msg.remetente) {
-            
+        if (lastMsg && lastMsg.tipo_conteudo === 'audio' && lastMsg.remetente === msg.remetente) {
             const t1 = new Date(lastMsg.criado_em).getTime();
             const t2 = new Date(msg.criado_em).getTime();
-            
             if (Math.abs(t2 - t1) < 20000) {
                const isLastTemp = lastMsg.id.startsWith('temp-');
                const isCurrTemp = msg.id.startsWith('temp-');
-
                if (isLastTemp && !isCurrTemp) {
                    res.pop();
                    seenIds.delete(lastMsg.id);
@@ -167,20 +162,14 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                    seenIds.add(msg.id);
                    continue;
                }
-               
-               if (!isLastTemp && isCurrTemp) {
-                   continue;
-               }
-
+               if (!isLastTemp && isCurrTemp) continue;
                continue;
             }
         }
       }
-      
       seenIds.add(msg.id);
       res.push(msg);
     }
-    
     return res;
   }, [messages]);
 
@@ -225,7 +214,6 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const handleStageChange = (newPosition: string) => {
     if (!lead) return;
     const stagePosition = parseInt(newPosition, 10);
-    // CORREÇÃO: Usa posicao_pipeline em vez de etapa_id
     updateLead({ id: lead.id, posicao_pipeline: stagePosition });
   };
 
@@ -248,150 +236,112 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   };
 
   const isLoading = leadLoading || stagesLoading;
-  
-  // CORREÇÃO: Busca a etapa pela posição
   const currentStage = stages.find(s => s.posicao_ordem === lead?.posicao_pipeline);
 
   if (isLoading) return <Skeleton className="h-full w-full" />;
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header Otimizado */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b bg-card shadow-sm z-10 min-h-[60px]">
-        {/* Info do Lead (Esquerda) */}
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Avatar className="h-10 w-10 sm:h-11 sm:w-11 border bg-muted flex-shrink-0">
-            <AvatarFallback className="bg-accent text-accent-foreground text-sm font-medium">{getInitials(lead?.nome)}</AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold truncate text-sm sm:text-base leading-tight">{lead?.nome || 'Carregando...'}</p>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{lead?.telefone}</span>
-                {/* Mostra tags apenas se houver espaço (responsivo) */}
-                <div className="hidden sm:block scale-90 origin-left">
-                    {lead && <TagManager leadId={lead.id} />}
+    <div className="flex flex-col h-full bg-background overflow-hidden relative">
+      {/* Header Responsivo */}
+      <header className="flex flex-col border-b bg-card shadow-sm z-10 flex-shrink-0">
+        <div className="flex items-center justify-between p-2 sm:p-3 gap-2">
+            {/* Lado Esquerdo: Voltar + Info */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Button variant="ghost" size="icon" className="md:hidden h-8 w-8" onClick={() => navigate('/conversas')}>
+                    <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <Avatar className="h-9 w-9 sm:h-10 sm:w-10 border bg-muted flex-shrink-0">
+                    <AvatarFallback className="bg-accent text-accent-foreground text-xs sm:text-sm font-medium">{getInitials(lead?.nome)}</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col min-w-0">
+                    <p className="font-semibold truncate text-sm sm:text-base leading-tight">{lead?.nome || 'Lead'}</p>
+                    <span className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1"><Phone className="h-2.5 w-2.5" />{lead?.telefone}</span>
                 </div>
             </div>
-          </div>
+
+            {/* Lado Direito: Ações rápidas */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <div className="hidden xs:block">
+                    {lead && <AiLockControl lead={lead} />}
+                </div>
+                <div className="flex items-center gap-2 px-1 py-1 bg-muted/20 rounded-lg border border-border/40">
+                    <Switch id="ai-toggle" checked={isAiActive} onCheckedChange={handleAiToggle} disabled={!lead} className="scale-75 sm:scale-90" />
+                    {onToggleQuickMessages && (
+                        <Button 
+                            variant={showQuickMessages ? "default" : "ghost"}
+                            size="icon"
+                            className={cn(
+                                "h-7 w-7 sm:h-8 sm:w-8 transition-all rounded-full", 
+                                showQuickMessages ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted"
+                            )}
+                            onClick={onToggleQuickMessages}
+                        >
+                            <Zap className="h-3.5 w-3.5 sm:h-4 w-4" />
+                        </Button>
+                    )}
+                </div>
+            </div>
         </div>
 
-        {/* Ações (Direita) - Layout otimizado com flex-wrap */}
-        <div className="flex items-center gap-2 flex-wrap justify-end sm:flex-nowrap">
-          {lead && stages.length > 0 && (
-            <Select 
-              value={lead.posicao_pipeline?.toString() || "1"} 
-              onValueChange={handleStageChange}
-            >
-              <SelectTrigger className="w-[140px] lg:w-[170px] h-8 text-xs bg-background/50 border-input/60 focus:ring-1">
-                <div className="flex items-center gap-2 truncate">
-                  <SelectValue placeholder="Etapa">
-                    {currentStage ? (
-                        <div className="flex items-center gap-1.5 truncate">
-                            <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: currentStage.cor }} />
-                            <span className="truncate">{currentStage.nome}</span>
-                        </div>
-                    ) : "Etapa"}
-                  </SelectValue>
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {stages.map(stage => (
-                  <SelectItem key={stage.id} value={stage.posicao_ordem.toString()}>
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.cor }} />
-                      {stage.nome}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          
-          <div className="h-6 w-px bg-border mx-0.5 hidden sm:block"></div>
-          
-          {lead && <AiLockControl lead={lead} />}
-          
-          <div className="flex items-center gap-2 pl-1">
-            <Switch id="ai-toggle" checked={isAiActive} onCheckedChange={handleAiToggle} disabled={!lead} className="scale-90" />
+        {/* Linha Inferior do Header (Desktop/Mobile) */}
+        <div className="flex items-center justify-between px-3 pb-2 gap-3 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-2 flex-shrink-0">
+                {lead && stages.length > 0 && (
+                    <Select value={lead.posicao_pipeline?.toString() || "1"} onValueChange={handleStageChange}>
+                    <SelectTrigger className="w-[120px] sm:w-[160px] h-7 text-[10px] sm:text-xs bg-background/50">
+                        <SelectValue placeholder="Etapa">
+                        {currentStage ? (
+                            <div className="flex items-center gap-1.5 truncate">
+                                <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: currentStage.cor }} />
+                                <span className="truncate">{currentStage.nome}</span>
+                            </div>
+                        ) : "Etapa"}
+                        </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                        {stages.map(stage => (
+                        <SelectItem key={stage.id} value={stage.posicao_ordem.toString()}>
+                            <div className="flex items-center gap-2 text-xs">
+                            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: stage.cor }} />
+                            {stage.nome}
+                            </div>
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                    </Select>
+                )}
+            </div>
             
-            {onToggleQuickMessages && (
-                <Button 
-                    variant={showQuickMessages ? "default" : "ghost"}
-                    size="icon"
-                    className={cn(
-                        "h-8 w-8 transition-all rounded-full ml-1", 
-                        showQuickMessages ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted"
-                    )}
-                    onClick={onToggleQuickMessages}
-                    title="Mensagens Rápidas"
-                >
-                    <Zap className="h-4 w-4" />
-                </Button>
-            )}
-          </div>
+            <div className="flex-1 flex justify-end min-w-0 overflow-hidden">
+                {lead && <div className="scale-90 origin-right"><TagManager leadId={lead.id} /></div>}
+            </div>
+            
+            {/* AiLock no mobile aparece aqui se a tela for muito pequena */}
+            <div className="xs:hidden">
+                {lead && <AiLockControl lead={lead} />}
+            </div>
         </div>
       </header>
 
-      {/* Tags visíveis em mobile abaixo do header se necessário */}
-      <div className="sm:hidden px-3 pb-2 border-b bg-card/50 flex overflow-x-auto">
-         {lead && <TagManager leadId={lead.id} />}
-      </div>
-
       {notifications && notifications.length > 0 && (
-        <div className="p-2 bg-amber-100 border-b border-amber-200">
+        <div className="p-2 bg-amber-100 border-b border-amber-200 flex-shrink-0">
           {notifications.map(notif => (
-            <div key={notif.id} className="flex items-start justify-between gap-2 text-amber-800 text-sm">
-              <div className="flex items-start gap-2 flex-1"><AlertTriangle className="h-4 w-4 flex-shrink-0 mt-1" /><NotificationMessage message={notif.mensagem} /></div>
-              <Button size="sm" variant="ghost" className="text-amber-800 hover:bg-amber-200 h-7" onClick={() => updateNotification(notif.id)}><CheckCircle className="h-4 w-4 mr-1" /> Resolvido</Button>
+            <div key={notif.id} className="flex items-start justify-between gap-2 text-amber-800 text-xs">
+              <div className="flex items-start gap-1.5 flex-1"><AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" /><NotificationMessage message={notif.mensagem} /></div>
+              <Button size="sm" variant="ghost" className="text-amber-800 hover:bg-amber-200 h-6 text-[10px] px-1" onClick={() => updateNotification(notif.id)}><CheckCircle className="h-3 w-3 mr-1" /> Resolver</Button>
             </div>
           ))}
         </div>
       )}
 
-      <ScrollArea className="flex-1 p-3 md:p-4 bg-muted/10">
-        <div className="space-y-2 max-w-3xl mx-auto">
-          {messagesLoading ? <p className="text-center text-muted-foreground text-sm py-4">Carregando mensagens...</p> : (
+      <ScrollArea className="flex-1 bg-muted/10">
+        <div className="p-3 sm:p-4 space-y-2 max-w-3xl mx-auto min-h-full">
+          {messagesLoading ? <p className="text-center text-muted-foreground text-xs py-4">Carregando...</p> : (
             groupedMessages.map((item, index) => {
               if (item.type === 'separator') return <DateSeparator key={`sep-${index}`} dateString={item.date} />;
 
               const msg = item as Message;
               const isOutgoing = msg.remetente === 'agente' || msg.remetente === 'bot';
-              
-              if (msg.tipo_conteudo === 'audio' && msg.conteudo && (!msg.message_attachments || msg.message_attachments.length === 0)) {
-                return (
-                  <div key={msg.id} className={cn("group relative flex flex-col gap-1 py-1", isOutgoing ? "items-end" : "items-start")}>
-                    <div className={cn("flex items-end gap-2 max-w-full", isOutgoing ? "flex-row-reverse" : "flex-row")}>
-                      <div className={cn("max-w-[85%] sm:max-w-md p-3 rounded-2xl relative shadow-sm", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border rounded-bl-none")}>
-                        <AudioMessage filePath={msg.conteudo} variant={isOutgoing ? 'outgoing' : 'incoming'} />
-                        <p className={cn("text-[10px] mt-1 text-right opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                            {format(new Date(msg.criado_em), 'HH:mm')}
-                        </p>
-                      </div>
-                      {!isOutgoing ? (
-                        <Avatar className="h-6 w-6 sm:h-8 sm:w-8 hidden sm:block"><AvatarFallback className="text-xs">{getInitials(lead?.nome)}</AvatarFallback></Avatar>
-                      ) : (
-                        <Avatar className="h-6 w-6 sm:h-8 sm:w-8 bg-success hidden sm:block"><AvatarFallback className="bg-transparent text-success-foreground">{msg.remetente === 'bot' ? <Bot className="h-4 w-4" /> : <User className="h-4 w-4" />}</AvatarFallback></Avatar>
-                      )}
-                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className={cn("h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity absolute top-1/2 -translate-y-1/2", isOutgoing ? "-left-8" : "-right-8")}>
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onSelect={() => setDeletingMessage(msg)}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            <span>Excluir</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                );
-              }
-
               const hasNewAttachments = msg.message_attachments && msg.message_attachments.length > 0;
               const legacyAttachmentIndex = msg.conteudo?.toLowerCase().indexOf('attachments:');
               const hasLegacyAttachments = !hasNewAttachments && legacyAttachmentIndex !== -1;
@@ -401,109 +351,120 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                 caption = msg.conteudo.substring(0, legacyAttachmentIndex).trim();
               }
 
+              // Renderização do balão estilo WhatsApp
               return (
-                <div key={msg.id} className={cn("group relative flex flex-col gap-1 py-1", isOutgoing ? "items-end" : "items-start")}>
-                  <div className={cn("flex items-end gap-2 max-w-full", isOutgoing ? "flex-row-reverse" : "flex-row")}>
-                    <div className={cn("max-w-[85%] sm:max-w-md p-3 rounded-2xl relative shadow-sm", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border rounded-bl-none")}>
-                      {hasNewAttachments && msg.message_attachments!.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}
-                      {hasLegacyAttachments && <LegacyAttachmentRenderer content={msg.conteudo} isOutgoing={isOutgoing} />}
+                <div key={msg.id} className={cn("group relative flex flex-col gap-0.5 py-0.5", isOutgoing ? "items-end" : "items-start")}>
+                  <div className={cn("flex items-end gap-2 max-w-[90%] sm:max-w-[85%]", isOutgoing ? "flex-row-reverse" : "flex-row")}>
+                    <div className={cn(
+                        "p-2 sm:p-3 rounded-2xl relative shadow-sm transition-all", 
+                        isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border border-border/40 rounded-bl-none"
+                    )}>
+                      {/* Anexos */}
+                      <div className="mb-1 space-y-1">
+                        {hasNewAttachments && msg.message_attachments!.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}
+                        {hasLegacyAttachments && <LegacyAttachmentRenderer content={msg.conteudo} isOutgoing={isOutgoing} />}
+                        {/* Fallback de áudio antigo se tipo_conteudo for audio mas não tiver anexo novo */}
+                        {msg.tipo_conteudo === 'audio' && !hasNewAttachments && !hasLegacyAttachments && msg.conteudo && (
+                            <AudioMessage filePath={msg.conteudo} variant={isOutgoing ? 'outgoing' : 'incoming'} />
+                        )}
+                      </div>
                       
-                      {caption && <p className="text-sm whitespace-pre-wrap leading-relaxed">{caption}</p>}
+                      {/* Texto com quebra de linha */}
+                      {caption && msg.tipo_conteudo !== 'audio' && (
+                        <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed break-words">{caption}</p>
+                      )}
                       
-                      <p className={cn("text-[10px] mt-1 text-right opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                        {format(new Date(msg.criado_em), 'HH:mm')}
-                      </p>
+                      {/* Timestamp e Status */}
+                      <div className={cn("flex items-center justify-end gap-1 mt-1 opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                        <span className="text-[9px] sm:text-[10px] tabular-nums">{format(new Date(msg.criado_em), 'HH:mm')}</span>
+                        {isOutgoing && <CheckCircle className="h-2.5 w-2.5" />}
+                      </div>
                     </div>
-                    {!isOutgoing ? (
-                      <Avatar className="h-6 w-6 sm:h-8 sm:w-8 hidden sm:block"><AvatarFallback className="text-xs">{getInitials(lead?.nome)}</AvatarFallback></Avatar>
-                    ) : (
-                      <Avatar className="h-6 w-6 sm:h-8 sm:w-8 bg-success hidden sm:block"><AvatarFallback className="bg-transparent text-success-foreground">{msg.remetente === 'bot' ? <Bot className="h-4 w-4" /> : <User className="h-4 w-4" />}</AvatarFallback></Avatar>
-                    )}
-                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className={cn(
-                          "h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity absolute top-1/2 -translate-y-1/2", isOutgoing ? "-left-8" : "-right-8"
-                        )}>
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive" onSelect={() => setDeletingMessage(msg)}>
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          <span>Excluir</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className={cn("h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0", isOutgoing ? "mr-1" : "ml-1")}>
+                            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align={isOutgoing ? "end" : "start"}>
+                          <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive text-xs" onSelect={() => setDeletingMessage(msg)}>
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />
+                            <span>Excluir</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
                 </div>
               );
             })
           )}
+          <div ref={messagesEndRef} className="h-4" />
         </div>
-        <div ref={messagesEndRef} />
       </ScrollArea>
 
-      <footer className="p-3 md:p-4 border-t bg-card">
+      <footer className="p-2 sm:p-3 border-t bg-card flex-shrink-0">
         {isRecordingMode ? (
-          <AudioRecorder 
-            onSend={handleSendAudio} 
-            onCancel={() => setIsRecordingMode(false)} 
-          />
+          <AudioRecorder onSend={handleSendAudio} onCancel={() => setIsRecordingMode(false)} />
         ) : (
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-full border border-input/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all">
+          <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-muted/40 p-1 rounded-full border border-input/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all max-w-4xl mx-auto">
             <Popover>
-              <PopoverTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-primary"><Smile className="h-5 w-5" /></Button></PopoverTrigger>
-              <PopoverContent className="w-auto p-0 border-none" align="start" side="top"><EmojiPicker onEmojiClick={(emojiObject) => setMessageContent(prev => prev + emojiObject.emoji)} /></PopoverContent>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 rounded-full text-muted-foreground hover:text-primary shrink-0">
+                    <Smile className="h-4 w-4 sm:h-5 sm:w-5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 border-none" align="start" side="top">
+                <EmojiPicker onEmojiClick={(emojiObject) => setMessageContent(prev => prev + emojiObject.emoji)} />
+              </PopoverContent>
             </Popover>
+            
             <Input 
                 placeholder="Digite sua mensagem..." 
                 value={messageContent} 
                 onChange={(e) => setMessageContent(e.target.value)} 
                 autoComplete="off" 
-                className="border-0 bg-transparent shadow-none focus-visible:ring-0 px-2 h-9"
+                className="border-0 bg-transparent shadow-none focus-visible:ring-0 px-1 h-8 sm:h-9 text-sm"
             />
             
-            {messageContent.trim() ? (
-              <Button type="submit" size="icon" className="bg-primary hover:bg-primary/90 transition-all h-9 w-9 rounded-full shadow-sm"><Send className="h-4 w-4" /></Button>
-            ) : (
-              <Button 
-                type="button" 
-                size="icon" 
-                variant="ghost" 
-                className={cn("transition-all h-9 w-9 rounded-full text-muted-foreground hover:bg-background hover:text-primary", isSendingAudio && "opacity-50 cursor-not-allowed")}
-                onClick={() => setIsRecordingMode(true)}
-                disabled={isSendingAudio}
-              >
-                <Mic className="h-5 w-5" />
-              </Button>
-            )}
+            <div className="flex-shrink-0">
+                {messageContent.trim() ? (
+                <Button type="submit" size="icon" className="bg-primary hover:bg-primary/90 transition-all h-8 w-8 sm:h-9 sm:w-9 rounded-full shadow-sm">
+                    <Send className="h-3.5 w-3.5 sm:h-4 w-4" />
+                </Button>
+                ) : (
+                <Button 
+                    type="button" 
+                    size="icon" 
+                    variant="ghost" 
+                    className={cn("transition-all h-8 w-8 sm:h-9 sm:w-9 rounded-full text-muted-foreground hover:bg-background hover:text-primary", isSendingAudio && "opacity-50 cursor-not-allowed")}
+                    onClick={() => setIsRecordingMode(true)}
+                    disabled={isSendingAudio}
+                >
+                    <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
+                </Button>
+                )}
+            </div>
           </form>
         )}
       </footer>
 
       <AlertDialog open={!!deletingMessage} onOpenChange={(open) => !open && setDeletingMessage(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[90vw] max-w-md rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir mensagem?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta ação não pode ser desfeita. A mensagem será removida permanentemente desta conversa.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/90"
-              onClick={() => {
+          <AlertDialogFooter className="flex-row gap-2">
+            <AlertDialogCancel className="flex-1 rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="flex-1 bg-destructive hover:bg-destructive/90 rounded-xl" onClick={() => {
                 if (deletingMessage) {
-                  deleteMessage({
-                    messageId: deletingMessage.id,
-                    leadId,
-                    id_mensagem: deletingMessage.id_mensagem,
-                  });
+                  deleteMessage({ messageId: deletingMessage.id, leadId, id_mensagem: deletingMessage.id_mensagem });
                   setDeletingMessage(null);
                 }
-              }}
-            >
+              }}>
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>

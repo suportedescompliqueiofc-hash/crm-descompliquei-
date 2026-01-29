@@ -97,7 +97,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
   };
 
   return (
-    <div className="flex items-center gap-2 w-64">
+    <div className="flex items-center gap-2 w-full max-w-[210px] xs:max-w-[240px] sm:max-w-xs">
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
       <Button 
         onClick={togglePlay} 
@@ -120,25 +120,20 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
         )}
       </Button>
       
-      <div className="flex-grow flex items-center gap-2">
+      <div className="flex-grow flex items-center gap-2 min-w-0">
         <Slider
           value={[currentTime]}
           max={duration || 1}
           step={0.1}
           onValueChange={handleSliderChange}
           className={cn(
-            "w-full",
-            // Estilização da barra de fundo (Track)
+            "flex-1",
             "[&>span:first-child]:h-1",
             isOutgoing 
               ? "[&>span:first-child]:bg-black/20" 
               : "[&>span:first-child]:bg-muted-foreground/20",
-            
-            // Estilização do preenchimento (Range)
             "[&>span:first-child>span]:bg-current",
             isOutgoing ? "text-white" : "text-primary",
-            
-            // Estilização do botão (Thumb)
             "[&>span[role=slider]]:h-3 [&>span[role=slider]]:w-3 [&>span[role=slider]]:border-0 [&>span[role=slider]]:shadow-sm",
             isOutgoing
                ? "[&>span[role=slider]]:bg-white"
@@ -147,14 +142,13 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
           disabled={isLoading || duration === 0}
         />
         
-        {/* Botão de Velocidade */}
         <Button
             variant="ghost"
             size="sm"
             onClick={toggleSpeed}
             disabled={isLoading}
             className={cn(
-                "h-6 px-2 text-[10px] font-medium rounded-full flex-shrink-0 min-w-[2.5rem] transition-all",
+                "h-6 px-1 text-[9px] font-medium rounded-full flex-shrink-0 min-w-[2rem] transition-all",
                 isOutgoing
                     ? "bg-black/20 text-white hover:bg-black/30 hover:text-white" 
                     : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
@@ -164,7 +158,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
         </Button>
 
         <span className={cn(
-            "text-[10px] font-mono w-9 text-right flex-shrink-0 tabular-nums",
+            "text-[9px] font-mono w-7 text-right flex-shrink-0 tabular-nums",
             isOutgoing ? "text-white/80" : "text-muted-foreground"
         )}>
             {formatTime(duration)}

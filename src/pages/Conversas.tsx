@@ -4,13 +4,25 @@ import { ActiveConversation } from "@/components/conversations/ActiveConversatio
 import { QuickMessagesSidebar } from "@/components/conversations/QuickMessagesSidebar";
 import { MessageSquare } from "lucide-react";
 import { useLead } from "@/hooks/useLeads";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 export default function Conversations() {
   const { leadId } = useParams<{ leadId: string }>();
   const { data: lead } = useLead(leadId || null);
+  const isMobile = useIsMobile();
+  
+  // Por padrão, esconde a barra no mobile, mas mostra no desktop
   const [showQuickMessages, setShowQuickMessages] = useState(true);
+
+  // Fecha o painel de mensagens rápidas ao mudar de lead ou entrar no mobile
+  useEffect(() => {
+    if (isMobile) {
+        setShowQuickMessages(false);
+    }
+  }, [isMobile]);
 
   return (
     <div className="h-[calc(100vh-4rem)]">
@@ -20,10 +32,7 @@ export default function Conversations() {
         {/* Área Flexível (Lista + Chat) */}
         <div className="flex-1 min-w-0 h-full flex relative overflow-hidden">
             
-            {/* Painel Esquerdo: Lista
-                No mobile: ocupa 100% se não houver lead selecionado, some se houver.
-                No desktop: ocupa largura fixa ao lado do chat.
-            */}
+            {/* Painel Esquerdo: Lista */}
             <div className={cn(
               "flex-shrink-0 h-full border-r bg-card/50 transition-all duration-300",
               leadId ? "hidden md:block w-72 xl:w-80" : "w-full md:w-72 xl:w-80"
@@ -31,9 +40,7 @@ export default function Conversations() {
               <ConversationsList />
             </div>
             
-            {/* Painel Central: Chat Ativo
-                No mobile: ocupa 100% se houver lead, some se não houver (para dar lugar à lista).
-            */}
+            {/* Painel Central: Chat Ativo */}
             <div className={cn(
               "flex-1 min-w-0 h-full bg-background relative transition-all duration-300",
               !leadId && "hidden md:block"
@@ -60,13 +67,22 @@ export default function Conversations() {
             </div>
         </div>
 
-        {/* Painel Direito Fixo: Mensagens Rápidas
-            Escondido em mobile, visível apenas em telas grandes (lg+)
-        */}
-        {showQuickMessages && leadId && (
-          <div className="hidden lg:block h-full flex-shrink-0 border-l bg-card">
+        {/* Painel Direito Desktop: Mensagens Rápidas (Lateral) */}
+        {!isMobile && showQuickMessages && leadId && (
+          <div className="hidden lg:block h-full flex-shrink-0 border-l bg-card w-72 xl:w-80">
             <QuickMessagesSidebar lead={lead || null} />
           </div>
+        )}
+
+        {/* Painel Mobile: Mensagens Rápidas (Gaveta Inferior) */}
+        {isMobile && leadId && (
+            <Sheet open={showQuickMessages} onOpenChange={setShowQuickMessages}>
+                <SheetContent side="bottom" className="h-[70vh] p-0 rounded-t-3xl overflow-hidden border-t-2">
+                    <div className="h-full w-full">
+                        <QuickMessagesSidebar lead={lead || null} />
+                    </div>
+                </SheetContent>
+            </Sheet>
         )}
       </div>
     </div>
