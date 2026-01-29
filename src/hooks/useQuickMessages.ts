@@ -12,6 +12,7 @@ export interface QuickMessage {
   tipo: 'texto' | 'audio' | 'imagem' | 'video' | 'pdf';
   arquivo_path: string | null;
   criado_em: string;
+  folder_id?: string | null; // Adicionado suporte a pasta
 }
 
 const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/botoes-crm-moncao';
@@ -46,12 +47,14 @@ export function useQuickMessages() {
       titulo, 
       conteudo, 
       tipo, 
-      file 
+      file,
+      folder_id
     }: { 
       titulo: string; 
       conteudo: string; 
       tipo: string; 
-      file?: File | null 
+      file?: File | null;
+      folder_id?: string | null;
     }) => {
       if (!user || !orgId) throw new Error("Usuário não autenticado");
 
@@ -78,7 +81,8 @@ export function useQuickMessages() {
           conteudo: conteudo || '', 
           tipo, 
           arquivo_path, 
-          organization_id: orgId 
+          organization_id: orgId,
+          folder_id: folder_id || null
         }])
         .select()
         .single();
