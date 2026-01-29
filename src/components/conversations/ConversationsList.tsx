@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConversationsList, Conversation } from "@/hooks/useConversations";
-import { format, isToday, isYesterday, isValid } from "date-fns";
+import { format, isToday, isYesterday, isValid, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { TAG_COLORS } from "@/hooks/useTags";
@@ -16,18 +16,23 @@ import { TAG_COLORS } from "@/hooks/useTags";
 const formatLastMessageTime = (timestamp?: string | null) => {
   if (!timestamp) return '';
   
-  const date = new Date(timestamp);
-  if (!isValid(date)) return '';
+  try {
+    // parseISO é crucial para strings de data do PostgreSQL/Supabase
+    const date = parseISO(timestamp);
+    if (!isValid(date)) return '';
 
-  if (isToday(date)) {
-    return format(date, 'HH:mm');
+    if (isToday(date)) {
+      return format(date, 'HH:mm');
+    }
+    
+    if (isYesterday(date)) {
+      return 'Ontem';
+    }
+    
+    return format(date, 'dd/MM');
+  } catch (e) {
+    return '';
   }
-  
-  if (isYesterday(date)) {
-    return 'Ontem';
-  }
-  
-  return format(date, 'dd/MM/yy'); // Formato compacto para mobile
 };
 
 const MessagePreview = ({ content, type, sender }: { content?: string, type?: string, sender?: string }) => {
@@ -49,7 +54,6 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
     return <div className="flex items-center gap-1 text-muted-foreground"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Arquivo</span></div>;
   }
 
-  // Se for "Nenhuma mensagem ainda", não coloca prefixo "Você"
   if (content === 'Nenhuma mensagem ainda') return <span className="italic text-muted-foreground/60">{content}</span>;
 
   return <span className="truncate block">{prefix}{content}</span>;
@@ -58,7 +62,6 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
 const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
   const { leadId } = useParams();
   const isActive = leadId === conversation.id;
-
   const lastMessageTime = formatLastMessageTime(conversation.last_message_timestamp);
 
   const getInitials = (name?: string) => {
@@ -80,48 +83,37 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
         </AvatarFallback>
       </Avatar>
       
-      {/* Container Principal */}
       <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
-        
-        {/* Linha Superior: Nome e Horário */}
         <div className="flex items-center justify-between w-full">
-          {/* Lado Esquerdo: Nome + Tags */}
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <span className="font-bold text-sm truncate text-foreground block">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+            <span className="font-bold text-sm truncate text-foreground">
               {conversation.nome || conversation.telefone}
             </span>
             
             {/* Tags (Pontos Coloridos) */}
-            {conversation.tags && conversation.tags.length > 0 && (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {conversation.tags.slice(0, 2).map(tag => {
-                  const preset = TAG_COLORS.find(c => c.name === tag.color);
-                  const isHex = tag.color && tag.color.startsWith('#');
-                  
-                  return (
-                    <div 
-                      key={tag.id} 
-                      className={cn("w-1.5 h-1.5 rounded-full", !isHex && preset?.selector)} 
-                      style={isHex ? { backgroundColor: tag.color } : undefined}
-                      title={tag.name} 
-                    />
-                  );
-                })}
-              </div>
-            )}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {conversation.tags?.slice(0, 2).map(tag => {
+                const preset = TAG_COLORS.find(c => c.name === tag.color);
+                const isHex = tag.color?.startsWith('#');
+                return (
+                  <div 
+                    key={tag.id} 
+                    className={cn("w-2 h-2 rounded-full ring-1 ring-background", !isHex && preset?.selector)} 
+                    style={isHex ? { backgroundColor: tag.color } : undefined}
+                  />
+                );
+              })}
+            </div>
           </div>
           
-          {/* Lado Direito: Horário (Aparece sempre no topo direito) */}
-          {lastMessageTime && (
-            <span className="text-[10px] text-muted-foreground font-medium shrink-0 ml-2">
-              {lastMessageTime}
-            </span>
-          )}
+          {/* Horário forçado a aparecer */}
+          <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap ml-2">
+            {lastMessageTime || '--:--'}
+          </span>
         </div>
 
-        {/* Linha Inferior: Prévia da Mensagem */}
         <div className="flex items-center w-full overflow-hidden">
-          <div className="text-xs text-muted-foreground truncate w-full">
+          <div className="text-xs text-muted-foreground truncate w-full pr-4">
             <MessagePreview 
               content={conversation.last_message_content} 
               type={conversation.last_message_type} 
