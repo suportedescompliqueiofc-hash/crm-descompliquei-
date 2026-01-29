@@ -111,7 +111,7 @@ export default function Marketing() {
 
   const handleAssociateConfirm = (targetId: string) => {
     if (creativeToAssociate) {
-      associarCriativo({ sourceId: creativeToAssociate.id, targetId });
+      associarCriativo({ campaignId: creativeToAssociate.id, creativeId: targetId });
     }
   };
 
@@ -299,11 +299,17 @@ export default function Marketing() {
                                 </Button>
                               </TableCell>
                               <TableCell className="font-medium">
-                                <div className="flex flex-col">
+                                <div className="flex flex-col gap-1">
                                   <span className="text-sm font-semibold text-foreground">{campanha.nome}</span>
                                   <span className="text-xs text-muted-foreground truncate max-w-[260px]" title={campanha.titulo || ''}>
                                     Original: {campanha.titulo || '-'}
                                   </span>
+                                  {campanha.url_thumbnail && (
+                                    <div className="flex items-center gap-1.5 mt-1 text-xs text-blue-600 bg-blue-50 w-fit px-1.5 py-0.5 rounded border border-blue-100">
+                                      <Eye className="h-3 w-3" />
+                                      Identidade Visual Associada
+                                    </div>
+                                  )}
                                 </div>
                               </TableCell>
                               <TableCell className="text-center text-xs text-muted-foreground">

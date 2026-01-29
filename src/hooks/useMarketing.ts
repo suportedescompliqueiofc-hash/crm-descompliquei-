@@ -250,29 +250,38 @@ export function useMarketing(dateRange?: DateRange) {
   });
 
   const associarCriativo = useMutation({
-    mutationFn: async ({ sourceId, targetId }: { sourceId: string; targetId: string }) => {
+    mutationFn: async ({ campaignId, creativeId }: { campaignId: string; creativeId: string }) => {
+      // campaignId: ID da linha da campanha importada (Meta)
+      // creativeId: ID do criativo do CRM que contém a mídia/texto
+
       if (!user || !orgId) throw new Error("Usuário não autenticado");
 
-      const { data: sourceData, error: sourceError } = await supabase
+      // 1. Buscar dados visuais do criativo selecionado (CRM)
+      const { data: creativeData, error: creativeError } = await supabase
         .from('criativos')
-        .select('platform_metrics')
-        .eq('id', sourceId)
+        .select('url_midia, url_thumbnail, conteudo')
+        .eq('id', creativeId)
         .single();
 
-      if (sourceError || !sourceData) throw new Error("Erro ao buscar dados do criativo de origem.");
+      if (creativeError || !creativeData) throw new Error("Erro ao buscar dados do criativo selecionado.");
 
-      const { error: updateTargetError } = await supabase
+      // 2. Atualizar a campanha importada com esses dados visuais
+      const { error: updateError } = await supabase
         .from('criativos')
-        .update({ platform_metrics: sourceData.platform_metrics })
-        .eq('id', targetId);
+        .update({
+          url_midia: creativeData.url_midia,
+          url_thumbnail: creativeData.url_thumbnail,
+          conteudo: creativeData.conteudo
+        })
+        .eq('id', campaignId);
 
-      if (updateTargetError) throw new Error("Erro ao atualizar o criativo de destino.");
+      if (updateError) throw new Error("Erro ao associar criativo à campanha.");
 
       return true;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['marketing_metrics'] });
-      toast.success('Métricas associadas com sucesso!');
+      toast.success('Identidade visual associada à campanha!');
     },
     onError: (err: any) => toast.error(`Erro na associação: ${err.message}`),
   });

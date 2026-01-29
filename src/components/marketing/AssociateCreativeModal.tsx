@@ -43,16 +43,16 @@ export function AssociateCreativeModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link className="h-5 w-5 text-primary" />
-            Associar Criativo
+            Identificar Criativo
           </DialogTitle>
           <DialogDescription>
-            Vincule as métricas desta campanha importada a um criativo do CRM para cálculo de ROI.
+            Vincule a identidade visual de um criativo do CRM a esta campanha importada para facilitar a identificação.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="bg-muted/30 p-3 rounded border">
-            <Label className="text-xs text-muted-foreground">Origem (Dados do Meta)</Label>
+            <Label className="text-xs text-muted-foreground">Campanha (Meta Ads)</Label>
             <p className="font-medium text-sm truncate">{sourceCreative?.nome || "Campanha Selecionada"}</p>
             <p className="text-xs text-muted-foreground mt-1">
               Gasto: R$ {sourceCreative?.platform_metrics?.spend.toFixed(2)} | Impressões: {sourceCreative?.platform_metrics?.impressions}
@@ -60,7 +60,7 @@ export function AssociateCreativeModal({
           </div>
 
           <div className="space-y-2">
-            <Label>Destino (Criativo Interno)</Label>
+            <Label>Criativo Visual (CRM)</Label>
             <Select value={targetId} onValueChange={setTargetId}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o criativo..." />
@@ -74,7 +74,7 @@ export function AssociateCreativeModal({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Este criativo receberá os dados de custo e performance para análise de métricas.
+              A imagem e o texto deste criativo serão exibidos na linha da campanha.
             </p>
           </div>
 
@@ -82,14 +82,14 @@ export function AssociateCreativeModal({
             <Info className="h-4 w-4 text-blue-800" />
             <AlertTitle>Informação</AlertTitle>
             <AlertDescription className="text-xs mt-1">
-              Esta ação copiará as métricas de plataforma para o criativo selecionado. A campanha original importada <strong>será mantida</strong> na lista para conferência.
+              Esta ação copiará a <strong>identidade visual</strong> (imagem/vídeo e texto) do criativo selecionado para a linha da campanha. As métricas originais do Meta serão mantidas e nenhuma métrica será transferida para o criativo do CRM.
             </AlertDescription>
           </Alert>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleConfirm} disabled={!targetId}>Confirmar Associação</Button>
+          <Button onClick={handleConfirm} disabled={!targetId}>Confirmar Identificação</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
