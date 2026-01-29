@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConversationsList, Conversation } from "@/hooks/useConversations";
-import { format, isToday, isYesterday, differenceInDays, isValid } from "date-fns";
+import { format, isToday, isYesterday, differenceInDays, isValid, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { TAG_COLORS } from "@/hooks/useTags";
@@ -14,7 +14,12 @@ import { TAG_COLORS } from "@/hooks/useTags";
 const formatLastMessageTime = (timestamp?: string | null) => {
   if (!timestamp) return '';
   
-  const date = new Date(timestamp);
+  let date: Date;
+  try {
+    date = typeof timestamp === 'string' ? parseISO(timestamp) : new Date(timestamp);
+  } catch (e) {
+    return '';
+  }
   
   if (!isValid(date)) return '';
 
@@ -29,6 +34,7 @@ const formatLastMessageTime = (timestamp?: string | null) => {
   const now = new Date();
   if (differenceInDays(now, date) < 7) {
     const dayOfWeek = format(date, 'EEEE', { locale: ptBR });
+    // Primeira letra maiúscula
     return dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1).split('-')[0];
   }
   
@@ -77,25 +83,24 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
     <Link
       to={`/conversas/${conversation.id}`}
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg transition-colors cursor-pointer border border-transparent group",
+        "flex gap-3 p-3 rounded-lg transition-colors cursor-pointer border border-transparent group relative items-center w-full",
         isActive ? "bg-muted border-border" : "hover:bg-muted/50"
       )}
     >
-      {/* Avatar fixo */}
       <Avatar className="h-12 w-12 flex-shrink-0">
         <AvatarFallback className={cn("text-sm font-semibold", isActive ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground")}>
           {getInitials(conversation.nome)}
         </AvatarFallback>
       </Avatar>
       
-      {/* Container de Texto - Flex Column - min-w-0 para permitir truncate interno */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+      {/* Container Principal de Texto - Flex Column */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center h-full">
         
-        {/* Linha Superior: Nome + Tags + Horário */}
-        <div className="flex justify-between items-center w-full">
-          {/* Lado Esquerdo: Nome e Tags */}
-          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden pr-2">
-            <span className="font-semibold text-sm truncate text-foreground">
+        {/* Linha Superior: Nome (Esq) e Horário (Dir) */}
+        <div className="flex items-center justify-between mb-0.5 w-full">
+          {/* Container do Nome + Tags com Truncate */}
+          <div className="flex items-center gap-1.5 min-w-0 pr-1 flex-1">
+            <span className="font-semibold text-sm truncate text-foreground block">
               {conversation.nome || conversation.telefone}
             </span>
             
@@ -119,15 +124,15 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             )}
           </div>
           
-          {/* Lado Direito: Horário (Sempre visível) */}
-          <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap">
+          {/* Horário Fixo */}
+          <span className="text-xs text-muted-foreground flex-shrink-0 whitespace-nowrap ml-2">
             {lastMessageTime}
           </span>
         </div>
 
         {/* Linha Inferior: Prévia da Mensagem */}
-        <div className="flex justify-between items-center w-full">
-          <div className="text-xs text-muted-foreground truncate flex-1 min-w-0">
+        <div className="flex items-center w-full">
+          <div className="text-xs text-muted-foreground truncate flex-1 min-w-0 block">
             <MessagePreview 
               content={conversation.last_message_content} 
               type={conversation.last_message_type} 
@@ -150,7 +155,7 @@ export function ConversationsList() {
   );
 
   return (
-    <div className="flex flex-col h-full bg-card border-r">
+    <div className="flex flex-col h-full bg-card border-r w-full">
       <div className="p-4 border-b">
         <h2 className="text-xl font-bold mb-4">Conversas</h2>
         <div className="relative">
@@ -163,7 +168,7 @@ export function ConversationsList() {
           />
         </div>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 w-full">
         <div className="p-2 space-y-1">
           {isLoading ? (
             Array.from({ length: 8 }).map((_, i) => (

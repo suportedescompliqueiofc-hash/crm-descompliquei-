@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Search, Zap, Mic, Image as ImageIcon, Video, FileText, MessageSquare, Send, Folder, GripVertical } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Lead } from "@/hooks/useLeads";
 import {
@@ -120,10 +120,14 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   // Estado local para otimizar o drag and drop
   const [localMessages, setLocalMessages] = useState<QuickMessage[]>([]);
 
-  // Sincroniza estado local com dados do servidor quando carregados ou alterados externamente
+  // Sincroniza estado local com dados do servidor evitando loops infinitos
   useEffect(() => {
     if (quickMessages) {
-      setLocalMessages(quickMessages);
+      setLocalMessages(prev => {
+        // Comparação simples para evitar atualização de estado se os dados forem idênticos
+        if (JSON.stringify(prev) === JSON.stringify(quickMessages)) return prev;
+        return quickMessages;
+      });
     }
   }, [quickMessages]);
 
