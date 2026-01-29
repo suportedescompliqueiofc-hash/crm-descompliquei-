@@ -42,21 +42,21 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
   const prefix = isOutgoing ? <span className="mr-1">Você:</span> : null;
 
   if (type === 'audio') {
-    return <div className="flex items-center gap-1 text-foreground/80"><Mic className="h-3 w-3" /> <span>Áudio</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/80"><Mic className="h-3 w-3 flex-shrink-0" /> <span>Áudio</span></div>;
   }
   if (type === 'imagem') {
-    return <div className="flex items-center gap-1 text-foreground/80"><ImageIcon className="h-3 w-3" /> <span>Foto</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/80"><ImageIcon className="h-3 w-3 flex-shrink-0" /> <span>Foto</span></div>;
   }
   if (type === 'video') {
-    return <div className="flex items-center gap-1 text-foreground/80"><Video className="h-3 w-3" /> <span>Vídeo</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/80"><Video className="h-3 w-3 flex-shrink-0" /> <span>Vídeo</span></div>;
   }
   if (type === 'pdf' || type === 'arquivo') {
-    return <div className="flex items-center gap-1 text-foreground/80"><FileText className="h-3 w-3" /> <span>Arquivo</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/80"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Arquivo</span></div>;
   }
 
   // Fallback para quando o conteúdo é apenas o caminho do arquivo mas o tipo não foi detectado corretamente
   if (content && (content.includes('audio-mensagens/') || content.includes('media-mensagens/'))) {
-    return <div className="flex items-center gap-1 text-foreground/80"><FileText className="h-3 w-3" /> <span>Mídia</span></div>;
+    return <div className="flex items-center gap-1 text-foreground/80"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Mídia</span></div>;
   }
 
   return <span className="truncate flex items-center">{prefix}{content}</span>;
@@ -87,17 +87,18 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
         </AvatarFallback>
       </Avatar>
       
-      {/* Container Principal de Texto */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+      {/* Container Principal de Texto - Flex Column */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center h-full">
         
-        {/* Linha Superior: Nome e Horário */}
-        <div className="flex justify-between items-baseline w-full">
-          <div className="flex items-center gap-1.5 min-w-0 pr-2">
-            <span className="font-semibold text-sm truncate text-foreground block">
+        {/* Linha Superior: Nome (Esq) e Horário (Dir) */}
+        <div className="flex items-center justify-between mb-0.5">
+          {/* Container do Nome + Tags com Truncate */}
+          <div className="flex items-center gap-1.5 min-w-0 pr-1">
+            <span className="font-semibold text-sm truncate text-foreground">
               {conversation.nome || conversation.telefone}
             </span>
             
-            {/* Tags Compactas */}
+            {/* Tags */}
             {conversation.tags && conversation.tags.length > 0 && (
               <div className="flex items-center gap-1 flex-shrink-0">
                 {conversation.tags.slice(0, 3).map(tag => {
@@ -117,23 +118,21 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             )}
           </div>
           
-          <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap ml-auto">
+          {/* Horário Fixo */}
+          <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap ml-auto pl-1">
             {lastMessageTime}
           </span>
         </div>
 
         {/* Linha Inferior: Prévia da Mensagem */}
-        <div className="flex items-center justify-between gap-2 w-full">
-          <div className="text-xs text-muted-foreground truncate flex-1 min-w-0">
+        <div className="flex items-center w-full">
+          <div className="text-xs text-muted-foreground truncate flex-1 min-w-0 block">
             <MessagePreview 
               content={conversation.last_message_content} 
               type={conversation.last_message_type} 
               sender={conversation.last_message_sender} 
             />
           </div>
-          
-          {/* Espaço reservado para contador de mensagens não lidas ou ícone de pin no futuro */}
-          {/* <div className="h-4 w-4 bg-primary rounded-full text-[9px] flex items-center justify-center text-primary-foreground font-bold flex-shrink-0">1</div> */}
         </div>
       </div>
     </Link>
