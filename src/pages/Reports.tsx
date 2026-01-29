@@ -4,12 +4,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  Download, TrendingUp, Users, DollarSign, Clock, Filter, Target, CreditCard, BarChart2, Tag, ArrowRight, ArrowDown
+  Download, TrendingUp, Users, DollarSign, Clock, Filter, BarChart2, Tag, ArrowUpRight
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { 
-  LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, LabelList, AreaChart, Area
+  PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, LabelList, AreaChart, Area
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import { useReports } from "@/hooks/useReports";
@@ -21,8 +21,6 @@ import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { useLeadSources } from "@/hooks/useLeadSources";
 import { useTags } from "@/hooks/useTags";
-import { ChartGradients, CustomChartTooltip, CHART_COLORS, glassCardClass } from "@/components/charts/ChartTheme";
-import { cn } from "@/lib/utils";
 
 export default function Reports() {
   const today = new Date();
@@ -67,135 +65,119 @@ export default function Reports() {
   
   if (!reports) return null;
 
-  const periodDisplay = dateRange?.from && dateRange.to ? `${format(dateRange.from, 'dd/MM/yyyy')} a ${format(dateRange.to, 'dd/MM/yyyy')}` : 'Período Selecionado';
-  
-  // Neon Colors for Pie Charts
-  const PIE_COLORS = [CHART_COLORS.teal, CHART_COLORS.blue, CHART_COLORS.purple, CHART_COLORS.pink, CHART_COLORS.amber];
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
   return (
-    <div className="space-y-8 p-2">
-      {/* Header com Animação */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/60 bg-clip-text text-transparent">Relatórios</h1>
-          <p className="text-muted-foreground mt-2 text-lg font-light">Análise profunda de dados e tendências.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Relatórios Detalhados</h1>
+          <p className="text-muted-foreground mt-1">Análise de performance, funil e vendas.</p>
         </div>
-        <div className="flex gap-3 items-center flex-wrap">
-          <div className="bg-white/50 dark:bg-black/20 p-1 rounded-xl backdrop-blur-sm border border-white/20">
-             <DateRangePicker date={dateRange} setDate={setDateRange} className="border-none shadow-none" />
-          </div>
-          <Button variant="outline" className="rounded-xl border-white/20 hover:bg-white/10" onClick={() => setShowFilters(!showFilters)}><Filter className="h-4 w-4 mr-2" />Filtros</Button>
-          <Button className="rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 shadow-lg shadow-blue-500/20 border-none" onClick={handleExport}><Download className="h-4 w-4 mr-2" />Exportar</Button>
+        <div className="flex gap-2 items-center flex-wrap">
+          <DateRangePicker date={dateRange} setDate={setDateRange} />
+          <Button variant="outline" onClick={() => setShowFilters(!showFilters)}><Filter className="h-4 w-4 mr-2" />Filtros</Button>
+          <Button onClick={handleExport}><Download className="h-4 w-4 mr-2" />Exportar</Button>
         </div>
       </div>
 
       {showFilters && (
-        <Card className={cn(glassCardClass, "animate-in fade-in slide-in-from-top-4 duration-300")}>
+        <Card>
           <CardHeader>
             <CardTitle className="text-lg">Filtros Avançados</CardTitle>
-            <CardDescription>Refine os dados para uma análise precisa.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
                 <Label>Etapa do Funil</Label>
                 <Select value={filters.posicao_pipeline} onValueChange={(v) => handleFilterChange('posicao_pipeline', v)}>
-                  <SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todos">Todas as Etapas</SelectItem>
                     {stages.map(stage => <SelectItem key={stage.id} value={stage.posicao_ordem.toString()}>{stage.nome}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label>Origem</Label><Select value={filters.origem} onValueChange={(v) => handleFilterChange('origem', v)}><SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem>{allSources.map(origem => <SelectItem key={origem} value={origem}>{origem}</SelectItem>)}</SelectContent></Select></div>
-              <div><Label>Gênero</Label><Select value={filters.genero} onValueChange={(v) => handleFilterChange('genero', v)}><SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem><SelectItem value="M">Masculino</SelectItem><SelectItem value="F">Feminino</SelectItem><SelectItem value="Outro">Outro</SelectItem></SelectContent></Select></div>
-              <div><Label>Idade</Label><Input type="number" className="rounded-lg" value={filters.idade} onChange={(e) => handleFilterChange('idade', e.target.value)} placeholder="Idade exata" /></div>
-              <div><Label>Etiqueta</Label><Select value={filters.tagId} onValueChange={(v) => handleFilterChange('tagId', v)}><SelectTrigger className="rounded-lg"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas as Etiquetas</SelectItem>{availableTags.map(tag => (<SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>))}</SelectContent></Select></div>
+              <div><Label>Origem</Label><Select value={filters.origem} onValueChange={(v) => handleFilterChange('origem', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem>{allSources.map(origem => <SelectItem key={origem} value={origem}>{origem}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>Gênero</Label><Select value={filters.genero} onValueChange={(v) => handleFilterChange('genero', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todos</SelectItem><SelectItem value="M">Masculino</SelectItem><SelectItem value="F">Feminino</SelectItem><SelectItem value="Outro">Outro</SelectItem></SelectContent></Select></div>
+              <div><Label>Idade</Label><Input type="number" value={filters.idade} onChange={(e) => handleFilterChange('idade', e.target.value)} placeholder="Idade exata" /></div>
+              <div><Label>Etiqueta</Label><Select value={filters.tagId} onValueChange={(v) => handleFilterChange('tagId', v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Todos">Todas as Etiquetas</SelectItem>{availableTags.map(tag => (<SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>))}</SelectContent></Select></div>
             </div>
           </CardContent>
         </Card>
       )}
 
       <Tabs defaultValue="overview" className="space-y-8">
-        <TabsList className="bg-muted/50 p-1 rounded-2xl backdrop-blur-sm">
-          {["overview", "funnel", "conversions", "financial"].map(tab => (
-            <TabsTrigger key={tab} value={tab} className="rounded-xl data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm capitalize">
-              {tab === 'overview' ? 'Visão Geral' : tab === 'funnel' ? 'Funil Real' : tab === 'conversions' ? 'Conversões' : 'Financeiro'}
-            </TabsTrigger>
-          ))}
+        <TabsList>
+          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+          <TabsTrigger value="funnel">Funil Real</TabsTrigger>
+          <TabsTrigger value="conversions">Conversões</TabsTrigger>
+          <TabsTrigger value="financial">Financeiro</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {/* KPI Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className={cn(glassCardClass, "border-l-8 border-l-teal-400")}>
-              <CardHeader className="pb-3"><CardDescription className="flex items-center gap-2 text-teal-600 font-medium"><Users className="h-4 w-4" />Novos Contatos</CardDescription><CardTitle className="text-4xl font-extrabold">{reports?.kpis?.totalContatos ?? 0}</CardTitle></CardHeader>
-            </Card>
-            <Card className={cn(glassCardClass, "border-l-8 border-l-blue-500")}>
-              <CardHeader className="pb-3"><CardDescription className="flex items-center gap-2 text-blue-600 font-medium"><Tag className="h-4 w-4" />Novos Leads</CardDescription><CardTitle className="text-4xl font-extrabold">{reports?.kpis?.totalNovosLeads ?? 0}</CardTitle></CardHeader>
-            </Card>
-            <Card className={cn(glassCardClass, "border-l-8 border-l-purple-500")}>
-              <CardHeader className="pb-3"><CardDescription className="flex items-center gap-2 text-purple-600 font-medium"><TrendingUp className="h-4 w-4" />Taxa de Conversão</CardDescription><CardTitle className="text-4xl font-extrabold">{reports?.kpis?.conversionRate ?? 0}%</CardTitle></CardHeader>
-            </Card>
-            <Card className={cn(glassCardClass, "border-l-8 border-l-emerald-500")}>
-              <CardHeader className="pb-3"><CardDescription className="flex items-center gap-2 text-emerald-600 font-medium"><DollarSign className="h-4 w-4" />Ticket Médio</CardDescription><CardTitle className="text-4xl font-extrabold">R$ {(reports?.kpis?.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</CardTitle></CardHeader>
-            </Card>
-            <Card className={cn(glassCardClass, "border-l-8 border-l-amber-500")}>
-              <CardHeader className="pb-3"><CardDescription className="flex items-center gap-2 text-amber-600 font-medium"><Clock className="h-4 w-4" />Tempo Médio no Funil</CardDescription><CardTitle className="text-4xl font-extrabold">{reports?.kpis?.tempoMedioFunil ?? 0} dias</CardTitle></CardHeader>
-            </Card>
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Leads</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{reports?.kpis?.totalContatos ?? 0}</div></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Novos Leads</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{reports?.kpis?.totalNovosLeads ?? 0}</div></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Conversão</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{reports?.kpis?.conversionRate ?? 0}%</div></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Ticket Médio</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">R$ {(reports?.kpis?.ticketMedio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</div></CardContent></Card>
+            <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Tempo Médio</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{reports?.kpis?.tempoMedioFunil ?? 0} dias</div></CardContent></Card>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className={cn(glassCardClass, "lg:col-span-2")}>
-              <CardHeader><CardTitle>Captados vs Convertidos</CardTitle><CardDescription>Evolução natural no tempo</CardDescription></CardHeader>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader><CardTitle>Captados vs Convertidos</CardTitle></CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <AreaChart data={reports?.charts?.leadsCapturedData || []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <ChartGradients />
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_COLORS.grid} />
-                    <XAxis dataKey="day" stroke="currentColor" fontSize={12} tickLine={false} axisLine={false} className="text-muted-foreground opacity-60" />
-                    <YAxis stroke="currentColor" fontSize={12} tickLine={false} axisLine={false} className="text-muted-foreground opacity-60" />
-                    <Tooltip content={<CustomChartTooltip />} />
-                    <Legend iconType="circle" />
-                    <Area type="monotone" dataKey="captados" stroke={CHART_COLORS.teal} fillOpacity={1} fill="url(#colorTeal)" strokeWidth={3} name="Captados" />
-                    <Area type="monotone" dataKey="convertidos" stroke={CHART_COLORS.blue} fillOpacity={1} fill="url(#colorBlue)" strokeWidth={3} name="Convertidos" />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={reports?.charts?.leadsCapturedData || []}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis fontSize={12} tickLine={false} axisLine={false} />
+                      <Tooltip />
+                      <Legend />
+                      <Area type="monotone" dataKey="captados" name="Captados" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
+                      <Area type="monotone" dataKey="convertidos" name="Convertidos" stroke="#82ca9d" fill="#82ca9d" fillOpacity={0.3} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
 
-            <Card className={glassCardClass}>
-              <CardHeader><CardTitle>Por Origem</CardTitle></CardHeader>
+            <Card>
+              <CardHeader><CardTitle>Leads por Origem</CardTitle></CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={reports?.charts?.sourceData || []} layout="vertical" margin={{ top: 0, right: 30, left: 20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={CHART_COLORS.grid} />
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="source" type="category" stroke="currentColor" fontSize={11} width={80} tickLine={false} axisLine={false} className="text-foreground font-medium" />
-                    <Tooltip content={<CustomChartTooltip />} />
-                    <Bar dataKey="leads" fill="url(#colorPurple)" radius={[0, 4, 4, 0]} barSize={24} name="Leads">
-                        <LabelList dataKey="leads" position="right" style={{ fill: 'currentColor', fontSize: '11px', fontWeight: 'bold' }} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={reports?.charts?.sourceData || []} layout="vertical" margin={{ left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" hide />
+                      <YAxis dataKey="source" type="category" width={80} fontSize={12} tickLine={false} axisLine={false} />
+                      <Tooltip />
+                      <Bar dataKey="leads" fill="#8884d8" radius={[0, 4, 4, 0]}>
+                        <LabelList dataKey="leads" position="right" fontSize={12} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          <Card className={glassCardClass}>
-            <CardHeader><CardTitle>Top 10 Criativos</CardTitle></CardHeader>
+          <Card>
+            <CardHeader><CardTitle>Top Criativos</CardTitle></CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
-                  <TableRow className="border-b-white/10"><TableHead>Criativo</TableHead><TableHead>Origem</TableHead><TableHead>Leads</TableHead><TableHead>Conversão</TableHead></TableRow>
+                  <TableRow><TableHead>Criativo</TableHead><TableHead>Origem</TableHead><TableHead>Leads</TableHead><TableHead>Conversão</TableHead></TableRow>
                 </TableHeader>
                 <TableBody>
                   {(reports?.charts?.topCreativesData || []).map((item, i) => (
-                    <TableRow key={i} className="border-b-white/5 hover:bg-white/5">
-                      <TableCell className="font-medium text-foreground">{item.name}</TableCell>
-                      <TableCell><Badge variant="outline" className="border-white/20">{item.origin}</Badge></TableCell>
+                    <TableRow key={i}>
+                      <TableCell>{item.name}</TableCell>
+                      <TableCell><Badge variant="outline">{item.origin}</Badge></TableCell>
                       <TableCell>{item.leads}</TableCell>
-                      <TableCell><Badge className="bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30">{item.conversion}</Badge></TableCell>
+                      <TableCell>{item.conversion}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -204,11 +186,11 @@ export default function Reports() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="funnel" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <Card className={glassCardClass}>
+        <TabsContent value="funnel" className="space-y-6">
+          <Card>
             <CardHeader>
-              <CardTitle>Jornada do Cliente (Acumulado)</CardTitle>
-              <CardDescription>Fluxo visual com comportamento natural.</CardDescription>
+              <CardTitle>Funil de Vendas (Acumulado)</CardTitle>
+              <CardDescription>Visualização do volume de leads que passaram por cada etapa.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[500px] w-full">
@@ -218,31 +200,15 @@ export default function Reports() {
                     layout="vertical"
                     margin={{ top: 20, right: 120, left: 20, bottom: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={CHART_COLORS.grid} />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                     <XAxis type="number" hide />
-                    <YAxis 
-                      dataKey="etapa" 
-                      type="category" 
-                      width={180} 
-                      tick={{ fontSize: 13, fill: 'currentColor', fontWeight: 500 }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip content={<CustomChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
-                    <Bar 
-                      dataKey="quantidade" 
-                      barSize={32} 
-                      radius={[0, 16, 16, 0]} // Barras super arredondadas
-                    >
+                    <YAxis dataKey="etapa" type="category" width={180} tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                    <Tooltip cursor={{ fill: 'transparent' }} />
+                    <Bar dataKey="quantidade" barSize={32} radius={[0, 4, 4, 0]}>
                       {reports?.funnel?.funnelData.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} className="hover:opacity-80 transition-opacity duration-300" />
+                        <Cell key={`cell-${index}`} fill={entry.fill || '#8884d8'} />
                       ))}
-                      <LabelList 
-                        dataKey="quantidade" 
-                        position="right" 
-                        formatter={(val: number) => `${val}`}
-                        style={{ fill: 'currentColor', fontWeight: 'bold', fontSize: '14px' }}
-                      />
+                      <LabelList dataKey="quantidade" position="right" formatter={(val: number) => `${val}`} style={{ fontWeight: 'bold' }} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -251,93 +217,93 @@ export default function Reports() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="conversions" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <Card className={cn(glassCardClass, "lg:col-span-2")}>
+        <TabsContent value="conversions" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
               <CardHeader><CardTitle>Conversões por Origem</CardTitle></CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie 
-                      data={reports?.conversions?.charts?.conversoesPorOrigemData || []} 
-                      dataKey="value" 
-                      nameKey="name" 
-                      cx="50%" 
-                      cy="50%" 
-                      outerRadius={80} 
-                      innerRadius={50}
-                      paddingAngle={5}
-                      stroke="none"
-                    >
-                      {(reports?.conversions?.charts?.conversoesPorOrigemData || []).map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} className="drop-shadow-md" />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<CustomChartTooltip />} />
-                    <Legend iconType="circle" />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie 
+                        data={reports?.conversions?.charts?.conversoesPorOrigemData || []} 
+                        dataKey="value" 
+                        nameKey="name" 
+                        cx="50%" 
+                        cy="50%" 
+                        outerRadius={80} 
+                      >
+                        {(reports?.conversions?.charts?.conversoesPorOrigemData || []).map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
-            <Card className={cn(glassCardClass, "lg:col-span-3")}>
-              <CardHeader>
-                <CardTitle>Valor Convertido</CardTitle>
-                <CardDescription>Evolução diária</CardDescription>
-              </CardHeader>
+            <Card>
+              <CardHeader><CardTitle>Valor Convertido (Dia a Dia)</CardTitle></CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={reports?.conversions?.charts?.valorConvertidoPorDia || []}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} vertical={false} />
-                    <XAxis dataKey="day" stroke="currentColor" className="text-xs text-muted-foreground" tickLine={false} axisLine={false} />
-                    <YAxis stroke="currentColor" className="text-xs text-muted-foreground" tickLine={false} axisLine={false} />
-                    <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} content={<CustomChartTooltip />} />
-                    <Bar dataKey="valor" fill="url(#colorTeal)" name="Valor" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={reports?.conversions?.charts?.valorConvertidoPorDia || []}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis fontSize={12} tickLine={false} axisLine={false} />
+                      <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                      <Bar dataKey="valor" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
-        <TabsContent value="financial" className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className={cn(glassCardClass, "lg:col-span-2")}>
-              <CardHeader><CardTitle>Evolução do Faturamento</CardTitle></CardHeader>
+        <TabsContent value="financial" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader><CardTitle>Faturamento</CardTitle></CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <AreaChart data={reports?.financial?.faturamentoPorDia || []}>
-                    <ChartGradients />
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} vertical={false} />
-                    <XAxis dataKey="day" stroke="currentColor" className="text-xs text-muted-foreground" tickLine={false} axisLine={false} />
-                    <YAxis stroke="currentColor" className="text-xs text-muted-foreground" tickFormatter={(value) => `R$${value/1000}k`} tickLine={false} axisLine={false} />
-                    <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} content={<CustomChartTooltip />} />
-                    <Area type="monotone" dataKey="valor" stroke={CHART_COLORS.teal} fill="url(#colorTeal)" strokeWidth={3} name="Faturamento" activeDot={{ r: 6, strokeWidth: 0, fill: "white", stroke: CHART_COLORS.teal }} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <div className="h-[350px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={reports?.financial?.faturamentoPorDia || []}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis fontSize={12} tickFormatter={(value) => `R$${value/1000}k`} tickLine={false} axisLine={false} />
+                      <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                      <Area type="monotone" dataKey="valor" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
-            <Card className={glassCardClass}>
+            <Card>
               <CardHeader><CardTitle>Métodos de Pagamento</CardTitle></CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <PieChart>
-                    <Pie 
-                      data={reports?.financial?.metodosPagamentoData || []} 
-                      dataKey="value" 
-                      nameKey="name" 
-                      cx="50%" 
-                      cy="50%" 
-                      innerRadius={60} 
-                      outerRadius={100} 
-                      paddingAngle={5}
-                      stroke="none"
-                    >
-                      {(reports?.financial?.metodosPagamentoData || []).map((_, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} className="drop-shadow-lg" />)}
-                    </Pie>
-                    <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} content={<CustomChartTooltip />} />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle"/>
-                  </PieChart>
-                </ResponsiveContainer>
+                <div className="h-[350px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie 
+                        data={reports?.financial?.metodosPagamentoData || []} 
+                        dataKey="value" 
+                        nameKey="name" 
+                        cx="50%" 
+                        cy="50%" 
+                        innerRadius={60} 
+                        outerRadius={100} 
+                        paddingAngle={5}
+                      >
+                        {(reports?.financial?.metodosPagamentoData || []).map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                      <Legend verticalAlign="bottom" />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
           </div>
