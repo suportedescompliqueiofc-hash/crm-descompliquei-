@@ -31,13 +31,18 @@ serve(async (req) => {
 
     const payload = await req.json();
     
-    const from = payload.from;
+    // Parâmetros principais
+    const from = payload.from || payload.phone || payload.number; // Aceita variações
     const body = payload.body || payload.caption || '';
     const mediaUrl = payload.mediaUrl || payload.media?.url;
     const mediaType = payload.mediaType || payload.media?.type || payload.media?.mimetype;
     const externalId = payload.id || payload.id_mensagem || payload.messageId || payload.wamid || null;
+    
+    // Novos parâmetros para controle de direção (com fallback para padrão de entrada)
+    const direction = payload.direction || 'entrada'; // 'entrada' ou 'saida'
+    const sender = payload.sender || 'lead'; // 'lead', 'agente', 'bot'
 
-    if (!from) throw new Error('O número do remetente (from) é obrigatório.');
+    if (!from) throw new Error('O número de telefone (from/phone) é obrigatório.');
 
     const phoneWithCountryCode = cleanPhoneNumber(from);
     const phoneWithoutCountryCode = phoneWithCountryCode.startsWith('55') 
@@ -65,6 +70,14 @@ serve(async (req) => {
 
     // 2. Se houver mídia, processá-la PRIMEIRO
     if (mediaUrl && mediaType) {
+      // Se for uma URL do próprio Supabase (já enviada pelo CRM), não precisamos baixar e re-upar
+      if (mediaUrl.includes('supabase.co') && mediaUrl.includes('media-mensagens')) {
+         // Extrai o caminho relativo se possível, ou usa null se a lógica de path for complexa
+         // Aqui assumimos que se já está no bucket, o fluxo do CRM já tratou ou passamos o path direto
+         // Mas para o n8n que manda URL externa (ex: whatsapp), mantemos o download:
+      } 
+      
+      // Download da mídia externa
       const mediaResponse = await fetch(mediaUrl);
       if (!mediaResponse.ok) throw new Error('Falha ao baixar a mídia da URL fornecida.');
       const mediaData = await mediaResponse.arrayBuffer();
@@ -80,8 +93,9 @@ serve(async (req) => {
       } else if (mediaType.includes('video')) {
         fileExtension = 'mp4';
         finalFileType = 'video';
-      } else if (mediaType.includes('audio')) {
-        fileExtension = 'mp3';
+      } else if (mediaType.includes('audio') || mediaType.includes('ogg')) {
+        fileExtension = 'mp3'; // Convertemos ou salvamos como audio
+        if (mediaType.includes('ogg')) fileExtension = 'ogg';
         finalFileType = 'audio';
       } else {
         // Fallback genérico
@@ -100,14 +114,14 @@ serve(async (req) => {
       uploadedFilePath = filePath;
     }
 
-    // 3. Inserir a mensagem base
+    // 3. Inserir a mensagem base com direção dinâmica
     const { data: message, error: messageError } = await supabaseAdmin
       .from('mensagens')
       .insert({
         lead_id: lead.id,
         conteudo: body,
-        direcao: 'entrada',
-        remetente: 'lead',
+        direcao: direction, // Dinâmico
+        remetente: sender,  // Dinâmico
         tipo_conteudo: uploadedFilePath ? finalFileType : 'texto',
         id_mensagem: externalId,
       })
