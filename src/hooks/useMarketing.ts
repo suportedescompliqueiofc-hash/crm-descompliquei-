@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 import { DateRange } from 'react-day-picker';
-import { startOfDay, endOfDay } from 'date-fns';
+import { startOfDay, endOfDay, format } from 'date-fns';
 import { useEffect } from 'react';
 
 export interface MetaMetrics {
@@ -55,6 +55,9 @@ export function useMarketing(dateRange?: DateRange) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'criativos' }, () => {
         queryClient.invalidateQueries({ queryKey: ['criativos'] });
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'marketing_expenses' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['marketing_expenses'] });
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
         queryClient.invalidateQueries({ queryKey: ['criativos'] });
       })
@@ -68,17 +71,45 @@ export function useMarketing(dateRange?: DateRange) {
     };
   }, [orgId, queryClient]);
 
-  const { data: criativos = [], isLoading } = useQuery({
-    queryKey: ['criativos', orgId, dateRange],
+  const { data: metricsData, isLoading } = useQuery({
+    queryKey: ['marketing_metrics', orgId, dateRange],
     queryFn: async () => {
-      if (!user || !orgId) return [];
+      if (!user || !orgId) return { criativos: [], manualSpend: 0, totalSales: 0 };
 
       const startDate = dateRange?.from ? startOfDay(dateRange.from).toISOString() : null;
       const endDate = dateRange?.to 
         ? endOfDay(dateRange.to).toISOString() 
         : (dateRange?.from ? endOfDay(dateRange.from).toISOString() : null);
 
-      // 1. Buscar criativos (Filtrando pela data de criação)
+      const formattedStartDate = dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : null;
+      const formattedEndDate = dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : formattedStartDate;
+
+      // 1. Buscar Gastos Manuais
+      let expenseQuery = supabase
+        .from('marketing_expenses')
+        .select('amount')
+        .eq('organization_id', orgId);
+
+      if (formattedStartDate && formattedEndDate) {
+        expenseQuery = expenseQuery.gte('expense_date', formattedStartDate).lte('expense_date', formattedEndDate);
+      }
+      
+      const { data: expensesData } = await expenseQuery;
+      const manualSpend = expensesData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+
+      // 2. Buscar Total de Vendas no Período (para CAC Global)
+      let globalSalesQuery = supabase
+        .from('vendas')
+        .select('id', { count: 'exact' })
+        .eq('organization_id', orgId);
+
+      if (formattedStartDate && formattedEndDate) {
+        globalSalesQuery = globalSalesQuery.gte('data_fechamento', formattedStartDate).lte('data_fechamento', formattedEndDate);
+      }
+      
+      const { count: totalSalesCount } = await globalSalesQuery;
+
+      // 3. Buscar criativos (Filtrando pela data de criação - apenas para listagem)
       let query = supabase
         .from('criativos')
         .select('*')
@@ -93,7 +124,7 @@ export function useMarketing(dateRange?: DateRange) {
 
       if (error) throw error;
 
-      // 2. Buscar estatísticas (Leads e Vendas)
+      // 4. Buscar estatísticas (Leads e Vendas) por criativo
       const criativosComStats = await Promise.all(data.map(async (criativo) => {
         let leadsQuery = supabase
           .from('leads')
@@ -137,7 +168,11 @@ export function useMarketing(dateRange?: DateRange) {
         };
       }));
 
-      return criativosComStats as Criativo[];
+      return {
+        criativos: criativosComStats as Criativo[],
+        manualSpend,
+        totalSales: totalSalesCount || 0
+      };
     },
     enabled: !!user && !!orgId,
   });
@@ -161,7 +196,7 @@ export function useMarketing(dateRange?: DateRange) {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['criativos', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['marketing_metrics'] });
       toast.success('Criativo criado com sucesso!');
     },
     onError: (err: any) => toast.error(`Erro ao criar criativo: ${err.message}`),
@@ -176,7 +211,7 @@ export function useMarketing(dateRange?: DateRange) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['criativos', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['marketing_metrics'] });
       toast.success('Nome do criativo atualizado!');
     },
     onError: (err: any) => toast.error(`Erro: ${err.message}`),
@@ -191,7 +226,7 @@ export function useMarketing(dateRange?: DateRange) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['criativos', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['marketing_metrics'] });
     },
     onError: (err: any) => toast.error(`Erro ao salvar métricas: ${err.message}`),
   });
@@ -205,7 +240,7 @@ export function useMarketing(dateRange?: DateRange) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['criativos', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['marketing_metrics'] });
       toast.success('Criativo excluído com sucesso.');
     },
     onError: (err: any) => toast.error(`Erro: ${err.message}`),
@@ -215,7 +250,6 @@ export function useMarketing(dateRange?: DateRange) {
     mutationFn: async ({ sourceId, targetId }: { sourceId: string; targetId: string }) => {
       if (!user || !orgId) throw new Error("Usuário não autenticado");
 
-      // 1. Obter métricas do Source (Campanha Importada)
       const { data: sourceData, error: sourceError } = await supabase
         .from('criativos')
         .select('platform_metrics')
@@ -224,8 +258,6 @@ export function useMarketing(dateRange?: DateRange) {
 
       if (sourceError || !sourceData) throw new Error("Erro ao buscar dados do criativo de origem.");
 
-      // 2. Atualizar métricas no Target (Criativo Interno)
-      // Mantendo os dados do source sem apagá-lo, apenas copiando os dados para o target
       const { error: updateTargetError } = await supabase
         .from('criativos')
         .update({ platform_metrics: sourceData.platform_metrics })
@@ -236,19 +268,44 @@ export function useMarketing(dateRange?: DateRange) {
       return true;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['criativos', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['marketing_metrics'] });
       toast.success('Métricas associadas com sucesso!');
     },
     onError: (err: any) => toast.error(`Erro na associação: ${err.message}`),
   });
 
+  const adicionarInvestimentoManual = useMutation({
+    mutationFn: async ({ amount, date, description }: { amount: number; date: Date; description?: string }) => {
+      if (!user || !orgId) throw new Error("Usuário não autenticado");
+
+      const { error } = await supabase
+        .from('marketing_expenses')
+        .insert({
+          organization_id: orgId,
+          amount,
+          expense_date: format(date, 'yyyy-MM-dd'),
+          description
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['marketing_metrics'] });
+      toast.success('Investimento registrado com sucesso!');
+    },
+    onError: (err: any) => toast.error(`Erro ao registrar investimento: ${err.message}`),
+  });
+
   return {
-    criativos,
+    criativos: metricsData?.criativos || [],
+    manualSpend: metricsData?.manualSpend || 0,
+    totalSales: metricsData?.totalSales || 0,
     isLoading,
     createCriativo: createCriativo.mutateAsync,
     atualizarNomeCriativo: atualizarNomeCriativo.mutate,
     atualizarMetricasCriativo: atualizarMetricasCriativo.mutate,
     deletarCriativo: deletarCriativo.mutate,
     associarCriativo: associarCriativo.mutate, 
+    adicionarInvestimentoManual: adicionarInvestimentoManual.mutate
   };
 }

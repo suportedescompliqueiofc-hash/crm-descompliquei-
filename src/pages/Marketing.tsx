@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy, Upload, Facebook, Eye, MousePointerClick, Edit2, Trash2, Link as LinkIcon, Activity } from "lucide-react";
+import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy, Upload, Facebook, Eye, MousePointerClick, Edit2, Trash2, Link as LinkIcon, Activity, PlusCircle, Calculator } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,19 +19,32 @@ import { Button } from "@/components/ui/button";
 import { MetaImportModal } from "@/components/marketing/MetaImportModal";
 import { CreativeDetailsModal } from "@/components/marketing/CreativeDetailsModal";
 import { AssociateCreativeModal } from "@/components/marketing/AssociateCreativeModal";
+import { MarketingSpendModal } from "@/components/marketing/MarketingSpendModal";
 import { toast } from "sonner";
 
 export default function Marketing() {
   const today = new Date();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: startOfMonth(today), to: endOfMonth(today) });
   
-  const { criativos, isLoading: isLoadingCreatives, atualizarNomeCriativo, deletarCriativo, atualizarMetricasCriativo, associarCriativo } = useMarketing(dateRange);
+  const { 
+    criativos, 
+    manualSpend, 
+    totalSales,
+    isLoading: isLoadingCreatives, 
+    atualizarNomeCriativo, 
+    deletarCriativo, 
+    atualizarMetricasCriativo, 
+    associarCriativo,
+    adicionarInvestimentoManual
+  } = useMarketing(dateRange);
+  
   const { reports, isLoading: isLoadingReports } = useReports(dateRange);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("meta");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isSpendModalOpen, setIsSpendModalOpen] = useState(false);
   
   // Estado para edição e associação
   const [selectedCampaign, setSelectedCampaign] = useState<Criativo | null>(null);
@@ -44,15 +57,19 @@ export default function Marketing() {
   const criativosAssets = (criativos || []).filter(c => !c.platform_metrics || c.platform_metrics.spend === 0);
 
   // Cálculos Acumulados (Meta Ads)
-  const totalSpend = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.spend || 0), 0);
+  const metaSpend = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.spend || 0), 0);
   const totalResults = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.results || 0), 0);
   const totalReach = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.reach || 0), 0);
   const totalImpressions = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.impressions || 0), 0);
   const totalClicks = campanhasMeta.reduce((acc, c) => acc + (c.platform_metrics?.clicks || 0), 0);
   
-  const avgCostPerResult = totalResults > 0 ? totalSpend / totalResults : 0;
+  const avgCostPerResult = totalResults > 0 ? metaSpend / totalResults : 0;
   const avgCTR = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
-  const avgCPC = totalClicks > 0 ? totalSpend / totalClicks : 0;
+  const avgCPC = totalClicks > 0 ? metaSpend / totalClicks : 0;
+
+  // Cálculos Globais (Meta + Manual)
+  const totalInvestment = metaSpend + manualSpend;
+  const cac = totalSales > 0 ? totalInvestment / totalSales : 0;
 
   const criativosFiltrados = criativosAssets.filter(c => {
     const search = searchTerm.toLowerCase();
@@ -130,9 +147,47 @@ export default function Marketing() {
           <h1 className="text-3xl font-bold tracking-tight">Marketing</h1>
           <p className="text-muted-foreground mt-1">Gerencie seus criativos e acompanhe resultados.</p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           <DateRangePicker date={dateRange} setDate={setDateRange} />
+          <Button variant="outline" className="gap-2" onClick={() => setIsSpendModalOpen(true)}>
+            <PlusCircle className="h-4 w-4" /> Add Investimento
+          </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Investimento Total</p>
+              <h3 className="text-2xl font-bold text-primary">{formatMoney(totalInvestment)}</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Ads: {formatMoney(metaSpend)} + Manual: {formatMoney(manualSpend)}
+              </p>
+            </div>
+            <DollarSign className="h-8 w-8 text-primary opacity-50" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Total Vendas (Período)</p>
+              <h3 className="text-2xl font-bold">{totalSales}</h3>
+              <p className="text-xs text-muted-foreground mt-1">Base para cálculo do CAC</p>
+            </div>
+            <Target className="h-8 w-8 text-muted-foreground opacity-50" />
+          </CardContent>
+        </Card>
+        <Card className={cn(cac > 0 ? "border-green-200 bg-green-50/50" : "")}>
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">CAC Global</p>
+              <h3 className="text-2xl font-bold text-green-700">{formatMoney(cac)}</h3>
+              <p className="text-xs text-muted-foreground mt-1">Custo de Aquisição de Cliente</p>
+            </div>
+            <Calculator className="h-8 w-8 text-green-600 opacity-50" />
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
@@ -281,10 +336,10 @@ export default function Marketing() {
                   {/* CARDS DE RESUMO ACUMULADO */}
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-4 border-t">
                     <div className="p-4 bg-muted/20 border rounded-lg flex flex-col gap-1">
-                      <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Valor Total Usado</span>
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Valor Meta Ads</span>
                       <div className="flex items-center gap-2">
                         <DollarSign className="h-4 w-4 text-primary" />
-                        <span className="text-2xl font-bold">{formatMoney(totalSpend)}</span>
+                        <span className="text-2xl font-bold">{formatMoney(metaSpend)}</span>
                       </div>
                     </div>
 
@@ -459,6 +514,12 @@ export default function Marketing() {
         onOpenChange={setIsImportModalOpen} 
         criativos={criativos || []} 
         onImport={handleMetricsImport} 
+      />
+
+      <MarketingSpendModal 
+        open={isSpendModalOpen} 
+        onOpenChange={setIsSpendModalOpen} 
+        onSave={adicionarInvestimentoManual} 
       />
 
       {selectedCampaign && (
