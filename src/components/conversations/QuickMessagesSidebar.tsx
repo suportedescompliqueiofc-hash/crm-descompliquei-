@@ -1,12 +1,12 @@
 "use client";
 
 import { useQuickMessages, QuickMessage } from "@/hooks/useQuickMessages";
-import { useQuickMessageFolders } from "@/hooks/useQuickMessageFolders";
+import { useQuickMessageFolders, QuickMessageFolder } from "@/hooks/useQuickMessageFolders";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Search, Zap, Mic, Image as ImageIcon, Video, FileText, MessageSquare, Send, Folder, GripVertical } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Lead } from "@/hooks/useLeads";
 import {
@@ -116,21 +116,38 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   const { folders, isLoading: isLoadingFolders } = useQuickMessageFolders();
   const [searchTerm, setSearchTerm] = useState("");
   const [messageToConfirm, setMessageToConfirm] = useState<QuickMessage | null>(null);
+  
+  // Local state for optimistic updates
   const [localMessages, setLocalMessages] = useState<QuickMessage[]>([]);
+  const [localFolders, setLocalFolders] = useState<QuickMessageFolder[]>([]);
 
-  // Sincronização segura para evitar loop infinito
+  // Refs para rastrear a última versão dos dados sincronizados e evitar loops
+  const lastSyncedMessagesRef = useRef<string>("");
+  const lastSyncedFoldersRef = useRef<string>("");
+
+  // Sincronização Estável: Mensagens
   useEffect(() => {
     if (!isLoadingMsgs && quickMessages) {
-       // Só sincroniza se houver mudança real na lista para evitar re-renderizações circulares
-       const shouldUpdate = localMessages.length === 0 || 
-                           quickMessages.length !== localMessages.length || 
-                           quickMessages[0]?.id !== localMessages[0]?.id;
-       
-       if (shouldUpdate) {
-          setLocalMessages(quickMessages);
-       }
+      const serverStr = JSON.stringify(quickMessages);
+      // Só atualiza se os dados do servidor mudaram em relação à última sincronização
+      if (serverStr !== lastSyncedMessagesRef.current) {
+        setLocalMessages(quickMessages);
+        lastSyncedMessagesRef.current = serverStr;
+      }
     }
   }, [quickMessages, isLoadingMsgs]);
+
+  // Sincronização Estável: Pastas
+  useEffect(() => {
+    if (!isLoadingFolders && folders) {
+      const serverStr = JSON.stringify(folders);
+      // Só atualiza se os dados do servidor mudaram em relação à última sincronização
+      if (serverStr !== lastSyncedFoldersRef.current) {
+        setLocalFolders(folders);
+        lastSyncedFoldersRef.current = serverStr;
+      }
+    }
+  }, [folders, isLoadingFolders]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -172,6 +189,12 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
     if (oldIndex !== -1 && newIndex !== -1) {
       const newItems = arrayMove(localMessages, oldIndex, newIndex);
       setLocalMessages(newItems);
+      
+      // Atualiza a ref para evitar que o efeito de sync reverta a mudança imediatamente
+      // antes da resposta do servidor (Optimistic UI support)
+      // Nota: Idealmente o servidor responderia rápido, mas isso previne flashs
+      // lastSyncedMessagesRef.current = JSON.stringify(newItems); // Opcional, dependendo da estratégia
+
       const updates = newItems.map((msg, index) => ({ id: msg.id, position: index + 1, folder_id: msg.folder_id || null }));
       updateMessagesOrder.mutate(updates);
     }
@@ -203,8 +226,8 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
         ) : (
           <div className="p-3">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <Accordion type="multiple" defaultValue={folders.map(f => f.id)} className="w-full space-y-2">
-                {folders.map(folder => {
+              <Accordion type="multiple" defaultValue={localFolders.map(f => f.id)} className="w-full space-y-2">
+                {localFolders.map(folder => {
                   const msgs = getMessagesByFolder(folder.id);
                   if (msgs.length === 0) return null;
                   return (
