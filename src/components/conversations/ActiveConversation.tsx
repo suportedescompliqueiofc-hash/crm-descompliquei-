@@ -335,7 +335,8 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
       )}
 
       <ScrollArea className="flex-1 bg-muted/10">
-        <div className="p-3 sm:p-4 space-y-2 max-w-3xl mx-auto min-h-full">
+        {/* Container das mensagens otimizado para telas ultra-wide */}
+        <div className="p-3 sm:p-4 space-y-2 max-w-4xl 2xl:max-w-5xl mx-auto min-h-full">
           {messagesLoading ? <p className="text-center text-muted-foreground text-xs py-4">Carregando...</p> : (
             groupedMessages.map((item, index) => {
               if (item.type === 'separator') return <DateSeparator key={`sep-${index}`} dateString={item.date} />;
@@ -407,7 +408,7 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
         {isRecordingMode ? (
           <AudioRecorder onSend={handleSendAudio} onCancel={() => setIsRecordingMode(false)} />
         ) : (
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-muted/40 p-1 rounded-full border border-input/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all max-w-4xl mx-auto">
+          <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-muted/40 p-1 rounded-full border border-input/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all max-w-5xl mx-auto">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 rounded-full text-muted-foreground hover:text-primary shrink-0">

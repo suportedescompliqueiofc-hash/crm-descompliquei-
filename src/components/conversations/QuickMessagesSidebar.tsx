@@ -195,8 +195,8 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   if (!lead) return null;
 
   return (
-    // Largura responsiva: w-72 em notebooks, w-80 em telas maiores
-    <div className="h-full flex flex-col bg-background w-72 xl:w-80 flex-shrink-0 shadow-sm">
+    // Largura responsiva: w-72 em notebooks, w-80 em monitores maiores, w-96 em monitores gigantes (2xl)
+    <div className="h-full flex flex-col bg-background w-72 xl:w-80 2xl:w-96 flex-shrink-0 shadow-sm">
       <div className="p-3 border-b flex-shrink-0">
         <h3 className="font-semibold flex items-center gap-2 mb-2 text-sm">
           <Zap className="h-4 w-4 text-primary" />

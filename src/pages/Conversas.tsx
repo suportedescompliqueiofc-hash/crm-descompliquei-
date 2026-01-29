@@ -32,10 +32,10 @@ export default function Conversations() {
         {/* Área Flexível (Lista + Chat) */}
         <div className="flex-1 min-w-0 h-full flex relative overflow-hidden">
             
-            {/* Painel Esquerdo: Lista */}
+            {/* Painel Esquerdo: Lista - Largura adaptada para telas grandes */}
             <div className={cn(
               "flex-shrink-0 h-full border-r bg-card/50 transition-all duration-300",
-              leadId ? "hidden md:block w-72 xl:w-80" : "w-full md:w-72 xl:w-80"
+              leadId ? "hidden md:block w-72 xl:w-80 2xl:w-96" : "w-full md:w-72 xl:w-80 2xl:w-96"
             )}>
               <ConversationsList />
             </div>
@@ -67,9 +67,9 @@ export default function Conversations() {
             </div>
         </div>
 
-        {/* Painel Direito Desktop: Mensagens Rápidas (Lateral) */}
+        {/* Painel Direito Desktop: Mensagens Rápidas (Lateral) - Largura adaptada para telas grandes */}
         {!isMobile && showQuickMessages && leadId && (
-          <div className="hidden lg:block h-full flex-shrink-0 border-l bg-card w-72 xl:w-80">
+          <div className="hidden lg:block h-full flex-shrink-0 border-l bg-card w-72 xl:w-80 2xl:w-96">
             <QuickMessagesSidebar lead={lead || null} />
           </div>
         )}
