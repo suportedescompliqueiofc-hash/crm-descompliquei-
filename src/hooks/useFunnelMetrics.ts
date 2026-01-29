@@ -17,14 +17,14 @@ export interface FunnelStep {
   dbOrder?: number; // Para uso interno
 }
 
-// Lista ESTRITA de etapas padrão para o funil
+// Lista ESTRITA de etapas padrão para o funil (Ordem corrigida)
 const STANDARD_STAGES = [
   { name: "Novo Lead", color: "#94a3b8", order: 1 },
   { name: "Qualificação", color: "#64748b", order: 2 },
-  { name: "Agendamento Solicitado", color: "#C5A47E", order: 3 }, // Gold Brand
-  { name: "Coletando Informações", color: "#a8a29e", order: 4 },
-  { name: "Agendado", color: "#4ade80", order: 5 }, // Green
-  { name: "Procedimento Fechado", color: "#15803d", order: 6 } // Dark Green
+  { name: "Coletando Informações", color: "#a8a29e", order: 3 },
+  { name: "Agendamento Solicitado", color: "#C5A47E", order: 4 },
+  { name: "Agendado", color: "#4ade80", order: 5 },
+  { name: "Procedimento Fechado", color: "#15803d", order: 6 }
 ];
 
 export function useFunnelMetrics(dateRange: DateRange | undefined) {
@@ -49,10 +49,8 @@ export function useFunnelMetrics(dateRange: DateRange | undefined) {
 
       if (stagesError) throw stagesError;
 
-      // 2. Construir o esqueleto do funil baseado na lista PADRÃO
-      // Isso garante que as 6 etapas sempre apareçam, mesmo que não existam no banco
+      // 2. Construir o esqueleto do funil baseado na lista PADRÃO corrigida
       const funnelData: FunnelStep[] = STANDARD_STAGES.map(stdStage => {
-        // Tenta encontrar a etapa correspondente no banco (comparação flexível)
         const matchedDbStage = dbStages.find(
           s => s.nome.trim().toLowerCase() === stdStage.name.toLowerCase()
         );
@@ -66,13 +64,10 @@ export function useFunnelMetrics(dateRange: DateRange | undefined) {
           dropoffCount: 0,
           conversionToNext: 0,
           conversionFromStart: 0,
-          // Armazena a ordem real no banco para filtrar o histórico
           dbOrder: matchedDbStage ? matchedDbStage.posicao_ordem : -1 
         };
       });
 
-      // Cria um mapa para saber quais ordens do banco correspondem a qual ordem do funil padrão
-      // Ex: No banco "Novo Lead" pode ser ordem 10, mas aqui mapeamos para ordem 1
       const dbOrderToStandardOrder = new Map<number, number>();
       funnelData.forEach(f => {
         if (f.dbOrder !== -1) {
@@ -90,24 +85,20 @@ export function useFunnelMetrics(dateRange: DateRange | undefined) {
 
       if (historyError) throw historyError;
 
-      // 4. Calcular o progresso máximo de cada lead no Funil Padrão
+      // 4. Calcular o progresso máximo de cada lead
       const maxStagePerLead = new Map<string, number>();
 
       history?.forEach(entry => {
-        // Verifica se a etapa do histórico faz parte do nosso funil padrão
         if (dbOrderToStandardOrder.has(entry.stage_position)) {
           const standardOrder = dbOrderToStandardOrder.get(entry.stage_position)!;
-          
           const currentMax = maxStagePerLead.get(entry.lead_id) || 0;
-          // Se o lead avançou mais no funil padrão, atualizamos
           if (standardOrder > currentMax) {
             maxStagePerLead.set(entry.lead_id, standardOrder);
           }
         }
       });
 
-      // 5. Calcular volumes acumulados (Lógica de Funil)
-      // Se um lead chegou na etapa 5, ele conta para 1, 2, 3, 4 e 5.
+      // 5. Calcular volumes acumulados
       maxStagePerLead.forEach((maxStandardOrder) => {
         funnelData.forEach(step => {
           if (maxStandardOrder >= step.stageOrder) {
@@ -123,21 +114,16 @@ export function useFunnelMetrics(dateRange: DateRange | undefined) {
         const current = funnelData[i];
         const next = funnelData[i + 1];
 
-        // Conversão em relação ao topo
         current.conversionFromStart = totalLeads > 0 
           ? (current.count / totalLeads) * 100 
           : 0;
 
-        // Conversão para a próxima etapa (Pass-through)
         if (next) {
           current.conversionToNext = current.count > 0 
             ? (next.count / current.count) * 100 
             : 0;
-          
-          // Dropoff: Quem estava aqui mas não foi para a próxima
           current.dropoffCount = current.count - next.count;
         } else {
-          // Última etapa
           current.conversionToNext = 0;
           current.dropoffCount = 0;
         }
