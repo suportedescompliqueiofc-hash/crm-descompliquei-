@@ -1,4 +1,24 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { 
+  DndContext, 
+  closestCenter, 
+  KeyboardSensor, 
+  PointerSensor, 
+  useSensor, 
+  useSensors,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  DragStartEvent,
+  DragOverEvent,
+  DragEndEvent,
+  DropAnimation
+} from "@dnd-kit/core";
+import { 
+  arrayMove, 
+  SortableContext, 
+  sortableKeyboardCoordinates, 
+  verticalListSortingStrategy 
+} from "@dnd-kit/sortable";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,16 +32,61 @@ import { Plus, Trash2, MessageSquare, Mic, Image as ImageIcon, Video, FileText, 
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { SortableFolder } from "@/components/quick-messages/SortableFolder";
+import { SortableMessageCard } from "@/components/quick-messages/SortableMessageCard";
+import { createPortal } from "react-dom";
 
 export default function QuickMessagesPage() {
-  const { quickMessages, isLoading: isLoadingMsgs, createQuickMessage, deleteQuickMessage, isCreating: isCreatingMsg } = useQuickMessages();
-  const { folders, isLoading: isLoadingFolders, createFolder, deleteFolder } = useQuickMessageFolders();
+  const { 
+    quickMessages, 
+    isLoading: isLoadingMsgs, 
+    createQuickMessage, 
+    deleteQuickMessage, 
+    isCreating: isCreatingMsg,
+    updateMessagesOrder 
+  } = useQuickMessages();
+  
+  const { 
+    folders, 
+    isLoading: isLoadingFolders, 
+    createFolder, 
+    deleteFolder,
+    updateFoldersOrder 
+  } = useQuickMessageFolders();
   
   const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   
-  // States para Formulário de Mensagem
+  // DnD States
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeItem, setActiveItem] = useState<any>(null);
+  
+  // Local state for optimistic updates
+  const [localFolders, setLocalFolders] = useState<QuickMessageFolder[]>([]);
+  const [localMessages, setLocalMessages] = useState<QuickMessage[]>([]);
+
+  // Sync with data
+  useEffect(() => {
+    setLocalFolders(folders);
+  }, [folders]);
+
+  useEffect(() => {
+    setLocalMessages(quickMessages);
+  }, [quickMessages]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+        activationConstraint: {
+            distance: 8, // Avoid accidental drags
+        },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Forms State
   const [msgFormData, setMsgFormData] = useState({
     titulo: "",
     conteudo: "",
@@ -30,12 +95,7 @@ export default function QuickMessagesPage() {
   });
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // States para Formulário de Pasta
-  const [folderFormData, setFolderFormData] = useState({
-    name: "",
-    color: "#3b82f6", // Azul padrão
-  });
+  const [folderFormData, setFolderFormData] = useState({ name: "", color: "#3b82f6" });
 
   const handleMsgSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,59 +123,161 @@ export default function QuickMessagesPage() {
     });
   };
 
-  const getIcon = (tipo: string) => {
-    switch (tipo) {
-      case 'audio': return <Mic className="h-4 w-4" />;
-      case 'imagem': return <ImageIcon className="h-4 w-4" />;
-      case 'video': return <Video className="h-4 w-4" />;
-      case 'pdf': return <FileText className="h-4 w-4" />;
-      default: return <MessageSquare className="h-4 w-4" />;
+  // --- Drag and Drop Handlers ---
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    setActiveId(active.id as string);
+    
+    if (active.data.current?.type === "Folder") {
+      setActiveItem(active.data.current.folder);
+    } else if (active.data.current?.type === "Message") {
+      setActiveItem(active.data.current.message);
     }
   };
 
-  const filteredMessages = activeTab === "all" 
-    ? quickMessages 
-    : quickMessages.filter(m => m.tipo === activeTab);
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
 
-  const getMessagesByFolder = (folderId: string | null) => {
-    return filteredMessages.filter(m => (m.folder_id || null) === folderId);
+    const activeId = active.id;
+    const overId = over.id;
+
+    // Apenas para mensagens
+    if (active.data.current?.type !== "Message") return;
+
+    // Encontrar a mensagem ativa e a sobreposta (ou pasta sobreposta)
+    const activeMsg = localMessages.find(m => m.id === activeId);
+    const overMsg = localMessages.find(m => m.id === overId);
+    const overFolder = localFolders.find(f => f.id === overId); // Se arrastar para cima de uma pasta vazia ou header
+
+    if (!activeMsg) return;
+
+    // Caso 1: Arrastando sobre outra mensagem
+    if (overMsg) {
+      if (activeMsg.folder_id !== overMsg.folder_id) {
+        setLocalMessages((items) => {
+          const activeIndex = items.findIndex((i) => i.id === activeId);
+          const overIndex = items.findIndex((i) => i.id === overId);
+          
+          if (activeIndex !== -1 && overIndex !== -1) {
+             const newItems = [...items];
+             // Atualiza a folder_id da mensagem arrastada para a da mensagem alvo
+             newItems[activeIndex] = { ...newItems[activeIndex], folder_id: overMsg.folder_id };
+             return arrayMove(newItems, activeIndex, overIndex);
+          }
+          return items;
+        });
+      }
+    } 
+    // Caso 2: Arrastando sobre uma pasta (header)
+    else if (overFolder) {
+      if (activeMsg.folder_id !== overFolder.id) {
+        setLocalMessages((items) => {
+          const activeIndex = items.findIndex((i) => i.id === activeId);
+          if (activeIndex !== -1) {
+            const newItems = [...items];
+            newItems[activeIndex] = { ...newItems[activeIndex], folder_id: overFolder.id };
+            return arrayMove(newItems, activeIndex, activeIndex); // Mantém posição, só muda pasta
+          }
+          return items;
+        });
+      }
+    }
+    // Caso 3: Arrastando para a área "Sem Pasta" (uncategorized)
+    else if (overId === "uncategorized") {
+        if (activeMsg.folder_id !== null) {
+            setLocalMessages((items) => {
+                const activeIndex = items.findIndex((i) => i.id === activeId);
+                if (activeIndex !== -1) {
+                    const newItems = [...items];
+                    newItems[activeIndex] = { ...newItems[activeIndex], folder_id: null };
+                    return arrayMove(newItems, activeIndex, activeIndex);
+                }
+                return items;
+            });
+        }
+    }
   };
 
-  const renderMessageCard = (msg: QuickMessage) => (
-    <Card key={msg.id} className="group hover:border-primary/50 transition-colors">
-      <CardHeader className="pb-3 flex flex-row items-start justify-between space-y-0">
-        <div>
-          <CardTitle className="text-base font-medium flex items-center gap-2">
-            {msg.titulo}
-          </CardTitle>
-          <CardDescription className="flex items-center gap-1 mt-1 text-xs">
-            {getIcon(msg.tipo)} <span className="capitalize">{msg.tipo}</span>
-          </CardDescription>
-        </div>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={() => deleteQuickMessage(msg.id)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground line-clamp-3">
-          {msg.conteudo || (msg.arquivo_path ? "Conteúdo de Mídia" : "Sem conteúdo")}
-        </p>
-        {msg.arquivo_path && (
-          <Badge variant="outline" className="mt-2 text-[10px] truncate max-w-full">
-            Anexo: {msg.arquivo_path.split('/').pop()}
-          </Badge>
-        )}
-      </CardContent>
-    </Card>
-  );
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over) {
+        setActiveId(null);
+        setActiveItem(null);
+        return;
+    }
+
+    // --- Tratamento de Pastas ---
+    if (active.data.current?.type === "Folder") {
+        if (active.id !== over.id) {
+            const oldIndex = localFolders.findIndex((f) => f.id === active.id);
+            const newIndex = localFolders.findIndex((f) => f.id === over.id);
+            
+            const newOrder = arrayMove(localFolders, oldIndex, newIndex);
+            setLocalFolders(newOrder); // Optimistic UI
+            
+            // Persist order
+            const updates = newOrder.map((folder, index) => ({
+                id: folder.id,
+                position: index + 1
+            }));
+            updateFoldersOrder.mutate(updates);
+        }
+    }
+    // --- Tratamento de Mensagens ---
+    else if (active.data.current?.type === "Message") {
+        const activeMsgIndex = localMessages.findIndex(m => m.id === active.id);
+        const overMsgIndex = localMessages.findIndex(m => m.id === over.id);
+        const overFolderId = over.data.current?.type === "Folder" ? over.id : null;
+        const isUncategorized = over.id === "uncategorized";
+
+        let newMessages = [...localMessages];
+
+        // Se soltou sobre outra mensagem
+        if (active.id !== over.id && overMsgIndex !== -1) {
+            newMessages = arrayMove(newMessages, activeMsgIndex, overMsgIndex);
+        }
+
+        setLocalMessages(newMessages);
+
+        // Atualizar todas as posições para garantir consistência
+        // Agrupar por pasta para calcular posições relativas (se necessário) ou globais
+        // Aqui usaremos posição global simples ou por grupo. O hook aceita updates.
+        
+        // Vamos recalcular a posição baseada na ordem visual atual (newMessages)
+        // E garantir que o folder_id esteja correto (já atualizado no onDragOver)
+        const updates = newMessages.map((msg, index) => ({
+            id: msg.id,
+            position: index + 1,
+            folder_id: msg.folder_id // Já atualizado no DragOver
+        }));
+
+        updateMessagesOrder.mutate(updates);
+    }
+
+    setActiveId(null);
+    setActiveItem(null);
+  };
+
+  const dropAnimation: DropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: {
+        active: {
+          opacity: "0.5",
+        },
+      },
+    }),
+  };
+
+  // --- Helpers ---
+  const getMessagesByFolder = (folderId: string | null) => {
+    return localMessages.filter(m => (m.folder_id || null) === folderId);
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
@@ -288,72 +450,84 @@ export default function QuickMessagesPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="all">Todas</TabsTrigger>
-          <TabsTrigger value="texto">Texto</TabsTrigger>
-          <TabsTrigger value="imagem">Imagens</TabsTrigger>
-          <TabsTrigger value="audio">Áudios</TabsTrigger>
-          <TabsTrigger value="video">Vídeos</TabsTrigger>
-          <TabsTrigger value="pdf">Documentos</TabsTrigger>
+          <TabsTrigger value="all">Todas as Pastas</TabsTrigger>
+          {/* Removidas outras abas para focar na visualização de pastas conforme pedido "Aba Geral mostre todas as pastas" */}
         </TabsList>
 
-        <TabsContent value={activeTab} className="mt-6 space-y-8">
+        <TabsContent value="all" className="mt-6">
           {isLoadingMsgs || isLoadingFolders ? (
             <div className="text-center py-10 text-muted-foreground">Carregando...</div>
           ) : (
-            <>
-                {/* Renderizar Pastas */}
-                {folders.map(folder => {
-                    const folderMessages = getMessagesByFolder(folder.id);
-                    if (folderMessages.length === 0) return null; // Opcional: mostrar pastas vazias ou não
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="space-y-4">
+                {/* Área Sortable das Pastas */}
+                <SortableContext 
+                  items={localFolders.map(f => f.id)} 
+                  strategy={verticalListSortingStrategy}
+                >
+                  {localFolders.map((folder) => (
+                    <SortableFolder 
+                      key={folder.id} 
+                      folder={folder} 
+                      messages={getMessagesByFolder(folder.id)}
+                      onDeleteFolder={deleteFolder.mutate}
+                      onDeleteMessage={deleteQuickMessage.mutate}
+                    />
+                  ))}
+                </SortableContext>
 
-                    return (
-                        <div key={folder.id} className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-1 h-6 rounded-full" style={{ backgroundColor: folder.color }} />
-                                    <h3 className="font-semibold text-lg flex items-center gap-2">
-                                        {folder.name}
-                                        <Badge variant="secondary" className="text-xs font-normal">{folderMessages.length}</Badge>
-                                    </h3>
-                                </div>
-                                <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                    onClick={() => deleteFolder.mutate(folder.id)}
-                                    title="Excluir Pasta (mantém mensagens)"
-                                >
-                                    <Trash2 className="h-3 w-3" />
-                                </Button>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {folderMessages.map(renderMessageCard)}
-                            </div>
-                            <Separator className="mt-4" />
-                        </div>
-                    );
-                })}
-
-                {/* Renderizar Mensagens Sem Pasta */}
+                {/* Área para mensagens sem pasta (SortableFolder falsa ou contêiner especial) */}
                 {getMessagesByFolder(null).length > 0 && (
-                    <div className="space-y-3">
-                        <div className="flex items-center gap-2">
+                    <div className="mt-8">
+                        <div className="flex items-center gap-2 mb-3 pl-1">
                             <Folder className="h-5 w-5 text-muted-foreground" />
-                            <h3 className="font-semibold text-lg">Sem Pasta</h3>
+                            <h3 className="text-lg font-semibold text-muted-foreground">Sem Pasta</h3>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {getMessagesByFolder(null).map(renderMessageCard)}
-                        </div>
+                        <SortableContext 
+                            id="uncategorized" // ID especial para drop
+                            items={getMessagesByFolder(null).map(m => m.id)} 
+                            strategy={verticalListSortingStrategy} // ou rectSortingStrategy
+                        >
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 border border-dashed rounded-xl bg-muted/5">
+                                {getMessagesByFolder(null).map(msg => (
+                                    <SortableMessageCard 
+                                        key={msg.id} 
+                                        message={msg} 
+                                        onDelete={deleteQuickMessage.mutate} 
+                                    />
+                                ))}
+                            </div>
+                        </SortableContext>
                     </div>
                 )}
+              </div>
 
-                {filteredMessages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-12 border border-dashed rounded-lg bg-muted/10">
-                        <Zap className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                        <p className="text-muted-foreground">Nenhuma mensagem encontrada nesta categoria.</p>
-                    </div>
-                )}
-            </>
+              {/* Drag Overlay para visualização durante o arraste */}
+              {createPortal(
+                <DragOverlay dropAnimation={dropAnimation}>
+                  {activeId && activeItem ? (
+                    activeItem.color ? ( // Check if it's a folder (folders have color)
+                        <div className="bg-background border rounded-lg p-4 shadow-xl opacity-90 w-[300px]">
+                            <h3 className="font-semibold flex items-center gap-2">
+                                {activeItem.name}
+                            </h3>
+                        </div>
+                    ) : (
+                        <div className="w-[280px]">
+                            <SortableMessageCard message={activeItem} onDelete={() => {}} />
+                        </div>
+                    )
+                  ) : null}
+                </DragOverlay>,
+                document.body
+              )}
+            </DndContext>
           )}
         </TabsContent>
       </Tabs>

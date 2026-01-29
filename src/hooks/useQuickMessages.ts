@@ -12,7 +12,8 @@ export interface QuickMessage {
   tipo: 'texto' | 'audio' | 'imagem' | 'video' | 'pdf';
   arquivo_path: string | null;
   criado_em: string;
-  folder_id?: string | null; // Adicionado suporte a pasta
+  folder_id?: string | null;
+  position: number;
 }
 
 const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/botoes-crm-moncao';
@@ -23,7 +24,6 @@ export function useQuickMessages() {
   const orgId = profile?.organization_id;
   const queryClient = useQueryClient();
 
-  // Buscar mensagens
   const { data: quickMessages = [], isLoading } = useQuery({
     queryKey: ['quick_messages', orgId],
     queryFn: async () => {
@@ -33,6 +33,7 @@ export function useQuickMessages() {
         .from('mensagens_rapidas')
         .select('*')
         .eq('organization_id', orgId)
+        .order('position', { ascending: true })
         .order('titulo', { ascending: true });
 
       if (error) throw error;
@@ -41,7 +42,6 @@ export function useQuickMessages() {
     enabled: !!user && !!orgId,
   });
 
-  // Criar mensagem
   const createQuickMessage = useMutation({
     mutationFn: async ({ 
       titulo, 
@@ -65,7 +65,6 @@ export function useQuickMessages() {
         const fileName = `${Date.now()}.${fileExt}`;
         const filePath = `${orgId}/quick-messages/${fileName}`;
 
-        // Usa o bucket 'media-mensagens' (ou outro existente)
         const { error: uploadError } = await supabase.storage
           .from('media-mensagens')
           .upload(filePath, file);
@@ -73,6 +72,23 @@ export function useQuickMessages() {
         if (uploadError) throw uploadError;
         arquivo_path = filePath;
       }
+
+      // Get max position in folder
+      let query = supabase
+        .from('mensagens_rapidas')
+        .select('position')
+        .eq('organization_id', orgId)
+        .order('position', { ascending: false })
+        .limit(1);
+        
+      if (folder_id) {
+        query = query.eq('folder_id', folder_id);
+      } else {
+        query = query.is('folder_id', null);
+      }
+
+      const { data: maxPosData } = await query.single();
+      const nextPos = (maxPosData?.position || 0) + 1;
 
       const { data, error } = await supabase
         .from('mensagens_rapidas')
@@ -82,7 +98,8 @@ export function useQuickMessages() {
           tipo, 
           arquivo_path, 
           organization_id: orgId,
-          folder_id: folder_id || null
+          folder_id: folder_id || null,
+          position: nextPos
         }])
         .select()
         .single();
@@ -99,7 +116,6 @@ export function useQuickMessages() {
     },
   });
 
-  // Deletar mensagem
   const deleteQuickMessage = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -117,14 +133,12 @@ export function useQuickMessages() {
     },
   });
 
-  // Enviar mensagem (Disparar Webhook)
   const sendQuickMessage = useMutation({
     mutationFn: async ({ message, leadId, phone }: { message: QuickMessage; leadId: string; phone: string }) => {
       if (!user) throw new Error("Usuário não autenticado");
 
       let url_midia = null;
 
-      // Se tiver arquivo, gerar URL assinada ou pública para o webhook baixar
       if (message.arquivo_path) {
         const { data } = supabase.storage
           .from('media-mensagens')
@@ -136,11 +150,11 @@ export function useQuickMessages() {
       const payload = {
         lead_id: leadId,
         user_id: user.id,
-        telefone: phone, // Passar telefone para facilitar no n8n
+        telefone: phone,
         tipo: message.tipo,
         conteudo: message.conteudo,
         url_midia: url_midia,
-        titulo_botao: message.titulo // Útil para log
+        titulo_botao: message.titulo
       };
 
       const response = await fetch(WEBHOOK_URL, {
@@ -163,6 +177,28 @@ export function useQuickMessages() {
     }
   });
 
+  const updateMessagesOrder = useMutation({
+    mutationFn: async (updates: { id: string; position: number; folder_id: string | null }[]) => {
+      if (!user || !orgId) return;
+
+      const promises = updates.map(update => 
+        supabase
+          .from('mensagens_rapidas')
+          .update({ position: update.position, folder_id: update.folder_id })
+          .eq('id', update.id)
+      );
+
+      await Promise.all(promises);
+    },
+    onSuccess: () => {
+      // Silent success
+    },
+    onError: (err: any) => {
+      toast.error(`Erro ao salvar ordem das mensagens: ${err.message}`);
+      queryClient.invalidateQueries({ queryKey: ['quick_messages', orgId] });
+    }
+  });
+
   return {
     quickMessages,
     isLoading,
@@ -170,6 +206,7 @@ export function useQuickMessages() {
     isCreating: createQuickMessage.isPending,
     deleteQuickMessage: deleteQuickMessage.mutate,
     sendQuickMessage: sendQuickMessage.mutate,
-    isSending: sendQuickMessage.isPending
+    isSending: sendQuickMessage.isPending,
+    updateMessagesOrder
   };
 }
