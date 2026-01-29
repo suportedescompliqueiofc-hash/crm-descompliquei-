@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy, Upload, Facebook, Eye, MousePointerClick } from "lucide-react";
+import { Megaphone, Search, Users, Target, DollarSign, BarChart2, ArrowUpRight, Trophy, Upload, Facebook, Eye, MousePointerClick, Edit2, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreativeCard } from "@/components/marketing/CreativeCard";
-import { useMarketing, MetaMetrics } from "@/hooks/useMarketing";
+import { useMarketing, MetaMetrics, Criativo } from "@/hooks/useMarketing";
 import { useReports } from "@/hooks/useReports";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MetaImportModal } from "@/components/marketing/MetaImportModal";
+import { CreativeDetailsModal } from "@/components/marketing/CreativeDetailsModal";
 import { toast } from "sonner";
 
 export default function Marketing() {
@@ -30,6 +31,10 @@ export default function Marketing() {
   const [activeTab, setActiveTab] = useState("meta");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  
+  // Estado para edição na tabela
+  const [selectedCampaign, setSelectedCampaign] = useState<Criativo | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   // --- LÓGICA DE SEPARAÇÃO ---
   
@@ -54,6 +59,11 @@ export default function Marketing() {
       deletarCriativo(deleteId);
       setDeleteId(null);
     }
+  };
+
+  const handleEditClick = (campaign: Criativo) => {
+    setSelectedCampaign(campaign);
+    setIsDetailsModalOpen(true);
   };
 
   const handleMetricsImport = async (data: { id: string; metrics: MetaMetrics }[]) => {
@@ -109,7 +119,7 @@ export default function Marketing() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <TabsList>
             <TabsTrigger value="meta" className="gap-2"><Facebook className="h-4 w-4" /> Campanhas Meta</TabsTrigger>
-            <TabsTrigger value="creatives" className="gap-2"><Megaphone className="h-4 w-4" /> Criativos (WhatsApp)</TabsTrigger>
+            <TabsTrigger value="creatives" className="gap-2"><Megaphone className="h-4 w-4" /> Criativos</TabsTrigger>
             <TabsTrigger value="reports" className="gap-2"><BarChart2 className="h-4 w-4" /> Performance Geral</TabsTrigger>
           </TabsList>
           
@@ -166,7 +176,7 @@ export default function Marketing() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[300px]">Campanha / Criativo</TableHead>
+                        <TableHead className="w-[250px]">Campanha / Criativo</TableHead>
                         <TableHead className="text-center w-[120px]">Início</TableHead>
                         <TableHead className="text-center w-[120px]">Término</TableHead>
                         <TableHead className="text-right">Valor Usado</TableHead>
@@ -176,6 +186,7 @@ export default function Marketing() {
                         <TableHead className="text-right">Impressões</TableHead>
                         <TableHead className="text-right">CTR</TableHead>
                         <TableHead className="text-right">CPC</TableHead>
+                        <TableHead className="text-right w-[100px]">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -186,7 +197,7 @@ export default function Marketing() {
                             <TableCell className="font-medium">
                               <div className="flex flex-col">
                                 <span className="text-sm font-semibold text-foreground">{campanha.nome}</span>
-                                <span className="text-xs text-muted-foreground truncate max-w-[280px]" title={campanha.titulo || ''}>
+                                <span className="text-xs text-muted-foreground truncate max-w-[260px]" title={campanha.titulo || ''}>
                                   Original: {campanha.titulo || '-'}
                                 </span>
                               </div>
@@ -220,6 +231,16 @@ export default function Marketing() {
                             <TableCell className="text-right text-xs">
                               {formatMoney(m.cpc)}
                             </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditClick(campanha)} title="Editar">
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(campanha.id)} title="Excluir">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -231,7 +252,6 @@ export default function Marketing() {
           </Card>
         </TabsContent>
 
-        {/* ABA: CRIATIVOS (ASSETS MANUAIS) */}
         <TabsContent value="creatives" className="space-y-6">
           {isLoadingCreatives ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -254,7 +274,6 @@ export default function Marketing() {
           )}
         </TabsContent>
 
-        {/* ABA: PERFORMANCE GERAL */}
         <TabsContent value="reports" className="space-y-6">
           {isLoadingReports ? (
              <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
@@ -358,9 +377,18 @@ export default function Marketing() {
         onImport={handleMetricsImport} 
       />
 
+      {selectedCampaign && (
+        <CreativeDetailsModal
+          open={isDetailsModalOpen}
+          onOpenChange={setIsDetailsModalOpen}
+          criativo={selectedCampaign}
+          onEditName={atualizarNomeCriativo}
+        />
+      )}
+
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Excluir criativo?</AlertDialogTitle><AlertDialogDescription>Esta ação removerá o criativo da lista. Os leads vinculados manterão seu histórico.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle>Excluir campanha?</AlertDialogTitle><AlertDialogDescription>Esta ação removerá a campanha e seus dados importados da lista. Os leads vinculados manterão seu histórico.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive">Excluir</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
