@@ -458,7 +458,7 @@ export default function Pipeline() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col h-full overflow-hidden">
         <div className="flex-shrink-0 mb-4">
           <TabsList>
-            <TabsTrigger value="kanban" className="gap-2"><LayoutKanban className="h-4 w-4"/> Quadro Kanban</TabsTrigger>
+            <TabsTrigger value="kanban" className="gap-2"><Kanban className="h-4 w-4"/> Quadro Kanban</TabsTrigger>
             <TabsTrigger value="metrics" className="gap-2"><BarChart3 className="h-4 w-4"/> Métricas do Funil</TabsTrigger>
           </TabsList>
         </div>
