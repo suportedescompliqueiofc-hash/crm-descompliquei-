@@ -68,24 +68,28 @@ function StageColumn({
 
   return (
     <div className="w-80 flex-shrink-0 flex flex-col h-full">
-      <Card className={cn(
-        "h-full shadow-sm transition-colors duration-200 flex flex-col",
-        isOver ? "bg-muted/80 ring-2 ring-primary/20" : "bg-muted/50"
-      )}>
+      <Card 
+        ref={setNodeRef}
+        className={cn(
+          "h-full flex flex-col transition-all duration-300 ease-out border-2",
+          isOver 
+            ? "bg-primary/5 border-primary/50 shadow-[0_0_20px_-5px_hsl(var(--primary)/0.2)] ring-1 ring-primary/20" 
+            : "bg-muted/30 border-transparent shadow-sm hover:border-border/60"
+        )}
+      >
         <CardHeader 
-          className="bg-card rounded-t-lg border-l-4 flex-shrink-0" 
+          className="bg-card/50 rounded-t-lg border-l-4 flex-shrink-0 transition-colors" 
           style={{ borderColor: stage.cor }}
         >
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">{stage.nome}</CardTitle>
-            <Badge variant="secondary">
+            <CardTitle className="text-base font-semibold text-foreground/90">{stage.nome}</CardTitle>
+            <Badge variant="secondary" className="font-mono text-xs bg-background/80 shadow-sm">
               {leads.length}
             </Badge>
           </div>
         </CardHeader>
         <div 
-          ref={setNodeRef}
-          className="flex-1 p-2 space-y-3 overflow-y-auto min-h-[150px]"
+          className="flex-1 p-2 space-y-3 overflow-y-auto min-h-[150px] scrollbar-thin scrollbar-thumb-muted-foreground/10"
         >
           <SortableContext 
             items={leads.map(l => l.id)}
@@ -176,10 +180,9 @@ function LeadCard({
     );
   };
 
-  // Se for o overlay, renderiza um card com pointer-events-none para não bloquear o drop
   if (isOverlay) {
     return (
-      <Card className="shadow-xl cursor-grabbing bg-card ring-2 ring-primary/50 rotate-2 scale-105 z-50 pointer-events-none relative">
+      <Card className="shadow-2xl cursor-grabbing bg-card ring-2 ring-primary/50 rotate-2 scale-105 z-50 pointer-events-none relative border-primary/20">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0 pr-2">
@@ -217,7 +220,7 @@ function LeadCard({
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <Card 
-        className="shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing bg-card group"
+        className="shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing bg-card group hover:border-primary/30"
         onClick={onClick}
       >
         <CardContent className="p-4 space-y-3">
@@ -251,7 +254,7 @@ function LeadCard({
                         <Button 
                             variant="ghost" 
                             size="icon" 
-                            className={cn("h-7 w-7", lead.agendamento ? "text-primary" : "text-muted-foreground hover:text-foreground")}
+                            className={cn("h-7 w-7 transition-colors", lead.agendamento ? "text-primary" : "text-muted-foreground hover:text-foreground")}
                             onClick={(e) => { e.stopPropagation(); }}
                         >
                             <CalendarIcon className="h-4 w-4" />
