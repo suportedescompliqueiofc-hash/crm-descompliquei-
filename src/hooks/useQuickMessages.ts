@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
+import { Message } from './useConversations';
 
 export interface QuickMessage {
   id: string;
@@ -210,7 +211,6 @@ export function useQuickMessages() {
         tipo: message.tipo,
         url_midia: url_midia,
         titulo_pdf: message.tipo === 'pdf' ? message.titulo : null,
-        // Mantendo dados de contexto para garantir o envio
         telefone: phone,
         user_id: user.id
       };
@@ -227,11 +227,70 @@ export function useQuickMessages() {
 
       return true;
     },
+    // Optimistic Update: Adiciona mensagem ao chat imediatamente
+    onMutate: async ({ message, leadId }) => {
+      if (!user) return;
+      
+      const queryKey = ['messages_v6', leadId];
+      // Cancela refetches pendentes para não sobrescrever nossa atualização otimista
+      await queryClient.cancelQueries({ queryKey });
+      
+      const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
+      
+      const tempId = `temp-qm-${Date.now()}`;
+      
+      const optimisticMessage: Message = {
+        id: tempId,
+        lead_id: leadId,
+        user_id: user.id,
+        conteudo: message.conteudo || '',
+        direcao: 'saida',
+        remetente: 'agente',
+        tipo_conteudo: message.tipo,
+        criado_em: new Date().toISOString(),
+        media_path: message.arquivo_path,
+        id_mensagem: null,
+        message_attachments: []
+      };
+
+      // Simula o anexo se houver arquivo
+      if (message.arquivo_path) {
+        let fileType: 'imagem' | 'video' | 'audio' | 'arquivo' = 'arquivo';
+        
+        if (message.tipo === 'imagem') fileType = 'imagem';
+        else if (message.tipo === 'video') fileType = 'video';
+        else if (message.tipo === 'audio') fileType = 'audio';
+        // Se for PDF, o componente geralmente espera 'arquivo' ou verifica extensão, 
+        // mas vamos garantir que passe algo compatível. Usando 'any' para aceitar 'pdf' se necessário
+        const finalType = message.tipo === 'pdf' ? 'pdf' : fileType;
+
+        optimisticMessage.message_attachments = [{
+          id: `att-${tempId}`,
+          message_id: tempId,
+          file_path: message.arquivo_path,
+          file_type: finalType as any
+        }];
+      }
+
+      queryClient.setQueryData<Message[]>(queryKey, (old) => 
+        old ? [...old, optimisticMessage] : [optimisticMessage]
+      );
+      
+      return { previousMessages };
+    },
+    onError: (err: any, variables, context: any) => {
+      // Rollback em caso de erro
+      if (context?.previousMessages) {
+        queryClient.setQueryData(['messages_v6', variables.leadId], context.previousMessages);
+      }
+      toast.error('Erro no envio.', { description: err.message });
+    },
     onSuccess: () => {
       toast.success('Mensagem enviada!');
     },
-    onError: (err: any) => {
-      toast.error('Erro no envio.', { description: err.message });
+    onSettled: (data, error, variables) => {
+      // Invalida a query para buscar os dados reais do servidor (remove duplicatas/temps)
+      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
     }
   });
 
