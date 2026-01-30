@@ -35,6 +35,16 @@ import { Separator } from "@/components/ui/separator";
 import { SortableFolder } from "@/components/quick-messages/SortableFolder";
 import { SortableMessageCard } from "@/components/quick-messages/SortableMessageCard";
 import { createPortal } from "react-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function QuickMessagesPage() {
   const { 
@@ -66,6 +76,10 @@ export default function QuickMessagesPage() {
   // Local state for optimistic updates
   const [localFolders, setLocalFolders] = useState<QuickMessageFolder[]>([]);
   const [localMessages, setLocalMessages] = useState<QuickMessage[]>([]);
+
+  // Deletion States
+  const [msgToDelete, setMsgToDelete] = useState<string | null>(null);
+  const [folderToDelete, setFolderToDelete] = useState<string | null>(null);
 
   // Editing State
   const [editingMessage, setEditingMessage] = useState<QuickMessage | null>(null);
@@ -154,6 +168,20 @@ export default function QuickMessagesPage() {
         setFolderFormData({ name: "", color: "#3b82f6" });
       }
     });
+  };
+
+  const handleConfirmMsgDelete = () => {
+    if (msgToDelete) {
+      deleteQuickMessage(msgToDelete);
+      setMsgToDelete(null);
+    }
+  };
+
+  const handleConfirmFolderDelete = () => {
+    if (folderToDelete) {
+      deleteFolder.mutate(folderToDelete);
+      setFolderToDelete(null);
+    }
   };
 
   // --- Drag and Drop Handlers ---
@@ -276,11 +304,6 @@ export default function QuickMessagesPage() {
         setLocalMessages(newMessages);
 
         // Atualizar todas as posições para garantir consistência
-        // Agrupar por pasta para calcular posições relativas (se necessário) ou globais
-        // Aqui usaremos posição global simples ou por grupo. O hook aceita updates.
-        
-        // Vamos recalcular a posição baseada na ordem visual atual (newMessages)
-        // E garantir que o folder_id esteja correto (já atualizado no onDragOver)
         const updates = newMessages.map((msg, index) => ({
             id: msg.id,
             position: index + 1,
@@ -505,7 +528,6 @@ export default function QuickMessagesPage() {
               onDragEnd={handleDragEnd}
             >
               <div className="space-y-4">
-                {/* Área Sortable das Pastas */}
                 <SortableContext 
                   items={localFolders.map(f => f.id)} 
                   strategy={verticalListSortingStrategy}
@@ -515,14 +537,13 @@ export default function QuickMessagesPage() {
                       key={folder.id} 
                       folder={folder} 
                       messages={getMessagesByFolder(folder.id)}
-                      onDeleteFolder={deleteFolder.mutate}
+                      onDeleteFolder={(id) => setFolderToDelete(id)}
                       onEditMessage={handleEditMessage}
-                      onDeleteMessage={deleteQuickMessage.mutate}
+                      onDeleteMessage={(id) => setMsgToDelete(id)}
                     />
                   ))}
                 </SortableContext>
 
-                {/* Área para mensagens sem pasta */}
                 {getMessagesByFolder(null).length > 0 && (
                     <div className="mt-8">
                         <div className="flex items-center gap-2 mb-3 pl-1">
@@ -530,7 +551,7 @@ export default function QuickMessagesPage() {
                             <h3 className="text-lg font-semibold text-muted-foreground">Sem Pasta</h3>
                         </div>
                         <SortableContext 
-                            id="uncategorized" // ID especial para drop
+                            id="uncategorized" 
                             items={getMessagesByFolder(null).map(m => m.id)} 
                             strategy={verticalListSortingStrategy}
                         >
@@ -540,7 +561,7 @@ export default function QuickMessagesPage() {
                                         key={msg.id} 
                                         message={msg} 
                                         onEdit={handleEditMessage}
-                                        onDelete={deleteQuickMessage.mutate} 
+                                        onDelete={(id) => setMsgToDelete(id)} 
                                     />
                                 ))}
                             </div>
@@ -572,6 +593,41 @@ export default function QuickMessagesPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Modais de Confirmação de Exclusão */}
+      <AlertDialog open={!!msgToDelete} onOpenChange={() => setMsgToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir mensagem rápida?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. A mensagem será removida permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmMsgDelete} className="bg-destructive hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!folderToDelete} onOpenChange={() => setFolderToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir pasta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta pasta? As mensagens dentro dela não serão excluídas, mas ficarão sem pasta.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmFolderDelete} className="bg-destructive hover:bg-destructive/90">
+              Excluir Pasta
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
