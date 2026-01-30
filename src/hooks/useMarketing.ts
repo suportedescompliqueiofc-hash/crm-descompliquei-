@@ -112,28 +112,44 @@ export function useMarketing(dateRange?: DateRange) {
       
       const { count: totalSalesCount } = await globalSalesQuery;
 
-      // 3. Buscar criativos
-      let query = supabase
+      // 3. Buscar criativos (Alterado: Busca TODOS para garantir que assets apareçam, filtramos campanhas em memória)
+      const query = supabase
         .from('criativos')
         .select('*')
         .eq('organization_id', orgId)
         .order('criado_em', { ascending: false });
 
-      if (startDate && endDate) {
-        query = query.gte('criado_em', startDate).lte('criado_em', endDate);
-      }
-
       const { data, error } = await query;
 
       if (error) throw error;
 
+      // Filtragem em memória:
+      // - Campanhas (com metrics > 0): Respeitam o filtro de data (criado_em)
+      // - Assets (sem metrics): São mostrados SEMPRE (biblioteca)
+      const filteredData = data.filter(item => {
+        const metrics = item.platform_metrics as any;
+        const hasSpend = metrics && metrics.spend > 0;
+
+        if (hasSpend) {
+          // É uma campanha importada com gastos -> Respeita o filtro de data para não poluir métricas do período
+          if (startDate && endDate) {
+            return item.criado_em >= startDate && item.criado_em <= endDate;
+          }
+          return true;
+        }
+        
+        // É um ativo (imagem/video do n8n ou manual) -> Mostra sempre
+        return true;
+      });
+
       // 4. Buscar estatísticas (Leads e Vendas) por criativo
-      const criativosComStats = await Promise.all(data.map(async (criativo) => {
+      const criativosComStats = await Promise.all(filteredData.map(async (criativo) => {
         let leadsQuery = supabase
           .from('leads')
           .select('id')
           .eq('criativo_id', criativo.id);
         
+        // Estatísticas continuam respeitando o filtro de data selecionado
         if (startDate && endDate) {
           leadsQuery = leadsQuery.gte('criado_em', startDate).lte('criado_em', endDate);
         }
