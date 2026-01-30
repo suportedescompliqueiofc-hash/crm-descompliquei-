@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Filter, Bell, CheckCircle, User, Phone } from "lucide-react";
+import { Filter, Bell, CheckCircle, User, Phone, Trash2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { startOfMonth, endOfMonth, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -11,6 +11,16 @@ import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { LeadSelector } from "@/components/notifications/LeadSelector";
 import { useAllNotifications, NotificationWithLead } from "@/hooks/useAllNotifications";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const NotificationCard = ({ notification, onUpdateStatus }: { notification: NotificationWithLead, onUpdateStatus: (id: string, status: 'pendente' | 'resolvido') => void }) => {
   const timeAgo = formatDistanceToNow(new Date(notification.criado_em), { addSuffix: true, locale: ptBR });
@@ -20,7 +30,7 @@ const NotificationCard = ({ notification, onUpdateStatus }: { notification: Noti
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="bg-amber-100 text-amber-600 p-2 rounded-full mt-1">
+            <div className={notification.status === 'pendente' ? "bg-amber-100 text-amber-600 p-2 rounded-full mt-1" : "bg-muted text-muted-foreground p-2 rounded-full mt-1"}>
               <Bell className="h-5 w-5" />
             </div>
             <div className="space-y-2 flex-1">
@@ -55,8 +65,9 @@ export default function Notifications() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: startOfMonth(today), to: endOfMonth(today) });
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>('todos');
   const [activeTab, setActiveTab] = useState<'pendentes' | 'resolvidas'>('pendentes');
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
-  const { notifications, isLoading, updateStatus } = useAllNotifications({ dateRange, leadId: selectedLeadId });
+  const { notifications, isLoading, updateStatus, deleteResolved, isDeletingResolved } = useAllNotifications({ dateRange, leadId: selectedLeadId });
 
   const { pending, resolved } = useMemo(() => {
     const pending = notifications.filter(n => n.status === 'pendente');
@@ -68,11 +79,30 @@ export default function Notifications() {
     updateStatus({ notificationId, status });
   };
 
+  const handleClearResolved = () => {
+    deleteResolved();
+    setIsConfirmOpen(false);
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Notificações</h1>
-        <p className="text-muted-foreground mt-1">Gerencie os alertas e avisos do sistema.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Notificações</h1>
+          <p className="text-muted-foreground mt-1">Gerencie os alertas e avisos do sistema.</p>
+        </div>
+        
+        {activeTab === 'resolvidas' && resolved.length > 0 && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setIsConfirmOpen(true)}
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive gap-2 h-9"
+          >
+            <Trash2 className="h-4 w-4" />
+            Limpar Resolvidas
+          </Button>
+        )}
       </div>
 
       <Card className="shadow-sm">
@@ -127,6 +157,28 @@ export default function Notifications() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Alerta de Confirmação para Limpeza */}
+      <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpar notificações resolvidas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação excluirá permanentemente todas as notificações com status "Resolvido" visíveis na lista. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleClearResolved}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={isDeletingResolved}
+            >
+              {isDeletingResolved ? "Limpando..." : "Sim, Limpar Tudo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

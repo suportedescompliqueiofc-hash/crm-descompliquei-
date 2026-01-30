@@ -59,13 +59,10 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
     queryFn: async () => {
       if (!user || !orgId) return [];
 
-      // 1. Buscar Notificações (Sem Join automático para evitar erros de relacionamento)
-      // O RLS do banco já garante que só trazemos notificações da organização do usuário
       let query = supabase
         .from('notificacoes')
         .select('*');
 
-      // Filtros de Data
       if (dateRange?.from) {
         query = query.gte('criado_em', format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss'));
       }
@@ -76,7 +73,6 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
         query = query.lte('criado_em', format(endOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss'));
       }
 
-      // Filtro de Lead específico
       if (leadId && leadId !== 'todos') {
         query = query.eq('lead_id', leadId);
       }
@@ -94,8 +90,6 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
         return [];
       }
 
-      // 2. Buscar Leads associados manualmente
-      // Extrai IDs únicos de leads das notificações
       const leadIds = Array.from(new Set(notificationsData.map(n => n.lead_id).filter(Boolean)));
       
       let leadsMap = new Map<string, Pick<Lead, 'id' | 'nome' | 'telefone'>>();
@@ -108,7 +102,6 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
         
         if (leadsError) {
           console.error("Error fetching leads for notifications:", leadsError);
-          // Em caso de erro ao buscar leads, continuamos com as notificações, mas sem dados do lead
         } else if (leadsData) {
           leadsData.forEach(lead => {
             leadsMap.set(lead.id, lead);
@@ -116,10 +109,9 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
         }
       }
 
-      // 3. Montar objeto final combinando notificação com dados do lead
       const result: NotificationWithLead[] = notificationsData.map(n => ({
         ...n,
-        status: n.status as 'pendente' | 'resolvido', // Garante tipagem
+        status: n.status as 'pendente' | 'resolvido',
         leads: leadsMap.get(n.lead_id) || null
       }));
       
@@ -166,9 +158,30 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
     },
   });
 
+  const deleteResolvedNotifications = useMutation({
+    mutationFn: async () => {
+      // Deleta as notificações com status resolvido. 
+      // O RLS já restringe às notificações da organização do usuário.
+      const { error } = await supabase
+        .from('notificacoes')
+        .delete()
+        .eq('status', 'resolvido');
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all_notifications'] });
+      toast.success('Notificações resolvidas foram limpas com sucesso!');
+    },
+    onError: (error: any) => {
+      toast.error('Erro ao limpar notificações:', { description: error.message });
+    }
+  });
+
   return {
     notifications,
     isLoading,
     updateStatus: updateNotificationStatus.mutate,
+    deleteResolved: deleteResolvedNotifications.mutate,
+    isDeletingResolved: deleteResolvedNotifications.isPending,
   };
 }
