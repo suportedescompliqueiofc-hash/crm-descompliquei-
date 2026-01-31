@@ -54,9 +54,12 @@ export default function Marketing() {
   const [isAssociateModalOpen, setIsAssociateModalOpen] = useState(false);
   const [creativeToAssociate, setCreativeToAssociate] = useState<Criativo | null>(null);
 
-  // --- LÓGICA DE SEPARAÇÃO ---
-  const campanhasMeta = (criativos || []).filter(c => c.platform_metrics && c.platform_metrics.spend > 0);
-  const criativosAssets = (criativos || []).filter(c => !c.platform_metrics || c.platform_metrics.spend === 0);
+  // --- LÓGICA DE SEPARAÇÃO CORRIGIDA ---
+  // Campanhas Meta: Apenas se tiver métricas E gasto maior que 0
+  const campanhasMeta = (criativos || []).filter(c => c.platform_metrics && (c.platform_metrics.spend || 0) > 0);
+  
+  // Criativos Assets (Biblioteca): Se NÃO tiver métricas, OU métricas vazias, OU gasto zerado/indefinido
+  const criativosAssets = (criativos || []).filter(c => !c.platform_metrics || !c.platform_metrics.spend || c.platform_metrics.spend === 0);
 
   // Cálculos Acumulados (Meta Ads)
   const metaSpend = campanhasMeta.reduce((acc, c) => {
@@ -80,6 +83,8 @@ export default function Marketing() {
   const cac = totalSales > 0 ? totalInvestment / totalSales : 0;
 
   const criativosFiltrados = criativosAssets.filter(c => {
+    if (!searchTerm) return true; // Importante: Mostra todos se não houver busca
+    
     const search = searchTerm.toLowerCase();
     return (
       (c.nome && c.nome.toLowerCase().includes(search)) ||
