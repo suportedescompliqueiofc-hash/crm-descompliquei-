@@ -14,7 +14,8 @@ import {
   ShoppingCart,
   Bot,
   Target,
-  Zap
+  Zap,
+  GitMerge
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,6 +35,7 @@ const menuItems = [
   { title: "Campanhas", icon: Megaphone, path: "/campaigns" },
   { title: "Templates", icon: FileText, path: "/templates" },
   { title: "Msgs Rápidas", icon: Zap, path: "/quick-messages" },
+  { title: "Cadências", icon: GitMerge, path: "/cadences" },
   { title: "IA", icon: Bot, path: "/ia" },
   { title: "Configurações", icon: Settings, path: "/settings" },
 ];
