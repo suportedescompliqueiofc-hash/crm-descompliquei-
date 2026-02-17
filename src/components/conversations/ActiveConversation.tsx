@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft } from "lucide-react";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft } from "lucide-center";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,14 +24,13 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AiLockControl } from "./AiLockControl";
+import { CadenceLeadSelector } from "./CadenceLeadSelector";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { TagManager } from "@/components/tags/TagManager";
 import { AudioRecorder } from "./AudioRecorder";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-
-// --- COMPONENTES AUXILIARES ---
 
 const DateSeparator = ({ dateString }: { dateString: string }) => {
   const date = parseISO(dateString);
@@ -50,25 +49,10 @@ const DateSeparator = ({ dateString }: { dateString: string }) => {
 const AttachmentRenderer = ({ attachment, isOutgoing }: { attachment: Attachment; isOutgoing: boolean }) => {
   const type = (attachment.file_type || '').toLowerCase();
   const path = (attachment.file_path || '').toLowerCase();
-  
-  // Detecção ultra-robusta de áudio
-  const isAudio = type.includes('audio') || 
-                  type.includes('ptt') || 
-                  path.includes('.ogg') || 
-                  path.includes('.mp3') || 
-                  path.includes('.m4a') ||
-                  path.includes('.webm');
-
-  if (isAudio) {
-    return <AudioMessage filePath={attachment.file_path} variant={isOutgoing ? 'outgoing' : 'incoming'} />;
-  }
-  
-  if (type.includes('image') || type.includes('imagem') || type.includes('video')) {
-    return <MediaMessage path={attachment.file_path} type={type.includes('video') ? 'video' : 'imagem'} />;
-  }
-  if (type.includes('pdf')) {
-    return <FileMessage path={attachment.file_path} fileName="Documento PDF" />;
-  }
+  const isAudio = type.includes('audio') || type.includes('ptt') || path.includes('.ogg') || path.includes('.mp3') || path.includes('.m4a') || path.includes('.webm');
+  if (isAudio) return <AudioMessage filePath={attachment.file_path} variant={isOutgoing ? 'outgoing' : 'incoming'} />;
+  if (type.includes('image') || type.includes('imagem') || type.includes('video')) return <MediaMessage path={attachment.file_path} type={type.includes('video') ? 'video' : 'imagem'} />;
+  if (type.includes('pdf')) return <FileMessage path={attachment.file_path} fileName="Documento PDF" />;
   return <div className="p-2 bg-muted/20 border rounded text-xs text-muted-foreground mb-1 break-all">Anexo: {attachment.file_path}</div>;
 };
 
@@ -85,8 +69,6 @@ const groupMessagesByDay = (messages: Message[]) => {
   });
   return grouped;
 };
-
-// --- COMPONENTE PRINCIPAL ---
 
 interface ActiveConversationProps {
   leadId: string;
@@ -114,65 +96,32 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (initialMessages) {
-      setLocalMessages(initialMessages);
-    }
-  }, [initialMessages]);
+  useEffect(() => { if (initialMessages) setLocalMessages(initialMessages); }, [initialMessages]);
 
   useEffect(() => {
     if (!leadId) return;
-
-    const channel = supabase
-      .channel(`chat-sync-${leadId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` },
-        (payload) => {
+    const channel = supabase.channel(`chat-sync-${leadId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, (payload) => {
           const newMessage = payload.new as Message;
-          setLocalMessages((prev) => {
-            const alreadyExists = prev.some(m => m.id === newMessage.id);
-            if (alreadyExists) return prev;
-            return [...prev, newMessage];
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` },
-        (payload) => {
+          setLocalMessages((prev) => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, (payload) => {
           setLocalMessages((prev) => prev.filter(m => m.id !== payload.old.id));
-        }
-      )
+      })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [leadId]);
 
   const groupedMessages = useMemo(() => groupMessagesByDay(localMessages), [localMessages]);
-
-  useEffect(() => {
-    if (lead) setIsAiActive(lead.ia_ativa ?? true);
-  }, [lead]);
-
-  useLayoutEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [localMessages, isRecordingMode]);
+  useEffect(() => { if (lead) setIsAiActive(lead.ia_ativa ?? true); }, [lead]);
+  useLayoutEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "auto" }); }, [localMessages, isRecordingMode]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (messageContent.trim()) {
-      sendMessage({ leadId, content: messageContent.trim() });
-      setMessageContent("");
-    }
+    if (messageContent.trim()) { sendMessage({ leadId, content: messageContent.trim() }); setMessageContent(""); }
   };
 
-  const handleSendAudio = (blob: Blob) => {
-    setIsRecordingMode(false);
-    sendAudio({ leadId, audioBlob: blob });
-  };
+  const handleSendAudio = (blob: Blob) => { setIsRecordingMode(false); sendAudio({ leadId, audioBlob: blob }); };
 
   const handleAiToggle = async (checked: boolean) => {
     if (!lead) return;
@@ -207,6 +156,9 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                 </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <div className="hidden lg:block">
+                    {leadId && <CadenceLeadSelector leadId={leadId} />}
+                </div>
                 <div className="hidden xs:block">{lead && <AiLockControl lead={lead} />}</div>
                 <div className="flex items-center gap-2 px-1 py-1 bg-muted/20 rounded-lg border border-border/40">
                     <Switch id="ai-toggle" checked={isAiActive} onCheckedChange={handleAiToggle} disabled={!lead} className="scale-75 sm:scale-90" />
@@ -232,7 +184,12 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                 )}
             </div>
             <div className="flex-1 flex justify-end min-w-0 overflow-hidden">{lead && <div className="scale-90 origin-right"><TagManager leadId={lead.id} /></div>}</div>
-            <div className="xs:hidden">{lead && <AiLockControl lead={lead} />}</div>
+            <div className="flex items-center gap-1">
+                <div className="lg:hidden">
+                    {leadId && <CadenceLeadSelector leadId={leadId} />}
+                </div>
+                <div className="xs:hidden">{lead && <AiLockControl lead={lead} />}</div>
+            </div>
         </div>
       </header>
 
@@ -255,28 +212,11 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             const isFromLead = msg.remetente === 'lead';
             const isAi = msg.remetente === 'bot';
             const isOutgoing = !isFromLead;
-            
-            // Verificações ultra-flexíveis de tipo
             const typeLower = (msg.tipo_conteudo || '').toLowerCase();
             const pathLower = (msg.media_path || '').toLowerCase();
             const contentLower = (msg.conteudo || '').toLowerCase();
-
-            const isAudio = typeLower.includes('audio') || 
-                            typeLower.includes('ptt') || 
-                            pathLower.includes('.ogg') || 
-                            pathLower.includes('.mp3') || 
-                            pathLower.includes('.m4a') || 
-                            pathLower.includes('.webm') ||
-                            (isOutgoing && contentLower.startsWith('http') && (contentLower.includes('.ogg') || contentLower.includes('.mp3') || contentLower.includes('.m4a')));
-
-            const isVisualMedia = !isAudio && (
-                                typeLower.includes('image') || 
-                                typeLower.includes('imagem') || 
-                                typeLower.includes('video') ||
-                                pathLower.includes('.jpg') ||
-                                pathLower.includes('.png') ||
-                                pathLower.includes('.mp4')
-            );
+            const isAudio = typeLower.includes('audio') || typeLower.includes('ptt') || pathLower.includes('.ogg') || pathLower.includes('.mp3') || pathLower.includes('.m4a') || pathLower.includes('.webm') || (isOutgoing && contentLower.startsWith('http') && (contentLower.includes('.ogg') || contentLower.includes('.mp3') || contentLower.includes('.m4a')));
+            const isVisualMedia = !isAudio && (typeLower.includes('image') || typeLower.includes('imagem') || typeLower.includes('video') || pathLower.includes('.jpg') || pathLower.includes('.png') || pathLower.includes('.mp4'));
 
             return (
               <div key={msg.id} className={cn("group relative flex flex-col gap-0.5 py-0.5", isOutgoing ? "items-end" : "items-start")}>
@@ -287,30 +227,10 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                     ) : (<AvatarFallback className="bg-muted text-muted-foreground text-xs font-medium">{getInitials(lead?.nome)}</AvatarFallback>)}
                   </Avatar>
                   <div className={cn("p-2 sm:p-3 rounded-2xl relative shadow-sm transition-all min-w-[100px]", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border border-border/40 rounded-bl-none")}>
-                    {/* Renderização de Mídias via Anexos */}
-                    <div className="mb-1 space-y-1">
-                        {msg.message_attachments?.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}
-                    </div>
-                    
-                    {/* Fallback direto e agressivo para áudio e mídia se não houver anexos */}
-                    {!msg.message_attachments?.length && (msg.media_path || msg.conteudo) && (
-                        <div className="mb-1">
-                            {isAudio ? (
-                                <AudioMessage filePath={msg.media_path || msg.conteudo || ''} variant={isOutgoing ? 'outgoing' : 'incoming'} />
-                            ) : isVisualMedia ? (
-                                <MediaMessage path={msg.media_path || msg.conteudo} type={typeLower.includes('video') || pathLower.includes('.mp4') ? 'video' : 'imagem'} />
-                            ) : null}
-                        </div>
-                    )}
-
-                    {msg.conteudo && !isAudio && !isVisualMedia && !typeLower.includes('pdf') && (
-                        <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed break-words">{msg.conteudo}</p>
-                    )}
-                    
-                    <div className={cn("flex items-center justify-end gap-1 mt-1 opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                      <span className="text-[9px] sm:text-[10px] tabular-nums">{format(new Date(msg.criado_em), 'HH:mm')}</span>
-                      {isOutgoing && <CheckCircle className="h-2.5 w-2.5" />}
-                    </div>
+                    <div className="mb-1 space-y-1">{msg.message_attachments?.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}</div>
+                    {!msg.message_attachments?.length && (msg.media_path || msg.conteudo) && (<div className="mb-1">{isAudio ? (<AudioMessage filePath={msg.media_path || msg.conteudo || ''} variant={isOutgoing ? 'outgoing' : 'incoming'} />) : isVisualMedia ? (<MediaMessage path={msg.media_path || msg.conteudo} type={typeLower.includes('video') || pathLower.includes('.mp4') ? 'video' : 'imagem'} />) : null}</div>)}
+                    {msg.conteudo && !isAudio && !isVisualMedia && !typeLower.includes('pdf') && (<p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed break-words">{msg.conteudo}</p>)}
+                    <div className={cn("flex items-center justify-end gap-1 mt-1 opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}><span className="text-[9px] sm:text-[10px] tabular-nums">{format(new Date(msg.criado_em), 'HH:mm')}</span>{isOutgoing && <CheckCircle className="h-2.5 w-2.5" />}</div>
                   </div>
                   <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className={cn("h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0", isOutgoing ? "mr-1" : "ml-1")}><ChevronDown className="h-3 w-3 text-muted-foreground" /></Button></DropdownMenuTrigger>

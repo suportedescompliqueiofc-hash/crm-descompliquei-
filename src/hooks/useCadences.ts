@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
+import { addMinutes, addHours, addDays } from 'date-fns';
 
 export interface CadenceStep {
   id?: string;
@@ -12,7 +13,7 @@ export interface CadenceStep {
   tipo_mensagem: 'texto' | 'audio' | 'imagem' | 'video' | 'pdf';
   conteudo: string | null;
   arquivo_path: string | null;
-  temp_file?: File | null; // Apenas para UI durante criação
+  temp_file?: File | null;
 }
 
 export interface Cadence {
@@ -33,19 +34,12 @@ export function useCadences() {
     queryKey: ['cadences', orgId],
     queryFn: async () => {
       if (!user || !orgId) return [];
-      
       const { data, error } = await supabase
         .from('cadencias')
-        .select(`
-          *,
-          passos:cadencia_passos(*)
-        `)
+        .select('*, passos:cadencia_passos(*)')
         .eq('organization_id', orgId)
         .order('criado_em', { ascending: false });
-
       if (error) throw error;
-
-      // Ordena os passos de cada cadência
       return data.map(c => ({
         ...c,
         passos: (c.passos || []).sort((a: any, b: any) => a.posicao_ordem - b.posicao_ordem)
@@ -56,133 +50,26 @@ export function useCadences() {
 
   const createCadence = useMutation({
     mutationFn: async ({ nome, descricao, passos }: { nome: string; descricao: string; passos: CadenceStep[] }) => {
-      if (!user || !orgId) {
-        throw new Error("Sua sessão ou organização não foi identificada. Tente recarregar a página.");
-      }
-
-      // 1. Criar a cadência pai
-      const { data: cadence, error: cadenceError } = await supabase
-        .from('cadencias')
-        .insert({ 
-          nome, 
-          descricao, 
-          organization_id: orgId 
-        })
-        .select()
-        .single();
-
+      if (!user || !orgId) throw new Error("Sessão inválida");
+      const { data: cadence, error: cadenceError } = await supabase.from('cadencias').insert({ nome, descricao, organization_id: orgId }).select().single();
       if (cadenceError) throw cadenceError;
-
-      // 2. Processar passos e uploads
       const stepsToInsert = await Promise.all(passos.map(async (step) => {
         let arquivo_path = step.arquivo_path;
-
         if (step.temp_file) {
           const fileExt = step.temp_file.name.split('.').pop();
-          const fileName = `${Date.now()}_${step.posicao_ordem}.${fileExt}`;
-          const filePath = `${orgId}/cadences/${cadence.id}/${fileName}`;
-
-          const { error: uploadError } = await supabase.storage
-            .from('media-mensagens')
-            .upload(filePath, step.temp_file);
-
-          if (uploadError) throw uploadError;
+          const filePath = `${orgId}/cadences/${cadence.id}/${Date.now()}_${step.posicao_ordem}.${fileExt}`;
+          await supabase.storage.from('media-mensagens').upload(filePath, step.temp_file);
           arquivo_path = filePath;
         }
-
-        return {
-          cadencia_id: cadence.id,
-          posicao_ordem: step.posicao_ordem,
-          tempo_espera: step.tempo_espera,
-          unidade_tempo: step.unidade_tempo,
-          tipo_mensagem: step.tipo_mensagem,
-          conteudo: step.conteudo,
-          arquivo_path
-        };
+        return { cadencia_id: cadence.id, posicao_ordem: step.posicao_ordem, tempo_espera: step.tempo_espera, unidade_tempo: step.unidade_tempo, tipo_mensagem: step.tipo_mensagem, conteudo: step.conteudo, arquivo_path };
       }));
-
-      // 3. Inserir passos
-      if (stepsToInsert.length > 0) {
-        const { error: stepsError } = await supabase
-          .from('cadencia_passos')
-          .insert(stepsToInsert);
-
-        if (stepsError) throw stepsError;
-      }
-      
+      if (stepsToInsert.length > 0) await supabase.from('cadencia_passos').insert(stepsToInsert);
       return cadence;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cadences', orgId] });
-      toast.success('Fluxo de cadência criado com sucesso!');
-    },
-    onError: (err: any) => {
-      console.error("Erro na criação da cadência:", err);
-      toast.error(err.message || "Erro ao salvar o fluxo no servidor.");
-    },
-  });
-
-  const updateCadence = useMutation({
-    mutationFn: async ({ id, nome, descricao, passos }: { id: string; nome: string; descricao: string; passos: CadenceStep[] }) => {
-      if (!user || !orgId) throw new Error("Não autorizado");
-
-      // 1. Atualizar a cadência pai
-      const { error: cadenceError } = await supabase
-        .from('cadencias')
-        .update({ nome, descricao, atualizado_em: new Date().toISOString() })
-        .eq('id', id);
-
-      if (cadenceError) throw cadenceError;
-
-      // 2. Remover passos antigos (estratégia de re-sincronização)
-      const { error: deleteError } = await supabase
-        .from('cadencia_passos')
-        .delete()
-        .eq('cadencia_id', id);
-
-      if (deleteError) throw deleteError;
-
-      // 3. Processar novos passos e uploads
-      const stepsToInsert = await Promise.all(passos.map(async (step) => {
-        let arquivo_path = step.arquivo_path;
-
-        if (step.temp_file) {
-          const fileExt = step.temp_file.name.split('.').pop();
-          const fileName = `${Date.now()}_${step.posicao_ordem}.${fileExt}`;
-          const filePath = `${orgId}/cadences/${id}/${fileName}`;
-
-          const { error: uploadError } = await supabase.storage
-            .from('media-mensagens')
-            .upload(filePath, step.temp_file);
-
-          if (uploadError) throw uploadError;
-          arquivo_path = filePath;
-        }
-
-        return {
-          cadencia_id: id,
-          posicao_ordem: step.posicao_ordem,
-          tempo_espera: step.tempo_espera,
-          unidade_tempo: step.unidade_tempo,
-          tipo_mensagem: step.tipo_mensagem,
-          conteudo: step.conteudo,
-          arquivo_path
-        };
-      }));
-
-      // 4. Inserir passos atualizados
-      const { error: stepsError } = await supabase
-        .from('cadencia_passos')
-        .insert(stepsToInsert);
-
-      if (stepsError) throw stepsError;
-      return true;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cadences', orgId] });
-      toast.success('Fluxo atualizado com sucesso!');
-    },
-    onError: (err: any) => toast.error(`Erro ao atualizar: ${err.message}`),
+      toast.success('Fluxo criado com sucesso!');
+    }
   });
 
   const deleteCadence = useMutation({
@@ -190,19 +77,115 @@ export function useCadences() {
       const { error } = await supabase.from('cadencias').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cadences', orgId] });
-      toast.success('Cadência excluída com sucesso.');
-    }
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cadences', orgId] })
   });
 
-  return { 
-    cadences, 
-    isLoading, 
-    createCadence: createCadence.mutate, 
-    updateCadence: updateCadence.mutate,
-    isCreating: createCadence.isPending, 
-    isUpdating: updateCadence.isPending,
-    deleteCadence: deleteCadence.mutate 
-  };
+  const updateCadence = useMutation({
+    mutationFn: async ({ id, nome, descricao, passos }: { id: string; nome: string; descricao: string; passos: CadenceStep[] }) => {
+        if (!user || !orgId) throw new Error("Não autorizado");
+        await supabase.from('cadencias').update({ nome, descricao, atualizado_em: new Date().toISOString() }).eq('id', id);
+        await supabase.from('cadencia_passos').delete().eq('cadencia_id', id);
+        const stepsToInsert = await Promise.all(passos.map(async (step) => {
+          let arquivo_path = step.arquivo_path;
+          if (step.temp_file) {
+            const fileExt = step.temp_file.name.split('.').pop();
+            const filePath = `${orgId}/cadences/${id}/${Date.now()}_${step.posicao_ordem}.${fileExt}`;
+            await supabase.storage.from('media-mensagens').upload(filePath, step.temp_file);
+            arquivo_path = filePath;
+          }
+          return { cadencia_id: id, posicao_ordem: step.posicao_ordem, tempo_espera: step.tempo_espera, unidade_tempo: step.unidade_tempo, tipo_mensagem: step.tipo_mensagem, conteudo: step.conteudo, arquivo_path };
+        }));
+        await supabase.from('cadencia_passos').insert(stepsToInsert);
+        return true;
+      },
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['cadences', orgId] });
+        toast.success('Fluxo atualizado!');
+      }
+  });
+
+  return { cadences, isLoading, createCadence: createCadence.mutate, updateCadence: updateCadence.mutate, deleteCadence: deleteCadence.mutate, isCreating: createCadence.isPending, isUpdating: updateCadence.isPending };
+}
+
+export function useLeadCadence(leadId: string | undefined) {
+    const { profile } = useProfile();
+    const orgId = profile?.organization_id;
+    const queryClient = useQueryClient();
+
+    const { data: activeCadence, isLoading } = useQuery({
+        queryKey: ['lead_cadence_active', leadId],
+        queryFn: async () => {
+            if (!leadId) return null;
+            const { data, error } = await supabase
+                .from('lead_cadencias')
+                .select('*, cadencias(nome)')
+                .eq('lead_id', leadId)
+                .eq('status', 'ativo')
+                .maybeSingle();
+            if (error) throw error;
+            return data;
+        },
+        enabled: !!leadId
+    });
+
+    const startCadence = useMutation({
+        mutationFn: async ({ cadenceId }: { cadenceId: string }) => {
+            if (!leadId || !orgId) throw new Error("Dados insuficientes");
+            
+            // 1. Busca o primeiro passo para calcular a execução
+            const { data: firstStep } = await supabase
+                .from('cadencia_passos')
+                .select('*')
+                .eq('cadencia_id', cadenceId)
+                .order('posicao_ordem', { ascending: true })
+                .limit(1)
+                .single();
+
+            if (!firstStep) throw new Error("Esta cadência não possui passos configurados.");
+
+            const now = new Date();
+            let executionDate = now;
+
+            if (firstStep.unidade_tempo === 'minutos') executionDate = addMinutes(now, firstStep.tempo_espera);
+            else if (firstStep.unidade_tempo === 'horas') executionDate = addHours(now, firstStep.tempo_espera);
+            else executionDate = addDays(now, firstStep.tempo_espera);
+
+            const { error } = await supabase
+                .from('lead_cadencias')
+                .upsert({
+                    organization_id: orgId,
+                    lead_id: leadId,
+                    cadencia_id: cadenceId,
+                    passo_atual_ordem: 0, // Vai executar o passo 1
+                    status: 'ativo',
+                    proxima_execucao: executionDate.toISOString()
+                }, { onConflict: 'lead_id,cadencia_id' });
+
+            if (error) throw error;
+            return true;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['lead_cadence_active', leadId] });
+            toast.success('Cadência ativada para este cliente!');
+        },
+        onError: (err: any) => toast.error(err.message)
+    });
+
+    const stopCadence = useMutation({
+        mutationFn: async () => {
+            if (!leadId) return;
+            const { error } = await supabase
+                .from('lead_cadencias')
+                .update({ status: 'cancelado', proxima_execucao: null })
+                .eq('lead_id', leadId)
+                .eq('status', 'ativo');
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['lead_cadence_active', leadId] });
+            toast.info('Cadência interrompida.');
+        }
+    });
+
+    return { activeCadence, isLoading, startCadence: startCadence.mutate, stopCadence: stopCadence.mutate, isStarting: startCadence.isPending };
 }
