@@ -35,27 +35,42 @@ export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessagePro
     setError(null);
 
     try {
-      // Usando a função unificada ou a específica de áudio, ambas agora robustas
+      // Chama a função centralizada para URLs de mídia
       const { data, error: functionError } = await supabase.functions.invoke('get-media-url', {
         body: { mediaPath: filePath },
       });
 
       if (functionError || !data?.signedUrl) {
         console.warn('Falha ao buscar áudio via Edge Function, tentando fallback direto...');
-        // Tentativa de fallback direto se a função falhar
-        const { data: fallbackData } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
-        if (fallbackData?.publicUrl) {
-            setAudioUrl(fallbackData.publicUrl);
+        // Tentativa de fallback direto em diferentes buckets para máxima resiliência
+        const buckets = ['media-mensagens', 'audio-mensagens', 'campaign-media'];
+        let foundUrl = null;
+
+        for (const bucket of buckets) {
+            let cleanPath = filePath;
+            if (cleanPath.startsWith(`${bucket}/`)) {
+                cleanPath = cleanPath.substring(bucket.length + 1);
+            }
+            const { data: fallbackData } = supabase.storage.from(bucket).getPublicUrl(cleanPath);
+            if (fallbackData?.publicUrl) {
+                // Checagem básica se a URL é válida (não 404 instantâneo)
+                foundUrl = fallbackData.publicUrl;
+                break;
+            }
+        }
+
+        if (foundUrl) {
+            setAudioUrl(foundUrl);
             setError(null);
         } else {
-            setError("Não foi possível localizar o áudio.");
+            setError("Áudio não encontrado no servidor.");
         }
       } else {
         setAudioUrl(data.signedUrl);
       }
     } catch (err) {
       console.error("Exceção ao buscar áudio:", err);
-      setError("Erro de conexão");
+      setError("Falha na comunicação");
     } finally {
       setIsLoading(false);
     }
@@ -97,7 +112,7 @@ export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessagePro
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <p className="text-[9px] opacity-60 font-mono truncate">{filePath}</p>
+        <p className="text-[9px] opacity-60 font-mono truncate">{filePath.split('/').pop()}</p>
       </div>
     );
   }

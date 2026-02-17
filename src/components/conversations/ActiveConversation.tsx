@@ -48,12 +48,17 @@ const DateSeparator = ({ dateString }: { dateString: string }) => {
 };
 
 const AttachmentRenderer = ({ attachment, isOutgoing }: { attachment: Attachment; isOutgoing: boolean }) => {
-  const type = attachment.file_type?.toLowerCase() || 'arquivo';
-  if (type.includes('audio')) return <AudioMessage filePath={attachment.file_path} variant={isOutgoing ? 'outgoing' : 'incoming'} />;
-  if (type.includes('imagem') || type.includes('image') || type.includes('video')) {
+  const type = (attachment.file_type || '').toLowerCase();
+  // Verificação mais flexível para áudio
+  if (type.includes('audio')) {
+    return <AudioMessage filePath={attachment.file_path} variant={isOutgoing ? 'outgoing' : 'incoming'} />;
+  }
+  if (type.includes('image') || type.includes('imagem') || type.includes('video')) {
     return <MediaMessage path={attachment.file_path} type={type.includes('video') ? 'video' : 'imagem'} />;
   }
-  if (type.includes('pdf')) return <FileMessage path={attachment.file_path} fileName="Documento PDF" />;
+  if (type.includes('pdf')) {
+    return <FileMessage path={attachment.file_path} fileName="Documento PDF" />;
+  }
   return <div className="p-2 bg-muted/20 border rounded text-xs text-muted-foreground mb-1 break-all">Anexo: {attachment.file_path}</div>;
 };
 
@@ -241,6 +246,12 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             const isAi = msg.remetente === 'bot';
             const isOutgoing = !isFromLead;
             
+            // Verificações flexíveis de tipo
+            const isAudio = (msg.tipo_conteudo || '').toLowerCase().includes('audio');
+            const isVisualMedia = (msg.tipo_conteudo || '').toLowerCase().includes('image') || 
+                                (msg.tipo_conteudo || '').toLowerCase().includes('imagem') || 
+                                (msg.tipo_conteudo || '').toLowerCase().includes('video');
+
             return (
               <div key={msg.id} className={cn("group relative flex flex-col gap-0.5 py-0.5", isOutgoing ? "items-end" : "items-start")}>
                 <div className={cn("flex items-end gap-2 max-w-[90%] sm:max-w-[85%]", isOutgoing ? "flex-row-reverse" : "flex-row")}>
@@ -255,18 +266,18 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                         {msg.message_attachments?.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}
                     </div>
                     
-                    {/* Fallback para media_path direto se não houver anexos e for áudio/mídia */}
+                    {/* Fallback para media_path direto se não houver anexos */}
                     {!msg.message_attachments?.length && msg.media_path && (
                         <div className="mb-1">
-                            {msg.tipo_conteudo === 'audio' ? (
+                            {isAudio ? (
                                 <AudioMessage filePath={msg.media_path} variant={isOutgoing ? 'outgoing' : 'incoming'} />
-                            ) : (msg.tipo_conteudo === 'imagem' || msg.tipo_conteudo === 'video') ? (
-                                <MediaMessage path={msg.media_path} type={msg.tipo_conteudo as any} />
+                            ) : isVisualMedia ? (
+                                <MediaMessage path={msg.media_path} type={msg.tipo_conteudo?.includes('video') ? 'video' : 'imagem'} />
                             ) : null}
                         </div>
                     )}
 
-                    {msg.conteudo && msg.tipo_conteudo !== 'audio' && <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed break-words">{msg.conteudo}</p>}
+                    {msg.conteudo && !isAudio && <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed break-words">{msg.conteudo}</p>}
                     
                     <div className={cn("flex items-center justify-end gap-1 mt-1 opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}>
                       <span className="text-[9px] sm:text-[10px] tabular-nums">{format(new Date(msg.criado_em), 'HH:mm')}</span>
