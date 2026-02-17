@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, GitMerge, MoreVertical, Trash2, Calendar, Layout, MessageSquare, ArrowRight, Activity } from "lucide-react";
+import { Plus, GitMerge, MoreVertical, Trash2, Calendar as CalendarIcon, Layout, MessageSquare, ArrowRight, Activity } from "lucide-react";
 import { CadenceModal } from "@/components/cadences/CadenceModal";
 import { useCadences, Cadence } from "@/hooks/useCadences";
 import { format, startOfMonth, endOfMonth } from "date-fns";
