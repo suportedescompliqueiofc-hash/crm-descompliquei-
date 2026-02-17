@@ -10,7 +10,6 @@ const corsHeaders = {
 const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/fluxo-cadencia-gleyce';
 
 serve(async (req) => {
-  // Tratamento de CORS para chamadas do navegador/n8n
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -21,9 +20,8 @@ serve(async (req) => {
   );
 
   try {
-    console.log("[process-cadences] Iniciando verificação de rotina...");
+    console.log("[process-cadences] Verificando envios agendados...");
 
-    // 1. Busca leads que possuem cadência ativa e já passaram da hora de execução
     const nowIso = new Date().toISOString();
     const { data: leadsInCadence, error: fetchError } = await supabaseAdmin
       .from('lead_cadencias')
@@ -40,35 +38,30 @@ serve(async (req) => {
     if (fetchError) throw fetchError;
     
     if (!leadsInCadence || leadsInCadence.length === 0) {
-      console.log("[process-cadences] Nenhuma mensagem para enviar neste minuto.");
       return new Response(JSON.stringify({ success: true, count: 0 }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
-    console.log(`[process-cadences] Processando ${leadsInCadence.length} mensagens pendentes.`);
-
     const results = [];
 
     for (const item of leadsInCadence) {
       try {
-        // 2. Busca os dados do Lead
         const { data: lead, error: leadError } = await supabaseAdmin
           .from('leads')
           .select('id, nome, telefone, usuario_id')
           .eq('id', item.lead_id)
           .single();
         
-        if (leadError || !lead) throw new Error("Lead não localizado ou excluído.");
+        if (leadError || !lead) throw new Error("Lead não encontrado.");
 
-        // 3. Busca a Cadência e todos os seus passos
         const { data: cadence, error: cadenceError } = await supabaseAdmin
           .from('cadencias')
           .select('id, nome')
           .eq('id', item.cadencia_id)
           .single();
 
-        if (cadenceError || !cadence) throw new Error("Fluxo de cadência não localizado.");
+        if (cadenceError || !cadence) throw new Error("Cadência não encontrada.");
 
         const { data: steps, error: stepsError } = await supabaseAdmin
           .from('cadencia_passos')
@@ -76,29 +69,24 @@ serve(async (req) => {
           .eq('cadencia_id', cadence.id)
           .order('posicao_ordem', { ascending: true });
 
-        if (stepsError || !steps || steps.length === 0) throw new Error("Cadência sem passos configurados.");
+        if (stepsError || !steps || steps.length === 0) throw new Error("Cadência sem passos.");
 
-        // 4. Identifica o passo atual (o próximo a ser enviado)
         const nextStepOrder = (item.passo_atual_ordem || 0) + 1;
         const currentStep = steps.find(s => s.posicao_ordem === nextStepOrder);
 
         if (!currentStep) {
-          console.log(`[process-cadences] Cadência concluída para o lead ${lead.id}`);
           await supabaseAdmin.from('lead_cadencias').update({ status: 'concluido', proxima_execucao: null }).eq('id', item.id);
           continue;
         }
 
-        // 5. Prepara a mídia (URL pública do Storage)
         let url_midia = null;
         if (currentStep.arquivo_path) {
           const { data } = supabaseAdmin.storage.from('media-mensagens').getPublicUrl(currentStep.arquivo_path);
           url_midia = data.publicUrl;
         }
 
-        // 6. Personaliza a mensagem
         const messageBody = (currentStep.conteudo || '').replace(/\{\{nome_lead\}\}/g, lead.nome || 'Cliente');
 
-        // 7. Monta o payload exatamente como as Mensagens Rápidas
         const payload = {
           lead_id: lead.id,
           mensagem: messageBody,
@@ -109,8 +97,6 @@ serve(async (req) => {
           user_id: lead.usuario_id,
           remetente: 'bot'
         };
-
-        console.log(`[process-cadences] Enviando passo ${nextStepOrder} para ${lead.telefone}`);
 
         const response = await fetch(WEBHOOK_URL, {
           method: 'POST',
@@ -123,7 +109,6 @@ serve(async (req) => {
           throw new Error(`Erro Webhook n8n (${response.status}): ${errorText}`);
         }
 
-        // 8. Calcula o agendamento do PRÓXIMO passo (se existir)
         const followingStep = steps.find(s => s.posicao_ordem === (nextStepOrder + 1));
         const now = new Date();
         let nextDate = null;
@@ -140,7 +125,7 @@ serve(async (req) => {
           finalStatus = 'concluido';
         }
 
-        // 9. Atualiza o status no banco de dados
+        // 9. Atualiza estado e REGISTRA LOG HISTÓRICO
         await supabaseAdmin
           .from('lead_cadencias')
           .update({ 
@@ -153,20 +138,44 @@ serve(async (req) => {
           })
           .eq('id', item.id);
 
+        // Registro Histórico para Monitoramento
+        await supabaseAdmin
+          .from('cadencia_logs')
+          .insert({
+            organization_id: item.organization_id,
+            lead_id: lead.id,
+            cadencia_id: item.cadencia_id,
+            passo_ordem: nextStepOrder,
+            status: 'sucesso'
+          });
+
         results.push({ lead_id: lead.id, step: nextStepOrder, status: 'sent' });
 
       } catch (err: any) {
         console.error(`[process-cadences] Falha no lead ${item.lead_id}:`, err.message);
         
-        // Registra o erro na tabela para feedback visual no CRM
+        const now = new Date();
+        
         await supabaseAdmin
           .from('lead_cadencias')
           .update({ 
-            ultima_execucao: new Date().toISOString(),
+            ultima_execucao: now.toISOString(),
             status_ultima_execucao: 'erro',
             erro_log: err.message
           })
           .eq('id', item.id);
+
+        // Registro de Erro no Histórico
+        await supabaseAdmin
+          .from('cadencia_logs')
+          .insert({
+            organization_id: item.organization_id,
+            lead_id: item.lead_id,
+            cadencia_id: item.cadencia_id,
+            passo_ordem: (item.passo_atual_ordem || 0) + 1,
+            status: 'erro',
+            mensagem_erro: err.message
+          });
 
         results.push({ lead_id: item.lead_id, status: 'error', error: err.message });
       }
@@ -177,7 +186,6 @@ serve(async (req) => {
     });
 
   } catch (error: any) {
-    console.error('[process-cadences] Erro crítico:', error.message);
     return new Response(JSON.stringify({ error: error.message }), { 
       status: 500, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
