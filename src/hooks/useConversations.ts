@@ -45,6 +45,7 @@ export function useConversationsList() {
     if (!orgId) return;
     const channel = supabase.channel(`list_sync_${orgId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, () => {
+        // Para a lista lateral, a invalidação ainda é segura pois envolve joins complexos
         queryClient.invalidateQueries({ queryKey: ['conversations', orgId] });
       })
       .subscribe();
@@ -90,14 +91,11 @@ export function useConversationsList() {
 export function useMessages(leadId: string | null) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
-  // Memoizamos a queryKey para evitar loops de renderização
   const queryKey = useMemo(() => ['messages_v6', leadId], [leadId]);
 
   useEffect(() => {
     if (!leadId || !user) return;
     
-    // Canal de escuta específico para o Lead ativo
     const channel = supabase.channel(`messages_realtime_${leadId}`)
       .on('postgres_changes', 
         { 
@@ -109,19 +107,22 @@ export function useMessages(leadId: string | null) {
         (payload) => {
           const newMessage = payload.new as Message;
           
-          // Injeta diretamente no cache do React Query em milissegundos
           queryClient.setQueryData<Message[]>(queryKey, (old) => {
             const current = old || [];
-            // Filtra duplicatas (mensagens temporárias que agora são reais)
+            
+            // Lógica de substituição inteligente:
+            // Se já temos uma mensagem temporária com o mesmo conteúdo, removemos a temporária e colocamos a real
+            const exists = current.find(m => m.id === newMessage.id);
+            if (exists) return current;
+
             const filtered = current.filter(m => 
-                m.id !== newMessage.id && 
                 !(m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo)
             );
-            return [...filtered, newMessage];
+            
+            return [...filtered, newMessage].sort((a, b) => 
+                new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+            );
           });
-
-          // Invalida para garantir carregamento de anexos se necessário
-          queryClient.invalidateQueries({ queryKey });
         }
       )
       .on('postgres_changes', 
@@ -157,7 +158,7 @@ export function useMessages(leadId: string | null) {
       })) as Message[];
     },
     enabled: !!leadId && !!user,
-    staleTime: 5000, 
+    staleTime: 1000 * 30, 
   });
 }
 
@@ -180,6 +181,7 @@ export function useSendMessage() {
       const queryKey = ['messages_v6', leadId];
       await queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
+      
       const optimisticMessage: Message = {
         id: `temp-${Date.now()}`,
         lead_id: leadId,
@@ -193,6 +195,7 @@ export function useSendMessage() {
         id_mensagem: null,
         message_attachments: []
       };
+      
       queryClient.setQueryData<Message[]>(queryKey, (old) => [...(old || []), optimisticMessage]);
       return { previousMessages };
     },
@@ -200,10 +203,14 @@ export function useSendMessage() {
       if (context?.previousMessages) {
         queryClient.setQueryData(['messages_v6', variables.leadId], context.previousMessages);
       }
+      toast.error('Erro ao enviar mensagem.');
     },
     onSettled: (data, error, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      // Pequeno delay para permitir que o Realtime processe antes da invalidação final de segurança
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      }, 500);
     }
   });
 }
@@ -229,7 +236,9 @@ export function useSendAudioMessage() {
       return null;
     },
     onSettled: (data, error, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
+      }, 500);
     }
   });
 }

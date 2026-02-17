@@ -314,10 +314,10 @@ export default function Pipeline() {
 
   // Sincronização Segura: Apenas quando os leads mudam e não estamos carregando
   useEffect(() => {
-    if (leads && !leadsLoading) {
+    if (leads) {
       setOptimisticLeads(leads);
     }
-  }, [leads, leadsLoading]);
+  }, [leads]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -383,7 +383,10 @@ export default function Pipeline() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveLead(null);
-    if (!over) return;
+    if (!over) {
+        setOptimisticLeads(leads);
+        return;
+    }
 
     const leadId = active.id as string;
     let newStageOrder: number | undefined;

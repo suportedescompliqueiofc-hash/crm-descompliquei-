@@ -22,8 +22,8 @@ export interface Lead {
   queixa_principal?: string;
   procedimento_interesse?: string;
   resumo?: string;
-  origem?: string; // Agora será apenas 'marketing' ou 'organico'
-  fonte?: string;  // Nova coluna com o detalhe (Facebook, Indicação, etc)
+  origem?: string;
+  fonte?: string;
   criativo_id?: string; 
   status: string;
   posicao_pipeline: number;
@@ -43,27 +43,39 @@ export function useLeads(dateRange?: DateRange) {
   const queryClient = useQueryClient();
   const orgId = profile?.organization_id;
 
-  // Realtime Subscription
+  // Realtime Subscription com Injeção Direta de Cache
   useEffect(() => {
     if (!orgId) return;
 
     const channel = supabase
-      .channel('leads_realtime')
+      .channel('leads_global_sync')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'leads' },
+        { event: '*', schema: 'public', table: 'leads', filter: `organization_id=eq.${orgId}` },
         (payload) => {
-          queryClient.invalidateQueries({ queryKey: ['leads'] });
-          if (payload.new && 'id' in payload.new) {
-             queryClient.invalidateQueries({ queryKey: ['lead', payload.new.id] });
+          const queryKey = ['leads', orgId, dateRange];
+          
+          if (payload.eventType === 'INSERT') {
+            const newLead = payload.new as Lead;
+            queryClient.setQueryData<Lead[]>(queryKey, (old) => {
+              const current = old || [];
+              if (current.find(l => l.id === newLead.id)) return current;
+              return [newLead, ...current];
+            });
+          } 
+          else if (payload.eventType === 'UPDATE') {
+            const updatedLead = payload.new as Lead;
+            queryClient.setQueryData<Lead[]>(queryKey, (old) => {
+              return (old || []).map(lead => lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead);
+            });
+            // Atualiza também o cache individual do lead se ele estiver sendo visualizado
+            queryClient.setQueryData(['lead', updatedLead.id, orgId], updatedLead);
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'leads_tags' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          else if (payload.eventType === 'DELETE') {
+            queryClient.setQueryData<Lead[]>(queryKey, (old) => {
+              return (old || []).filter(lead => lead.id !== payload.old.id);
+            });
+          }
         }
       )
       .subscribe();
@@ -71,7 +83,7 @@ export function useLeads(dateRange?: DateRange) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [orgId, queryClient]);
+  }, [orgId, queryClient, dateRange]);
 
   const { data: leads = [], isLoading } = useQuery({
     queryKey: ['leads', orgId, dateRange],
@@ -94,88 +106,80 @@ export function useLeads(dateRange?: DateRange) {
       if (dateRange?.from && dateRange?.to) {
         const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
         const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
-        
         query = query.or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(agendamento.gte.${startDate},agendamento.lte.${endDate})`);
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
       return data as Lead[];
     },
     enabled: !!user && !!orgId,
+    staleTime: 1000 * 60 * 5, // 5 minutos de cache "fresco"
   });
 
   const createLead = useMutation({
     mutationFn: async (lead: Omit<Lead, 'id' | 'usuario_id' | 'organization_id' | 'criado_em' | 'atualizado_em'>) => {
       if (!user || !orgId) throw new Error("Usuário/Organização não autenticado");
-      
       const { data, error } = await supabase
         .from('leads')
         .insert([{ ...lead, usuario_id: user.id, organization_id: orgId }])
         .select()
         .single();
-
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads', orgId] });
-      toast.success('Lead criado com sucesso!', { closeButton: true });
+    onSuccess: (data) => {
+      // Injeta imediatamente para o usuário que criou
+      queryClient.setQueryData<Lead[]>(['leads', orgId, dateRange], (old) => [data, ...(old || [])]);
+      toast.success('Lead criado com sucesso!');
     },
     onError: (error: any) => {
-      let errorMessage = 'Erro ao criar lead';
-      if (error.code === '23505') {
-        errorMessage = 'Já existe um lead cadastrado com este número de telefone.';
-      } else {
-        errorMessage = error.message || errorMessage;
-      }
-      toast.error(errorMessage, { closeButton: true });
+      toast.error(error.code === '23505' ? 'Telefone já cadastrado.' : error.message);
     },
   });
 
   const updateLead = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Lead> & { id: string }) => {
-      if (!user) throw new Error("Usuário não autenticado");
-      
       const { data, error } = await supabase
         .from('leads')
         .update(updates)
         .eq('id', id)
         .select()
         .single();
-
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['leads', orgId] });
-      queryClient.invalidateQueries({ queryKey: ['lead', data.id] });
-      toast.success('Lead atualizado com sucesso!', { closeButton: true });
+    onMutate: async (variables) => {
+      const queryKey = ['leads', orgId, dateRange];
+      await queryClient.cancelQueries({ queryKey });
+      const previousLeads = queryClient.getQueryData<Lead[]>(queryKey);
+      
+      // Atualização Otimista
+      queryClient.setQueryData<Lead[]>(queryKey, (old) => {
+        return (old || []).map(lead => lead.id === variables.id ? { ...lead, ...variables } : lead);
+      });
+      
+      return { previousLeads };
     },
-    onError: (error: any) => {
-      let errorMessage = 'Erro ao atualizar lead';
-      if (error.code === '23505') {
-        errorMessage = 'Já existe outro lead cadastrado com este número de telefone.';
-      } else {
-        errorMessage = error.message || errorMessage;
+    onError: (err, variables, context) => {
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads', orgId, dateRange], context.previousLeads);
       }
-      toast.error(errorMessage, { closeButton: true });
+      toast.error('Erro ao atualizar lead.');
     },
   });
 
   const deleteLead = useMutation({
     mutationFn: async (id: string) => {
-      if (!user) throw new Error("Usuário não autenticado");
       const { error } = await supabase.from('leads').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads', orgId] });
-      toast.success('Lead excluído com sucesso!', { closeButton: true });
-    },
-    onError: (error: any) => {
-      toast.error(error.message || 'Erro ao excluir lead', { closeButton: true });
+    onMutate: async (id) => {
+      const queryKey = ['leads', orgId, dateRange];
+      await queryClient.cancelQueries({ queryKey });
+      const previousLeads = queryClient.getQueryData<Lead[]>(queryKey);
+      queryClient.setQueryData<Lead[]>(queryKey, (old) => (old || []).filter(lead => lead.id !== id));
+      return { previousLeads };
     },
   });
 
@@ -195,15 +199,15 @@ export function useLead(leadId: string | null) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!leadId) return;
+    if (!leadId || !orgId) return;
 
     const channel = supabase
       .channel(`lead_detail_${leadId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'leads', filter: `id=eq.${leadId}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['lead', leadId] });
+        { event: 'UPDATE', schema: 'public', table: 'leads', filter: `id=eq.${leadId}` },
+        (payload) => {
+          queryClient.setQueryData(['lead', leadId, orgId], payload.new);
         }
       )
       .subscribe();
@@ -211,7 +215,7 @@ export function useLead(leadId: string | null) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [leadId, queryClient]);
+  }, [leadId, orgId, queryClient]);
 
   return useQuery<Lead | null, Error>({
     queryKey: ['lead', leadId, orgId],
