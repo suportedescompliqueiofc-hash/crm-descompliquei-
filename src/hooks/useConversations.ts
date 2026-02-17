@@ -37,7 +37,6 @@ export interface Conversation extends Lead {
 }
 
 export function useConversationsList() {
-  const { user } = useAuth();
   const { profile } = useProfile(); 
   const queryClient = useQueryClient();
   const orgId = profile?.organization_id;
@@ -47,14 +46,14 @@ export function useConversationsList() {
     if (!orgId) return;
 
     const channel = supabase
-      .channel('public:list_refresh')
+      .channel(`list_refresh_${orgId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, () => {
         queryClient.invalidateQueries({ queryKey });
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [orgId, queryClient, queryKey]);
+  }, [orgId, queryClient]);
 
   return useQuery<Conversation[], Error>({
     queryKey,
@@ -83,7 +82,6 @@ export function useConversationsList() {
           return {
             ...lead,
             last_message_content: lastMessage?.conteudo || 'Nenhuma mensagem ainda',
-            // PRIORIDADE: Data da mensagem, FALLBACK: Data de criação do lead
             last_message_timestamp: lastMessage?.criado_em || lead.criado_em,
             last_message_type: lastMessage?.tipo_conteudo || 'texto',
             last_message_sender: lastMessage?.remetente,
@@ -97,11 +95,9 @@ export function useConversationsList() {
       );
     },
     enabled: !!orgId,
-    refetchInterval: 30000, 
   });
 }
 
-// Manter as outras funções (useMessages, sendMessage, etc) exatamente como estão
 export function useMessages(leadId: string | null) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -109,12 +105,25 @@ export function useMessages(leadId: string | null) {
 
   useEffect(() => {
     if (!leadId || !user) return;
-    const channel = supabase.channel(`messages_${leadId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` },
-        () => queryClient.invalidateQueries({ queryKey }))
+    
+    // Inscrição Realtime robusta para mensagens específicas do lead
+    const channel = supabase.channel(`chat_realtime_${leadId}`)
+      .on('postgres_changes', 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'mensagens', 
+          filter: `lead_id=eq.${leadId}` 
+        },
+        () => {
+          // Quando uma nova mensagem entra no banco, recarregamos a lista
+          queryClient.invalidateQueries({ queryKey });
+        }
+      )
       .subscribe();
+
     return () => { supabase.removeChannel(channel); };
-  }, [leadId, user, queryClient, queryKey]);
+  }, [leadId, user, queryClient]);
 
   return useQuery<Message[], Error>({
     queryKey,
@@ -136,20 +145,66 @@ export function useMessages(leadId: string | null) {
       })) as Message[];
     },
     enabled: !!leadId && !!user,
+    // Mantemos os dados otimistas até o refetch completar
+    placeholderData: (previousData) => previousData,
   });
 }
 
 export function useSendMessage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ leadId, content }: { leadId: string; content: string }) => {
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
-      await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
+      
+      const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead_id: leadId, user_id: user?.id, conteudo_mensagem: content, telefone: lead?.telefone }),
       });
+
+      if (!response.ok) throw new Error("Falha ao enviar mensagem via servidor");
       return null;
+    },
+    // ATUALIZAÇÃO OTIMISTA: Insere a mensagem na UI antes mesmo do servidor responder
+    onMutate: async ({ leadId, content }) => {
+      const queryKey = ['messages_v6', leadId];
+      await queryClient.cancelQueries({ queryKey });
+
+      const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
+
+      const optimisticMessage: Message = {
+        id: `temp-${Date.now()}`,
+        lead_id: leadId,
+        user_id: user?.id || null,
+        conteudo: content,
+        direcao: 'saida',
+        remetente: 'agente_crm',
+        tipo_conteudo: 'texto',
+        criado_em: new Date().toISOString(),
+        media_path: null,
+        id_mensagem: null,
+        message_attachments: []
+      };
+
+      if (previousMessages) {
+        queryClient.setQueryData<Message[]>(queryKey, [...previousMessages, optimisticMessage]);
+      }
+
+      return { previousMessages };
+    },
+    onError: (err, variables, context) => {
+      // Reverte o estado em caso de erro
+      if (context?.previousMessages) {
+        queryClient.setQueryData(['messages_v6', variables.leadId], context.previousMessages);
+      }
+      toast.error('Erro ao enviar mensagem.');
+    },
+    onSettled: (data, error, variables) => {
+      // Força a sincronização com o banco de dados
+      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
     }
   });
 }
@@ -158,21 +213,33 @@ export function useSendAudioMessage() {
   const { user } = useAuth();
   const { profile } = useProfile();
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ leadId, audioBlob }: { leadId: string; audioBlob: Blob }) => {
-      const filePath = `${profile?.organization_id}/${leadId}/${Date.now()}.webm`;
-      await supabase.storage.from('media-mensagens').upload(filePath, audioBlob);
+      const timestamp = Date.now();
+      const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.webm`;
+      
+      // Upload do áudio
+      const { error: uploadError } = await supabase.storage.from('media-mensagens').upload(filePath, audioBlob);
+      if (uploadError) throw uploadError;
+
       const { data: { publicUrl } } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
+      
       await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead_id: leadId, user_id: user?.id, tipo: 'audio', url_midia: publicUrl, telefone: lead?.telefone }),
       });
+      
       return null;
     },
-    onSuccess: (_, { leadId }) => {
-      queryClient.invalidateQueries({ queryKey: ['messages_v6', leadId] });
+    onMutate: async ({ leadId }) => {
+      // Para áudio, mostramos um indicador de "enviando" ou apenas invalidamos rápido
+      await queryClient.cancelQueries({ queryKey: ['messages_v6', leadId] });
+    },
+    onSettled: (data, error, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
     }
   });
 }
