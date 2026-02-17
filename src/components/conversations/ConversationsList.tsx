@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { Search, Mic, Image as ImageIcon, Video, FileText, MoreVertical, Trash2 } from "lucide-react";
+import { Search, Mic, Image as ImageIcon, Video, FileText, MoreVertical, Trash2, Tag as TagIcon, X, ChevronRight, Hash } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,7 +11,7 @@ import { useConversationsList, Conversation, useDeleteChat } from "@/hooks/useCo
 import { format, isToday, isYesterday, isValid, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { TAG_COLORS } from "@/hooks/useTags";
+import { TAG_COLORS, useTags, Tag } from "@/hooks/useTags";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const formatLastMessageTime = (timestamp?: string | null) => {
   if (!timestamp) return '';
@@ -133,7 +134,7 @@ const ConversationItem = ({ conversation, onDelete }: { conversation: Conversati
       <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-background/80 shadow-sm">
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-background/80 shadow-sm border">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -159,14 +160,37 @@ export function ConversationsList() {
   const navigate = useNavigate();
   const { leadId: activeLeadId } = useParams();
   const { data: conversations, isLoading } = useConversationsList();
+  const { availableTags, isLoadingTags } = useTags();
   const { mutate: deleteChat } = useDeleteChat();
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<Conversation | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'tags'>('list');
+  const [filterTagId, setFilterTagId] = useState<string | null>(null);
 
-  const filteredConversations = conversations?.filter(c =>
-    (c.nome && c.nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    c.telefone.includes(searchTerm)
-  );
+  // Calcula a contagem de chats por etiqueta
+  const tagCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    conversations?.forEach(conv => {
+      conv.tags?.forEach(tag => {
+        counts[tag.id] = (counts[tag.id] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [conversations]);
+
+  const filteredConversations = useMemo(() => {
+    return conversations?.filter(c => {
+      const searchLower = searchTerm.toLowerCase();
+      const nameMatch = (c.nome && c.nome.toLowerCase().includes(searchLower)) || c.telefone.includes(searchLower);
+      const tagMatch = !filterTagId || c.tags?.some(tag => tag.id === filterTagId);
+      return nameMatch && tagMatch;
+    });
+  }, [conversations, searchTerm, filterTagId]);
+
+  const selectedTag = useMemo(() => 
+    availableTags.find(t => t.id === filterTagId), 
+  [availableTags, filterTagId]);
 
   const handleDeleteChat = () => {
     if (confirmDelete) {
@@ -183,21 +207,60 @@ export function ConversationsList() {
 
   return (
     <div className="flex flex-col h-full bg-card border-r w-full overflow-hidden">
+      {/* Cabeçalho Condicional */}
       <div className="p-4 border-b bg-card/50 backdrop-blur-sm shrink-0">
-        <h2 className="text-xl font-bold mb-4">Conversas</h2>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar conversas..."
-            className="pl-10 h-10 bg-muted/30 border-muted-foreground/20 focus-visible:ring-primary"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">
+            {viewMode === 'tags' ? 'Etiquetas' : 'Conversas'}
+          </h2>
+          <div className="flex gap-1">
+            {viewMode === 'list' ? (
+              <Button variant="ghost" size="icon" onClick={() => setViewMode('tags')} title="Gerenciar Etiquetas">
+                <TagIcon className="h-5 w-5" />
+              </Button>
+            ) : (
+              <Button variant="ghost" size="icon" onClick={() => setViewMode('list')}>
+                <X className="h-5 w-5" />
+              </Button>
+            )}
+          </div>
         </div>
+
+        {viewMode === 'list' && (
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar conversas..."
+                className="pl-10 h-10 bg-muted/30 border-muted-foreground/20 focus-visible:ring-primary"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            {/* Indicador de Filtro Ativo */}
+            {filterTagId && selectedTag && (
+              <div className="flex items-center justify-between bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg animate-in fade-in slide-in-from-top-1">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <div 
+                    className="h-2 w-2 rounded-full shrink-0" 
+                    style={{ backgroundColor: selectedTag.color.startsWith('#') ? selectedTag.color : undefined }}
+                    className={cn(!selectedTag.color.startsWith('#') && TAG_COLORS.find(c => c.name === selectedTag.color)?.selector)}
+                  />
+                  <span className="text-xs font-semibold text-primary truncate">Filtrando por: {selectedTag.name}</span>
+                </div>
+                <button onClick={() => setFilterTagId(null)} className="text-primary hover:bg-primary/20 p-0.5 rounded transition-colors">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
       <ScrollArea className="flex-1 w-full">
         <div className="flex flex-col">
-          {isLoading ? (
+          {isLoading || isLoadingTags ? (
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 p-3 border-b border-border/40">
                 <Skeleton className="h-12 w-12 rounded-full shrink-0" />
@@ -210,7 +273,47 @@ export function ConversationsList() {
                 </div>
               </div>
             ))
+          ) : viewMode === 'tags' ? (
+            /* Visão de Gerenciamento de Etiquetas */
+            <div className="p-2 space-y-1">
+              {availableTags.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground text-sm">Nenhuma etiqueta criada.</div>
+              ) : (
+                availableTags.map(tag => {
+                  const isHex = tag.color.startsWith('#');
+                  const preset = TAG_COLORS.find(c => c.name === tag.color);
+                  const count = tagCounts[tag.id] || 0;
+
+                  return (
+                    <button
+                      key={tag.id}
+                      onClick={() => {
+                        setFilterTagId(tag.id);
+                        setViewMode('list');
+                      }}
+                      className="w-full flex items-center gap-4 p-3 hover:bg-muted/50 rounded-xl transition-colors text-left group"
+                    >
+                      <div 
+                        className={cn(
+                          "h-12 w-12 rounded-full flex items-center justify-center border shadow-sm shrink-0",
+                          !isHex && preset?.selector
+                        )}
+                        style={isHex ? { backgroundColor: tag.color } : undefined}
+                      >
+                        <TagIcon className="h-5 w-5 text-white/90 fill-current opacity-60" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm text-foreground truncate">{tag.name}</p>
+                        <p className="text-xs text-muted-foreground">Itens: {count}</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-all" />
+                    </button>
+                  );
+                })
+              )}
+            </div>
           ) : filteredConversations && filteredConversations.length > 0 ? (
+            /* Lista Normal de Conversas (Filtrada ou não) */
             filteredConversations.map(conversation => (
               <ConversationItem 
                 key={conversation.id} 
@@ -220,7 +323,7 @@ export function ConversationsList() {
             ))
           ) : (
             <div className="p-8 text-center text-muted-foreground text-sm">
-              {searchTerm ? "Nenhuma conversa encontrada." : "Nenhuma conversa disponível."}
+              {searchTerm || filterTagId ? "Nenhuma conversa encontrada para os filtros." : "Nenhuma conversa disponível."}
             </div>
           )}
         </div>
