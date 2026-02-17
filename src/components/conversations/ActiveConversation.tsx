@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft } from "lucide-center";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
