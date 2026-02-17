@@ -45,9 +45,15 @@ export function useConversationsList() {
   useEffect(() => {
     if (!orgId) return;
 
+    // Escuta global para QUALQUER nova mensagem na organização para atualizar a lista lateral
     const channel = supabase
-      .channel(`list_refresh_${orgId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, () => {
+      .channel(`list_realtime_${orgId}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'mensagens' 
+      }, () => {
+        // Invalida a lista para trazer o último preview e reordenar por horário
         queryClient.invalidateQueries({ queryKey });
       })
       .subscribe();
@@ -106,19 +112,25 @@ export function useMessages(leadId: string | null) {
   useEffect(() => {
     if (!leadId || !user) return;
     
-    const channel = supabase.channel(`chat_realtime_${leadId}`)
+    // Inscrição Realtime exclusiva para o chat aberto no momento
+    const channel = supabase.channel(`active_chat_${leadId}`)
       .on('postgres_changes', 
         { 
-          event: 'INSERT', 
+          event: '*', // Escuta INSERT, UPDATE e DELETE
           schema: 'public', 
           table: 'mensagens', 
           filter: `lead_id=eq.${leadId}` 
         },
         () => {
+          // Força a atualização imediata das mensagens do chat
           queryClient.invalidateQueries({ queryKey });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Conectado ao Realtime das mensagens');
+        }
+      });
 
     return () => { supabase.removeChannel(channel); };
   }, [leadId, user, queryClient]);
@@ -144,7 +156,7 @@ export function useMessages(leadId: string | null) {
     },
     enabled: !!leadId && !!user,
     staleTime: 0,
-    gcTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -198,7 +210,6 @@ export function useSendMessage() {
       toast.error('Erro ao enviar mensagem.');
     },
     onSettled: (data, error, variables) => {
-      // Pequeno delay para garantir que o banco já tenha processado antes de invalidar
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
         queryClient.invalidateQueries({ queryKey: ['conversations'] });
