@@ -1,17 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { Search, Mic, Image as ImageIcon, Video, FileText } from "lucide-react";
+import { Link, useParams, useNavigate } from "react-router-dom";
+import { Search, Mic, Image as ImageIcon, Video, FileText, MoreVertical, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useConversationsList, Conversation } from "@/hooks/useConversations";
+import { useConversationsList, Conversation, useDeleteChat } from "@/hooks/useConversations";
 import { format, isToday, isYesterday, isValid, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { TAG_COLORS } from "@/hooks/useTags";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 
 const formatLastMessageTime = (timestamp?: string | null) => {
   if (!timestamp) return '';
@@ -48,7 +65,7 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
   );
 };
 
-const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
+const ConversationItem = ({ conversation, onDelete }: { conversation: Conversation, onDelete: (c: Conversation) => void }) => {
   const { leadId } = useParams();
   const isActive = leadId === conversation.id;
   const lastMessageTime = formatLastMessageTime(conversation.last_message_timestamp);
@@ -59,73 +76,110 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
   };
 
   return (
-    <Link
-      to={`/conversas/${conversation.id}`}
-      className={cn(
-        "flex gap-3 p-3 transition-all cursor-pointer border-b border-border/40 items-center w-full group overflow-hidden",
-        isActive ? "bg-muted border-l-4 border-l-primary" : "bg-transparent hover:bg-muted/40"
-      )}
-    >
-      <Avatar className="h-12 w-12 shrink-0 border border-border/20">
-        <AvatarFallback className={cn("text-sm font-semibold", isActive ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground")}>
-          {getInitials(conversation.nome)}
-        </AvatarFallback>
-      </Avatar>
-      
-      {/* Container de conteúdo com GRID estrito: 1fr para texto (ocupa o que sobra) e auto para o horário */}
-      <div className="flex-1 min-w-0 grid grid-rows-2 gap-y-0.5">
+    <div className="relative group">
+      <Link
+        to={`/conversas/${conversation.id}`}
+        className={cn(
+          "flex gap-3 p-3 transition-all cursor-pointer border-b border-border/40 items-center w-full overflow-hidden",
+          isActive ? "bg-muted border-l-4 border-l-primary" : "bg-transparent hover:bg-muted/40"
+        )}
+      >
+        <Avatar className="h-12 w-12 shrink-0 border border-border/20">
+          <AvatarFallback className={cn("text-sm font-semibold", isActive ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground")}>
+            {getInitials(conversation.nome)}
+          </AvatarFallback>
+        </Avatar>
         
-        {/* Linha 1: Nome + Etiquetas + Horário */}
-        <div className="flex items-center justify-between gap-2 min-w-0 overflow-hidden">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <span className="font-bold text-sm text-foreground truncate">
-              {conversation.nome || conversation.telefone}
-            </span>
+        <div className="flex-1 min-w-0 grid grid-rows-2 gap-y-0.5">
+          <div className="flex items-center justify-between gap-2 min-w-0 overflow-hidden">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <span className="font-bold text-sm text-foreground truncate">
+                {conversation.nome || conversation.telefone}
+              </span>
+              
+              <div className="flex gap-0.5 shrink-0">
+                {conversation.tags?.slice(0, 2).map(tag => {
+                  const isHex = tag.color?.startsWith('#');
+                  const preset = TAG_COLORS.find(c => c.name === tag.color);
+                  return (
+                    <div 
+                      key={tag.id} 
+                      className={cn("w-2 h-2 rounded-full border border-background shadow-xs", !isHex && preset?.selector)} 
+                      style={isHex ? { backgroundColor: tag.color } : undefined}
+                      title={tag.name}
+                    />
+                  );
+                })}
+              </div>
+            </div>
             
-            <div className="flex gap-0.5 shrink-0">
-              {conversation.tags?.slice(0, 2).map(tag => {
-                const isHex = tag.color?.startsWith('#');
-                const preset = TAG_COLORS.find(c => c.name === tag.color);
-                return (
-                  <div 
-                    key={tag.id} 
-                    className={cn("w-2 h-2 rounded-full border border-background shadow-xs", !isHex && preset?.selector)} 
-                    style={isHex ? { backgroundColor: tag.color } : undefined}
-                    title={tag.name}
-                  />
-                );
-              })}
+            <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap shrink-0">
+              {lastMessageTime || '--:--'}
+            </span>
+          </div>
+
+          <div className="min-w-0 overflow-hidden h-5">
+            <div className="text-xs w-full">
+              <MessagePreview 
+                content={conversation.last_message_content} 
+                type={conversation.last_message_type} 
+                sender={conversation.last_message_sender} 
+              />
             </div>
           </div>
-          
-          <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap shrink-0">
-            {lastMessageTime || '--:--'}
-          </span>
         </div>
+      </Link>
 
-        {/* Linha 2: Preview da Mensagem */}
-        <div className="min-w-0 overflow-hidden h-5">
-          <div className="text-xs w-full">
-            <MessagePreview 
-              content={conversation.last_message_content} 
-              type={conversation.last_message_type} 
-              sender={conversation.last_message_sender} 
-            />
-          </div>
-        </div>
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-background/80 shadow-sm">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem 
+              className="text-destructive focus:text-destructive"
+              onSelect={(e) => {
+                e.preventDefault();
+                onDelete(conversation);
+              }}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Excluir Conversa
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-    </Link>
+    </div>
   );
 };
 
 export function ConversationsList() {
+  const navigate = useNavigate();
+  const { leadId: activeLeadId } = useParams();
   const { data: conversations, isLoading } = useConversationsList();
+  const { mutate: deleteChat } = useDeleteChat();
   const [searchTerm, setSearchTerm] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<Conversation | null>(null);
 
   const filteredConversations = conversations?.filter(c =>
     (c.nome && c.nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
     c.telefone.includes(searchTerm)
   );
+
+  const handleDeleteChat = () => {
+    if (confirmDelete) {
+      deleteChat(confirmDelete.id, {
+        onSuccess: () => {
+          if (activeLeadId === confirmDelete.id) {
+            navigate('/conversas');
+          }
+          setConfirmDelete(null);
+        }
+      });
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-card border-r w-full overflow-hidden">
@@ -158,7 +212,11 @@ export function ConversationsList() {
             ))
           ) : filteredConversations && filteredConversations.length > 0 ? (
             filteredConversations.map(conversation => (
-              <ConversationItem key={conversation.id} conversation={conversation} />
+              <ConversationItem 
+                key={conversation.id} 
+                conversation={conversation} 
+                onDelete={setConfirmDelete}
+              />
             ))
           ) : (
             <div className="p-8 text-center text-muted-foreground text-sm">
@@ -167,6 +225,23 @@ export function ConversationsList() {
           )}
         </div>
       </ScrollArea>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir histórico de conversa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação apagará permanentemente todas as mensagens trocadas com <strong>{confirmDelete?.nome || confirmDelete?.telefone}</strong>. O registro do cliente no CRM continuará preservado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteChat} className="bg-destructive hover:bg-destructive/90">
+              Excluir Tudo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

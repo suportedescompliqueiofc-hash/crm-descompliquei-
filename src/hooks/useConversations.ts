@@ -44,16 +44,11 @@ export function useConversationsList() {
   useEffect(() => {
     if (!orgId) return;
     
-    console.log('useConversationsList: Tentando conectar ao Realtime para lista lateral...');
     const channel = supabase.channel('conversations-list-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, () => {
         queryClient.invalidateQueries({ queryKey: ['conversations', orgId] });
       })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('useConversationsList: Inscrição Realtime da lista ativa.');
-        }
-      });
+      .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [orgId, queryClient]);
@@ -141,6 +136,41 @@ export function useSendMessage() {
   });
 }
 
+export function useDeleteChat() {
+  const queryClient = useQueryClient();
+  const { profile } = useProfile();
+  const orgId = profile?.organization_id;
+
+  return useMutation({
+    mutationFn: async (leadId: string) => {
+      const { error } = await supabase
+        .from('mensagens')
+        .delete()
+        .eq('lead_id', leadId);
+      
+      if (error) throw error;
+      return leadId;
+    },
+    onSuccess: (leadId) => {
+      queryClient.invalidateQueries({ queryKey: ['conversations', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['messages_initial', leadId] });
+      toast.success('Conversa excluída com sucesso.');
+    },
+    onError: (err: any) => {
+      toast.error('Erro ao excluir conversa: ' + err.message);
+    }
+  });
+}
+
+export function useDeleteMessage() {
+  return useMutation({
+    mutationFn: async ({ messageId, leadId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
+      await supabase.functions.invoke('delete-message', { body: { messageId, leadId, id_mensagem } });
+      return messageId;
+    }
+  });
+}
+
 export function useSendAudioMessage() {
   const { user } = useAuth();
   const { profile } = useProfile();
@@ -149,7 +179,6 @@ export function useSendAudioMessage() {
   return useMutation({
     mutationFn: async ({ leadId, audioBlob }: { leadId: string; audioBlob: Blob }) => {
       const timestamp = Date.now();
-      // Alterado para .ogg para melhor compatibilidade com WhatsApp
       const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.ogg`;
       
       const { error: uploadError } = await supabase.storage.from('media-mensagens').upload(filePath, audioBlob);
@@ -173,15 +202,6 @@ export function useSendAudioMessage() {
     },
     onSettled: () => {
         queryClient.invalidateQueries({ queryKey: ['conversations'] });
-    }
-  });
-}
-
-export function useDeleteMessage() {
-  return useMutation({
-    mutationFn: async ({ messageId, leadId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
-      await supabase.functions.invoke('delete-message', { body: { messageId, leadId, id_mensagem } });
-      return messageId;
     }
   });
 }
