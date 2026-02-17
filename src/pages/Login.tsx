@@ -58,7 +58,7 @@ export default function Login() {
         <div className="max-w-md text-center relative z-10">
           <div className="mb-10 flex flex-col items-center">
             <img 
-              src="https://iuutktzsbdoadkqaoudq.supabase.co/storage/v1/object/public/media-mensagens/CRM/logo%20principal%20sem%20fundo%20cor%20original%202.png" 
+              src="https://guotjrwrnpsclfemwjql.supabase.co/storage/v1/object/public/media-mensagens/CRM/logo%20principal%20sem%20fundo%20cor%20original%202.png" 
               alt="Logo Monção Odontologia" 
               className="h-40 w-auto mb-6 object-contain"
             />

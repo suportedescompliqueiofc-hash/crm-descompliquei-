@@ -61,7 +61,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
           <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
             {/* Logo Icon - Sempre visível ou ajustado */}
             <img 
-              src="https://iuutktzsbdoadkqaoudq.supabase.co/storage/v1/object/public/media-mensagens/CRM/logo%20principal%20sem%20fundo%20cor%20original%202.png" 
+              src="https://guotjrwrnpsclfemwjql.supabase.co/storage/v1/object/public/media-mensagens/CRM/logo%20principal%20sem%20fundo%20cor%20original%202.png" 
               alt="Logo Monção" 
               className={`h-9 w-auto object-contain transition-all duration-300 flex-shrink-0 ${isCollapsed ? 'mx-auto' : ''}`}
             />
