@@ -149,15 +149,25 @@ export function useSendAudioMessage() {
   return useMutation({
     mutationFn: async ({ leadId, audioBlob }: { leadId: string; audioBlob: Blob }) => {
       const timestamp = Date.now();
-      const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.webm`;
+      // Alterado para .ogg para melhor compatibilidade com WhatsApp
+      const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.ogg`;
+      
       const { error: uploadError } = await supabase.storage.from('media-mensagens').upload(filePath, audioBlob);
       if (uploadError) throw uploadError;
+      
       const { data: { publicUrl } } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
+      
       await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: leadId, user_id: user?.id, tipo: 'audio', url_midia: publicUrl, telefone: lead?.telefone }),
+        body: JSON.stringify({ 
+          lead_id: leadId, 
+          user_id: user?.id, 
+          tipo: 'audio', 
+          url_midia: publicUrl, 
+          telefone: lead?.telefone 
+        }),
       });
       return null;
     },

@@ -21,7 +21,13 @@ export function useAudioRecorder(): AudioRecorderState {
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      // Tenta usar OGG Opus (padrão WhatsApp), senão WebM
+      const mimeType = MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') 
+        ? 'audio/ogg;codecs=opus' 
+        : 'audio/webm;codecs=opus';
+        
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -32,12 +38,17 @@ export function useAudioRecorder(): AudioRecorderState {
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm;codecs=opus' });
+        const blob = new Blob(chunksRef.current, { type: mimeType });
         setAudioBlob(blob);
-        stream.getTracks().forEach(track => track.stop()); // Para o uso do microfone
+        
+        // Pequeno delay antes de parar os tracks para não cortar o final do som
+        setTimeout(() => {
+          stream.getTracks().forEach(track => track.stop());
+        }, 100);
       };
 
-      mediaRecorder.start();
+      // Grava em pequenos pedaços de 200ms para garantir que o buffer não falhe
+      mediaRecorder.start(200);
       setIsRecording(true);
       setRecordingTime(0);
 
@@ -65,7 +76,6 @@ export function useAudioRecorder(): AudioRecorderState {
   const cancelRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
-      // Não salvamos o blob
       setAudioBlob(null);
       setIsRecording(false);
       if (timerRef.current) {
