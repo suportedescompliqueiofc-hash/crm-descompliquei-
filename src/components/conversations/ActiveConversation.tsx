@@ -342,11 +342,9 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
               if (item.type === 'separator') return <DateSeparator key={`sep-${index}`} dateString={item.date} />;
 
               const msg = item as Message;
-              const isOutgoing = msg.remetente === 'agente' || msg.remetente === 'bot' || msg.remetente === 'agente_crm';
+              const isOutgoing = msg.direcao === 'saida';
               
-              // Lógica de ícone HUMANO vs ROBÔ:
-              // Somente 'bot' ou áudios automáticos são considerados IA. 
-              // 'agente_crm' é você enviando pelo painel, então deve ser ícone de humano.
+              // Lógica de ícone HUMANO vs ROBÔ corrigida e robusta
               const isAi = msg.remetente === 'bot';
               
               const hasNewAttachments = msg.message_attachments && msg.message_attachments.length > 0;

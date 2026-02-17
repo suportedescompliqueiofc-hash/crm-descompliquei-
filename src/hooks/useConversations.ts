@@ -45,15 +45,9 @@ export function useConversationsList() {
   useEffect(() => {
     if (!orgId) return;
 
-    // Escuta global para QUALQUER nova mensagem na organização para atualizar a lista lateral
     const channel = supabase
       .channel(`list_realtime_${orgId}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'mensagens' 
-      }, () => {
-        // Invalida a lista para trazer o último preview e reordenar por horário
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, () => {
         queryClient.invalidateQueries({ queryKey });
       })
       .subscribe();
@@ -112,25 +106,45 @@ export function useMessages(leadId: string | null) {
   useEffect(() => {
     if (!leadId || !user) return;
     
-    // Inscrição Realtime exclusiva para o chat aberto no momento
-    const channel = supabase.channel(`active_chat_${leadId}`)
+    // SISTEMÁTICA DE REALTIME AGRESSIVA: Injeta dados no cache imediatamente
+    const channel = supabase.channel(`chat_active_${leadId}`)
       .on('postgres_changes', 
         { 
-          event: '*', // Escuta INSERT, UPDATE e DELETE
+          event: 'INSERT', 
           schema: 'public', 
           table: 'mensagens', 
           filter: `lead_id=eq.${leadId}` 
         },
-        () => {
-          // Força a atualização imediata das mensagens do chat
+        (payload) => {
+          const newMessage = payload.new as Message;
+          
+          // 1. Atualiza o cache local IMEDIATAMENTE (sem esperar o banco responder)
+          queryClient.setQueryData<Message[]>(queryKey, (oldMessages) => {
+            const currentMessages = oldMessages || [];
+            
+            // Evita duplicidade: se já existir uma mensagem (otimista ou real) com mesmo conteúdo enviada agora, remove a otimista
+            const filtered = currentMessages.filter(msg => {
+               if (msg.id.startsWith('temp-') && msg.conteudo === newMessage.conteudo) return false;
+               if (msg.id === newMessage.id) return false;
+               return true;
+            });
+
+            return [...filtered, newMessage];
+          });
+
+          // 2. Força um refetch silencioso para garantir que anexos sejam carregados
           queryClient.invalidateQueries({ queryKey });
         }
       )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Conectado ao Realtime das mensagens');
+      .on('postgres_changes', 
+        { event: 'DELETE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` },
+        (payload) => {
+          queryClient.setQueryData<Message[]>(queryKey, (old) => 
+            (old || []).filter(m => m.id !== payload.old.id)
+          );
         }
-      });
+      )
+      .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [leadId, user, queryClient]);
@@ -155,8 +169,7 @@ export function useMessages(leadId: string | null) {
       })) as Message[];
     },
     enabled: !!leadId && !!user,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 0, // Garante que os dados estejam sempre "frescos" para o Realtime atuar
   });
 }
 
@@ -174,7 +187,7 @@ export function useSendMessage() {
         body: JSON.stringify({ lead_id: leadId, user_id: user?.id, conteudo_mensagem: content, telefone: lead?.telefone }),
       });
 
-      if (!response.ok) throw new Error("Falha ao enviar mensagem");
+      if (!response.ok) throw new Error("Falha ao enviar");
       return null;
     },
     onMutate: async ({ leadId, content }) => {
@@ -189,7 +202,7 @@ export function useSendMessage() {
         user_id: user?.id || null,
         conteudo: content,
         direcao: 'saida',
-        remetente: 'agente_crm',
+        remetente: 'agente_crm', // HUMANO
         tipo_conteudo: 'texto',
         criado_em: new Date().toISOString(),
         media_path: null,
@@ -197,9 +210,7 @@ export function useSendMessage() {
         message_attachments: []
       };
 
-      if (previousMessages) {
-        queryClient.setQueryData<Message[]>(queryKey, [...previousMessages, optimisticMessage]);
-      }
+      queryClient.setQueryData<Message[]>(queryKey, (old) => [...(old || []), optimisticMessage]);
 
       return { previousMessages };
     },
@@ -207,13 +218,11 @@ export function useSendMessage() {
       if (context?.previousMessages) {
         queryClient.setQueryData(['messages_v6', variables.leadId], context.previousMessages);
       }
-      toast.error('Erro ao enviar mensagem.');
     },
     onSettled: (data, error, variables) => {
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
-        queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      }, 1000);
+      // Sincronização final rápida
+      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
     }
   });
 }
@@ -243,9 +252,7 @@ export function useSendAudioMessage() {
       return null;
     },
     onSettled: (data, error, variables) => {
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
-      }, 1000);
+      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
     }
   });
 }
