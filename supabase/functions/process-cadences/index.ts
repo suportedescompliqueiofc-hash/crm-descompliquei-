@@ -7,7 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/botoes-crm-gleyce';
+// URL do Webhook específica para Cadências conforme solicitado
+const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/fluxo-cadencia-gleyce';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -25,7 +26,7 @@ serve(async (req) => {
       .from('lead_cadencias')
       .select(`
         *,
-        leads (id, nome, telefone),
+        leads (id, nome, telefone, usuario_id),
         cadencias (
           id,
           passos:cadencia_passos (*)
@@ -50,7 +51,6 @@ serve(async (req) => {
         const currentStep = allSteps.find((s: any) => s.posicao_ordem === (item.passo_atual_ordem + 1));
 
         if (!currentStep) {
-          // Se não tem mais passos, finaliza
           await supabaseAdmin.from('lead_cadencias').update({ status: 'concluido' }).eq('id', item.id);
           continue;
         }
@@ -64,6 +64,7 @@ serve(async (req) => {
 
         const personalizedMessage = (currentStep.conteudo || '').replace(/\{\{nome_lead\}\}/g, lead.nome || 'Cliente');
 
+        // Payload idêntico ao das mensagens rápidas, incluindo user_id
         const payload = {
           lead_id: lead.id,
           mensagem: personalizedMessage,
@@ -71,6 +72,7 @@ serve(async (req) => {
           url_midia: url_midia,
           titulo_pdf: currentStep.tipo_mensagem === 'pdf' ? currentStep.nome || 'Documento' : null,
           telefone: lead.telefone,
+          user_id: lead.usuario_id, // Incluindo o dono do lead como remetente
           remetente: 'bot'
         };
 
@@ -82,40 +84,50 @@ serve(async (req) => {
 
         if (!response.ok) throw new Error(`Webhook Error: ${response.status}`);
 
-        // --- AGENDAMENTO DO PRÓXIMO PASSO ---
+        // --- AGENDAMENTO DO PRÓXIMO PASSO E LOG DE SUCESSO ---
         const nextStep = allSteps.find((s: any) => s.posicao_ordem === (currentStep.posicao_ordem + 1));
         
+        const now = new Date();
+        let nextDate = null;
+        let finalStatus = item.status;
+
         if (nextStep) {
-          const now = new Date();
-          let nextDate = now;
-          
+          nextDate = now;
           if (nextStep.unidade_tempo === 'minutos') nextDate = addMinutes(now, nextStep.tempo_espera);
           else if (nextStep.unidade_tempo === 'horas') nextDate = addHours(now, nextStep.tempo_espera);
           else nextDate = addDays(now, nextStep.tempo_espera);
-
-          await supabaseAdmin
-            .from('lead_cadencias')
-            .update({ 
-              passo_atual_ordem: currentStep.posicao_ordem, 
-              proxima_execucao: nextDate.toISOString() 
-            })
-            .eq('id', item.id);
+          nextDate = nextDate.toISOString();
         } else {
-          // Fim do fluxo
-          await supabaseAdmin
-            .from('lead_cadencias')
-            .update({ 
-              passo_atual_ordem: currentStep.posicao_ordem, 
-              status: 'concluido',
-              proxima_execucao: null
-            })
-            .eq('id', item.id);
+          finalStatus = 'concluido';
         }
+
+        await supabaseAdmin
+          .from('lead_cadencias')
+          .update({ 
+            passo_atual_ordem: currentStep.posicao_ordem, 
+            proxima_execucao: nextDate,
+            status: finalStatus,
+            ultima_execucao: now.toISOString(),
+            status_ultima_execucao: 'sucesso',
+            erro_log: null
+          })
+          .eq('id', item.id);
 
         results.push({ lead_id: lead.id, step: currentStep.posicao_ordem, status: 'sent' });
 
       } catch (err) {
         console.error(`Error processing lead ${item.lead_id}:`, err.message);
+        
+        // Log de Erro no Banco para a UI mostrar
+        await supabaseAdmin
+          .from('lead_cadencias')
+          .update({ 
+            ultima_execucao: new Date().toISOString(),
+            status_ultima_execucao: 'erro',
+            erro_log: err.message
+          })
+          .eq('id', item.id);
+
         results.push({ lead_id: item.lead_id, status: 'error', error: err.message });
       }
     }

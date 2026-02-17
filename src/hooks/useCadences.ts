@@ -158,7 +158,9 @@ export function useLeadCadence(leadId: string | undefined) {
                     cadencia_id: cadenceId,
                     passo_atual_ordem: 0, // Vai executar o passo 1
                     status: 'ativo',
-                    proxima_execucao: executionDate.toISOString()
+                    proxima_execucao: executionDate.toISOString(),
+                    status_ultima_execucao: null,
+                    erro_log: null
                 }, { onConflict: 'lead_id,cadencia_id' });
 
             if (error) throw error;

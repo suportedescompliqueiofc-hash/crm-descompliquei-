@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GitMerge, Check, ChevronsUpDown, Loader2, Play, StopCircle, Clock } from "lucide-react";
+import { GitMerge, Check, ChevronsUpDown, Loader2, Play, StopCircle, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -7,6 +7,7 @@ import { useCadences, useLeadCadence } from "@/hooks/useCadences";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface CadenceLeadSelectorProps {
   leadId: string;
@@ -47,14 +48,43 @@ export function CadenceLeadSelector({ leadId }: CadenceLeadSelectorProps) {
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="end">
         {activeCadence ? (
-          <div className="p-4 space-y-3">
+          <div className="p-4 space-y-4">
             <div className="space-y-1">
               <h4 className="text-sm font-bold flex items-center gap-2">
                 <Check className="h-4 w-4 text-emerald-500" /> {activeCadence.cadencias?.nome}
               </h4>
               <p className="text-[11px] text-muted-foreground">O fluxo de mensagens automáticas está em andamento para este cliente.</p>
             </div>
+
+            {/* Informação do Último Envio */}
+            {activeCadence.ultima_execucao && (
+              <div className={cn(
+                "p-2 rounded-md border text-xs flex flex-col gap-1",
+                activeCadence.status_ultima_execucao === 'sucesso' 
+                  ? "bg-emerald-50 border-emerald-100 text-emerald-700" 
+                  : "bg-red-50 border-red-100 text-red-700"
+              )}>
+                <div className="flex items-center justify-between font-semibold">
+                  <div className="flex items-center gap-1.5">
+                    {activeCadence.status_ultima_execucao === 'sucesso' 
+                      ? <CheckCircle2 className="h-3 w-3" /> 
+                      : <AlertCircle className="h-3 w-3" />
+                    }
+                    <span>Passo {activeCadence.passo_atual_ordem} enviado</span>
+                  </div>
+                  <span className="text-[10px] opacity-70">
+                    {format(parseISO(activeCadence.ultima_execucao), "HH:mm", { locale: ptBR })}
+                  </span>
+                </div>
+                {activeCadence.status_ultima_execucao === 'erro' && activeCadence.erro_log && (
+                  <p className="text-[10px] italic leading-tight mt-0.5 line-clamp-2">
+                    Erro: {activeCadence.erro_log}
+                  </p>
+                )}
+              </div>
+            )}
             
+            {/* Informação do Próximo Envio */}
             {activeCadence.proxima_execucao && (
                 <div className="bg-muted/50 p-2 rounded-md flex items-center gap-2 text-xs">
                     <Clock className="h-3.5 w-3.5 text-primary" />
