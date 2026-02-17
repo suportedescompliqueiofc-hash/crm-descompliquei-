@@ -18,7 +18,7 @@ import {
   useDroppable,
   defaultDropAnimationSideEffects,
   DropAnimation
-} from "@nd-kit/core";
+} from "@dnd-kit/core";
 import { 
   SortableContext, 
   verticalListSortingStrategy,
