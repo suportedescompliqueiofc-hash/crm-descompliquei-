@@ -18,7 +18,7 @@ import {
   useDroppable,
   defaultDropAnimationSideEffects,
   DropAnimation
-} from "@dnd-kit/core";
+} from "@nd-kit/core";
 import { 
   SortableContext, 
   verticalListSortingStrategy,
@@ -61,10 +61,10 @@ function StageColumn({
   onUpdateLead: (leadId: string, updates: Partial<Lead>) => void 
 }) {
   const { setNodeRef, isOver } = useDroppable({
-    id: `stage-${stage.posicao_ordem}`, // ID agora é baseado na ordem
+    id: `stage-${stage.posicao_ordem}`,
     data: {
       type: 'Column',
-      stageOrder: stage.posicao_ordem // Passando a ordem
+      stageOrder: stage.posicao_ordem
     }
   });
 
@@ -207,9 +207,6 @@ function LeadCard({
             <Badge variant="outline" className="text-xs font-normal max-w-[120px] truncate">
               {lead.origem || 'Sem origem'}
             </Badge>
-            <div className="flex items-center gap-2">
-               <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-            </div>
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium text-sm text-muted-foreground">{lastContactTime}</span>
@@ -298,34 +295,34 @@ function LeadCard({
 
 export default function Pipeline() {
   const today = new Date();
-  const initialDateRange: DateRange = { 
+  const initialDateRange = useMemo(() => ({ 
     from: startOfMonth(today), 
     to: endOfMonth(today) 
-  };
+  }), []);
+  
   const [dateRange, setDateRange] = useState<DateRange | undefined>(initialDateRange);
   const [activeTab, setActiveTab] = useState("kanban");
   
   const { leads, isLoading: leadsLoading, updateLead } = useLeads(dateRange);
   const { stages, isLoading: stagesLoading } = useStages();
   
-  // Estado local otimista para UI fluida
+  // Estado local para DnD
   const [optimisticLeads, setOptimisticLeads] = useState<Lead[]>([]);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
-  
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Sincroniza o estado local com o backend quando os dados chegam
+  // Sincronização Segura: Apenas quando os leads mudam e não estamos carregando
   useEffect(() => {
-    if (leads) {
+    if (leads && !leadsLoading) {
       setOptimisticLeads(leads);
     }
-  }, [leads]);
+  }, [leads, leadsLoading]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // 5px para evitar cliques acidentais mas ser responsivo
+        distance: 5,
       },
     })
   );
@@ -342,7 +339,6 @@ export default function Pipeline() {
 
     const activeId = active.id;
     const overId = over.id;
-
     if (activeId === overId) return;
 
     const isActiveALead = active.data.current?.type === 'Lead';
@@ -351,40 +347,35 @@ export default function Pipeline() {
 
     if (!isActiveALead) return;
 
-    // Cenário 1: Arrastando sobre outro Lead (Reordenação ou mudança de coluna)
     if (isActiveALead && isOverALead) {
-      setOptimisticLeads((leads) => {
-        const activeIndex = leads.findIndex((l) => l.id === activeId);
-        const overIndex = leads.findIndex((l) => l.id === overId);
+      setOptimisticLeads((prev) => {
+        const activeIndex = prev.findIndex((l) => l.id === activeId);
+        const overIndex = prev.findIndex((l) => l.id === overId);
         
-        if (leads[activeIndex].posicao_pipeline !== leads[overIndex].posicao_pipeline) {
-          // Mudou de coluna: Atualiza a posicao_pipeline
-          const newLeads = [...leads];
+        if (prev[activeIndex].posicao_pipeline !== prev[overIndex].posicao_pipeline) {
+          const newLeads = [...prev];
           newLeads[activeIndex] = {
             ...newLeads[activeIndex],
-            posicao_pipeline: leads[overIndex].posicao_pipeline // USA POSICAO AGORA
+            posicao_pipeline: prev[overIndex].posicao_pipeline
           };
           return arrayMove(newLeads, activeIndex, overIndex);
         }
-        
-        return arrayMove(leads, activeIndex, overIndex);
+        return arrayMove(prev, activeIndex, overIndex);
       });
     }
 
-    // Cenário 2: Arrastando sobre uma Coluna
     if (isActiveALead && isOverAColumn) {
-      setOptimisticLeads((leads) => {
-        const activeIndex = leads.findIndex((l) => l.id === activeId);
-        const newStageOrder = over.data.current?.stageOrder; // USA ORDER AGORA
+      setOptimisticLeads((prev) => {
+        const activeIndex = prev.findIndex((l) => l.id === activeId);
+        const newStageOrder = over.data.current?.stageOrder;
+        if (prev[activeIndex].posicao_pipeline === newStageOrder) return prev;
 
-        if (leads[activeIndex].posicao_pipeline === newStageOrder) return leads;
-
-        const newLeads = [...leads];
+        const newLeads = [...prev];
         newLeads[activeIndex] = {
           ...newLeads[activeIndex],
           posicao_pipeline: newStageOrder
         };
-        return arrayMove(newLeads, activeIndex, activeIndex);
+        return newLeads;
       });
     }
   };
@@ -392,12 +383,9 @@ export default function Pipeline() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveLead(null);
-
     if (!over) return;
 
     const leadId = active.id as string;
-    
-    // Identificar a nova posição
     let newStageOrder: number | undefined;
 
     if (over.data.current?.type === 'Column') {
@@ -408,9 +396,7 @@ export default function Pipeline() {
     }
 
     const originalLead = leads.find(l => l.id === leadId);
-    
     if (newStageOrder && originalLead && originalLead.posicao_pipeline !== newStageOrder) {
-      // Persiste a mudança usando posicao_pipeline
       updateLead({ id: leadId, posicao_pipeline: newStageOrder });
     } else {
         setOptimisticLeads(leads);
@@ -436,7 +422,6 @@ export default function Pipeline() {
 
   return (
     <div className="space-y-6 h-full flex flex-col">
-      {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 flex-shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Pipeline de Vendas</h1>
@@ -444,14 +429,6 @@ export default function Pipeline() {
         </div>
         <div className="flex flex-wrap gap-4 items-center">
           <DateRangePicker date={dateRange} setDate={setDateRange} />
-          {activeTab === 'kanban' && (
-            <Card className="shadow-sm">
-              <CardContent className="p-4">
-                <p className="text-sm text-muted-foreground">Total de Leads</p>
-                <p className="text-2xl font-bold text-foreground">{optimisticLeads.length}</p>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
 
@@ -464,24 +441,17 @@ export default function Pipeline() {
         </div>
 
         <TabsContent value="kanban" className="flex-1 h-full overflow-hidden">
-          {/* Kanban Board */}
           <DndContext 
             sensors={sensors} 
             collisionDetection={closestCenter}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
-            measuring={{
-              droppable: {
-                strategy: 1, // AlwaysMeasureStrategy
-              }
-            }}
           >
             <div className="overflow-x-auto pb-4 h-full">
               <div className="flex gap-4 min-w-max h-full pb-2 px-1">
                 {stages.map((stage) => {
                   const stageLeads = optimisticLeads.filter(l => l.posicao_pipeline === stage.posicao_ordem);
-                  
                   return (
                     <StageColumn 
                       key={stage.id} 
@@ -494,24 +464,16 @@ export default function Pipeline() {
                 })}
               </div>
             </div>
-
             <DragOverlay dropAnimation={dropAnimation}>
-              {activeLead ? (
-                <LeadCard 
-                  lead={activeLead} 
-                  isOverlay 
-                />
-              ) : null}
+              {activeLead ? <LeadCard lead={activeLead} isOverlay /> : null}
             </DragOverlay>
           </DndContext>
         </TabsContent>
-
         <TabsContent value="metrics" className="flex-1 overflow-y-auto">
           <FunnelMetricsTab dateRange={dateRange} />
         </TabsContent>
       </Tabs>
 
-      {/* Lead Modal */}
       <LeadModal
         open={modalOpen}
         onOpenChange={(open) => {
