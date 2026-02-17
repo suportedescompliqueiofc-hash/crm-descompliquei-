@@ -106,7 +106,6 @@ export function useMessages(leadId: string | null) {
   useEffect(() => {
     if (!leadId || !user) return;
     
-    // Inscrição Realtime robusta para mensagens específicas do lead
     const channel = supabase.channel(`chat_realtime_${leadId}`)
       .on('postgres_changes', 
         { 
@@ -116,7 +115,6 @@ export function useMessages(leadId: string | null) {
           filter: `lead_id=eq.${leadId}` 
         },
         () => {
-          // Quando uma nova mensagem entra no banco, recarregamos a lista
           queryClient.invalidateQueries({ queryKey });
         }
       )
@@ -145,8 +143,8 @@ export function useMessages(leadId: string | null) {
       })) as Message[];
     },
     enabled: !!leadId && !!user,
-    // Mantemos os dados otimistas até o refetch completar
-    placeholderData: (previousData) => previousData,
+    staleTime: 0,
+    gcTime: 1000 * 60 * 5,
   });
 }
 
@@ -164,10 +162,9 @@ export function useSendMessage() {
         body: JSON.stringify({ lead_id: leadId, user_id: user?.id, conteudo_mensagem: content, telefone: lead?.telefone }),
       });
 
-      if (!response.ok) throw new Error("Falha ao enviar mensagem via servidor");
+      if (!response.ok) throw new Error("Falha ao enviar mensagem");
       return null;
     },
-    // ATUALIZAÇÃO OTIMISTA: Insere a mensagem na UI antes mesmo do servidor responder
     onMutate: async ({ leadId, content }) => {
       const queryKey = ['messages_v6', leadId];
       await queryClient.cancelQueries({ queryKey });
@@ -195,16 +192,17 @@ export function useSendMessage() {
       return { previousMessages };
     },
     onError: (err, variables, context) => {
-      // Reverte o estado em caso de erro
       if (context?.previousMessages) {
         queryClient.setQueryData(['messages_v6', variables.leadId], context.previousMessages);
       }
       toast.error('Erro ao enviar mensagem.');
     },
     onSettled: (data, error, variables) => {
-      // Força a sincronização com o banco de dados
-      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      // Pequeno delay para garantir que o banco já tenha processado antes de invalidar
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      }, 1000);
     }
   });
 }
@@ -219,7 +217,6 @@ export function useSendAudioMessage() {
       const timestamp = Date.now();
       const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.webm`;
       
-      // Upload do áudio
       const { error: uploadError } = await supabase.storage.from('media-mensagens').upload(filePath, audioBlob);
       if (uploadError) throw uploadError;
 
@@ -234,12 +231,10 @@ export function useSendAudioMessage() {
       
       return null;
     },
-    onMutate: async ({ leadId }) => {
-      // Para áudio, mostramos um indicador de "enviando" ou apenas invalidamos rápido
-      await queryClient.cancelQueries({ queryKey: ['messages_v6', leadId] });
-    },
     onSettled: (data, error, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
+      }, 1000);
     }
   });
 }

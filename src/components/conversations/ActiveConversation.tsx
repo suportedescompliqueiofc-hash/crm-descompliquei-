@@ -343,8 +343,11 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
 
               const msg = item as Message;
               const isOutgoing = msg.remetente === 'agente' || msg.remetente === 'bot' || msg.remetente === 'agente_crm';
-              // Força mensagens de áudio enviadas a serem identificadas como IA (robô)
-              const isAi = msg.remetente === 'bot' || msg.remetente === 'agente_crm' || (msg.tipo_conteudo === 'audio' && isOutgoing);
+              
+              // Lógica de ícone HUMANO vs ROBÔ:
+              // Somente 'bot' ou áudios automáticos são considerados IA. 
+              // 'agente_crm' é você enviando pelo painel, então deve ser ícone de humano.
+              const isAi = msg.remetente === 'bot';
               
               const hasNewAttachments = msg.message_attachments && msg.message_attachments.length > 0;
               const legacyAttachmentIndex = msg.conteudo?.toLowerCase().indexOf('attachments:');
@@ -355,7 +358,6 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                 caption = msg.conteudo.substring(0, legacyAttachmentIndex).trim();
               }
 
-              // Renderização do balão estilo WhatsApp
               return (
                 <div key={msg.id} className={cn("group relative flex flex-col gap-0.5 py-0.5", isOutgoing ? "items-end" : "items-start")}>
                   <div className={cn("flex items-end gap-2 max-w-[90%] sm:max-w-[85%]", isOutgoing ? "flex-row-reverse" : "flex-row")}>
@@ -381,7 +383,6 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                       <div className="mb-1 space-y-1">
                         {hasNewAttachments && msg.message_attachments!.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}
                         {hasLegacyAttachments && <LegacyAttachmentRenderer content={msg.conteudo} isOutgoing={isOutgoing} />}
-                        {/* Fallback de áudio antigo se tipo_conteudo for audio mas não tiver anexo novo */}
                         {msg.tipo_conteudo === 'audio' && !hasNewAttachments && !hasLegacyAttachments && msg.conteudo && (
                             <AudioMessage filePath={msg.conteudo} variant={isOutgoing ? 'outgoing' : 'incoming'} />
                         )}
