@@ -7,8 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
@@ -177,6 +175,125 @@ export type Database = {
           usuario_id?: string
         }
         Relationships: []
+      }
+      cadencias: {
+        Row: {
+          id: string
+          organization_id: string
+          nome: string
+          descricao: string | null
+          criado_em: string
+          atualizado_em: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          nome: string
+          descricao?: string | null
+          criado_em?: string
+          atualizado_em?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          nome?: string
+          descricao?: string | null
+          criado_em?: string
+          atualizado_em?: string
+        }
+        Relationships: []
+      }
+      cadencia_passos: {
+        Row: {
+          id: string
+          cadencia_id: string
+          posicao_ordem: number
+          tempo_espera: number
+          unidade_tempo: string
+          tipo_mensagem: string
+          conteudo: string | null
+          arquivo_path: string | null
+          criado_em: string
+        }
+        Insert: {
+          id?: string
+          cadencia_id: string
+          posicao_ordem: number
+          tempo_espera?: number
+          unidade_tempo?: string
+          tipo_mensagem?: string
+          conteudo?: string | null
+          arquivo_path?: string | null
+          criado_em?: string
+        }
+        Update: {
+          id?: string
+          cadencia_id?: string
+          posicao_ordem?: number
+          tempo_espera?: number
+          unidade_tempo?: string
+          tipo_mensagem?: string
+          conteudo?: string | null
+          arquivo_path?: string | null
+          criado_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cadencia_passos_cadencia_id_fkey"
+            columns: ["cadencia_id"]
+            isOneToOne: false
+            referencedRelation: "cadencias"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      lead_cadencias: {
+        Row: {
+          id: string
+          organization_id: string
+          lead_id: string
+          cadencia_id: string
+          passo_atual_ordem: number | null
+          status: string | null
+          proxima_execucao: string | null
+          criado_em: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          lead_id: string
+          cadencia_id: string
+          passo_atual_ordem?: number | null
+          status?: string | null
+          proxima_execucao?: string | null
+          criado_em?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          lead_id?: string
+          cadencia_id?: string
+          passo_atual_ordem?: number | null
+          status?: string | null
+          proxima_execucao?: string | null
+          criado_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_cadencias_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_cadencias_cadencia_id_fkey"
+            columns: ["cadencia_id"]
+            isOneToOne: false
+            referencedRelation: "cadencias"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       configuracoes_clinica: {
         Row: {
@@ -505,7 +622,7 @@ export type Database = {
         Update: {
           criado_em?: string
           id?: string
-          papel?: Database["public"]["Enums"]["app_role"]
+          papel: Database["public"]["Enums"]["app_role"]
           usuario_id?: string
         }
         Relationships: []
