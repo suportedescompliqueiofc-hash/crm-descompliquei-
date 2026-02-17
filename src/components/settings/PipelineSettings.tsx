@@ -142,7 +142,7 @@ export function PipelineSettings() {
   };
 
   const handleSeedStages = async () => {
-    if (!confirm("Isso irá redefinir os nomes e cores das suas etapas para o padrão da Clínica Monção. Seus leads serão mantidos, mas as etapas podem mudar de nome. Deseja continuar?")) return;
+    if (!confirm("Isso irá redefinir os nomes e cores das suas etapas para o padrão do Escritório. Seus leads serão mantidos, mas as etapas podem mudar de nome. Deseja continuar?")) return;
 
     setIsResetting(true);
     try {
@@ -169,7 +169,7 @@ export function PipelineSettings() {
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2" onClick={handleSeedStages} disabled={isResetting}>
             <Sparkles className="h-4 w-4 text-primary" />
-            {isResetting ? "Aplicando..." : "Padrão Clínica"}
+            {isResetting ? "Aplicando..." : "Padrão Escritório"}
           </Button>
           <Button className="gap-2" onClick={() => openModal()}>
             <Plus className="h-4 w-4" />
