@@ -1,3 +1,4 @@
+Área/Serviço)">
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useLeads } from "@/hooks/useLeads";
 import { useStages, Stage } from "@/hooks/useStages";
 import MaskedInput, { PhoneInput, CpfInput } from "@/components/MaskedInput";
-import { User, Mail, Phone, DollarSign, MapPin, Tag, Clock, MessageSquare, Pencil, MessageCircle, HeartPulse, Globe } from "lucide-react";
+import { User, Mail, Phone, DollarSign, MapPin, Tag, Clock, MessageSquare, Pencil, MessageCircle, Briefcase, Globe } from "lucide-react";
 import { parse, format, differenceInYears, isValid, startOfDay, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,7 +92,7 @@ const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[
         <CardContent className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" /><span className="font-medium">{lead.telefone}</span></div>
           {lead.email && <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /><span>{lead.email}</span></div>}
-          {lead.procedimento_interesse && <div className="flex items-center gap-2 col-span-2"><HeartPulse className="h-4 w-4 text-muted-foreground" /><span className="font-medium text-primary">{lead.procedimento_interesse}</span></div>}
+          {lead.procedimento_interesse && <div className="flex items-center gap-2 col-span-2"><Briefcase className="h-4 w-4 text-muted-foreground" /><span className="font-medium text-primary">{lead.procedimento_interesse}</span></div>}
           
           <div className="flex items-center gap-2">
             <Globe className="h-4 w-4 text-muted-foreground" />
@@ -150,11 +151,11 @@ const FormContent = ({ formData, handleInputChange, handleSubmit, stages, handle
         <div><Label>Endereço</Label><Input value={formData.endereco} onChange={(e) => handleInputChange('endereco', e.target.value)} /></div>
       </div>
       <div>
-        <Label>Procedimento de Interesse</Label>
+        <Label>Área de Interesse / Serviço</Label>
         <Input 
           value={formData.procedimento_interesse} 
           onChange={(e) => handleInputChange('procedimento_interesse', e.target.value)} 
-          placeholder="Ex: Harmonização, Botox, Clareamento..."
+          placeholder="Ex: Divórcio, Pensão, Inventário, Trabalhista..."
         />
       </div>
       <div><Label>Resumo do Atendimento (IA)</Label><Textarea value={formData.resumo} onChange={(e) => handleInputChange('resumo', e.target.value)} placeholder="Resumo gerado pela IA..." /></div>
@@ -376,7 +377,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
                   className="bg-success hover:bg-success/90 text-success-foreground"
                 >
                   <DollarSign className="h-4 w-4 mr-2" />
-                  Fechar Venda
+                  Fechar Contrato
                 </Button>
               )}
               <Button type="button" variant="secondary" onClick={handleOpenConversation} className="bg-secondary hover:bg-secondary/90 text-secondary-foreground">

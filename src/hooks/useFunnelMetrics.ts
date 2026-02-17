@@ -22,8 +22,8 @@ const SALES_FUNNEL_STAGES = [
   { name: "Qualificação", color: "#64748b", order: 2 },
   { name: "Coletando Informações", color: "#a8a29e", order: 3 },
   { name: "Agendamento Solicitado", color: "#C5A47E", order: 4 },
-  { name: "Agendado", color: "#4ade80", order: 5 },
-  { name: "Procedimento Fechado", color: "#15803d", order: 6 }
+  { name: "Reunião Agendada", color: "#4ade80", order: 5 },
+  { name: "Contrato Fechado", color: "#15803d", order: 6 }
 ];
 
 export function useFunnelMetrics(dateRange: DateRange | undefined, origin: 'marketing' | 'organico' = 'marketing') {

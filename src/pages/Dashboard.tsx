@@ -99,7 +99,7 @@ export default function Dashboard() {
     { title: "Leads Marketing", value: (metrics.marketingLeads || 0).toString(), icon: Megaphone, description: "Origem Marketing (Ads)" },
     { title: "Leads Orgânico", value: (metrics.organicLeads || 0).toString(), icon: Users, description: "Indicação, Manual..." },
     { title: "Taxa de Conversão", value: `${metrics.conversionRate}%`, icon: TrendingUp, description: "Funil de vendas" },
-    { title: "Faturamento", value: `R$ ${metrics.faturamentoTotal.toLocaleString('pt-BR')}`, icon: DollarSign, description: "Vendas fechadas" },
+    { title: "Faturamento", value: `R$ ${metrics.faturamentoTotal.toLocaleString('pt-BR')}`, icon: DollarSign, description: "Contratos fechados" },
     { title: "CAC Global", value: `R$ ${metrics.cac.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: Calculator, description: "Custo por Aquisição" },
   ];
 
@@ -108,7 +108,7 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Painel de Controle</h1>
-          <p className="text-muted-foreground mt-1">Visão geral do desempenho da sua clínica.</p>
+          <p className="text-muted-foreground mt-1">Visão geral do desempenho do seu escritório.</p>
         </div>
         <DateRangePicker date={dateRange} setDate={setDateRange} />
       </div>

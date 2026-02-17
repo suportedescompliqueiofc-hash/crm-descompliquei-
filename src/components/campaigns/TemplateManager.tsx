@@ -219,7 +219,7 @@ export function TemplateManager() {
                 <Input
                   value={formData.nome}
                   onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  placeholder="Ex: Follow-up Orçamento"
+                  placeholder="Ex: Follow-up Honorários"
                 />
               </div>
               <div className="space-y-2">
@@ -227,7 +227,7 @@ export function TemplateManager() {
                 <Input
                   value={formData.categoria}
                   onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
-                  placeholder="Ex: Follow-up"
+                  placeholder="Ex: Financeiro"
                 />
               </div>
             </div>

@@ -1,3 +1,4 @@
+Área/Serviço)">
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { Search, Filter, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -272,9 +273,9 @@ export default function Leads() {
                 <Input value={filters.fonte} onChange={(e) => handleFilterChange('fonte', e.target.value)} placeholder="Ex: Facebook" />
               </div>
               <div>
-                <Label>Procedimento</Label>
+                <Label>Área/Serviço</Label>
                 <Input 
-                  placeholder="Ex: Botox" 
+                  placeholder="Ex: Divórcio" 
                   value={filters.procedimento} 
                   onChange={(e) => handleFilterChange('procedimento', e.target.value)} 
                 />
@@ -328,7 +329,7 @@ export default function Leads() {
                 {/* Removido Idade/Gênero */}
                 <TableHead>Origem</TableHead>
                 <TableHead>Fonte</TableHead>
-                <TableHead>Procedimento</TableHead>
+                <TableHead>Área/Serviço</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Etapa</TableHead>
                 <TableHead>Data de Cadastro</TableHead>

@@ -116,7 +116,7 @@ export function TeamSettings() {
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Gestão de Equipe</CardTitle>
-          <CardDescription>Gerencie quem tem acesso ao sistema da sua clínica.</CardDescription>
+          <CardDescription>Gerencie quem tem acesso ao sistema do seu escritório.</CardDescription>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={() => refetch()} title="Recarregar lista">
@@ -152,8 +152,8 @@ export function TeamSettings() {
                   <Select value={newUser.role} onValueChange={v => setNewUser({...newUser, role: v})}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="atendente">Atendente</SelectItem>
-                      <SelectItem value="dentista">Dentista</SelectItem>
+                      <SelectItem value="atendente">Secretária(o) / Atendente</SelectItem>
+                      <SelectItem value="dentista">Advogado(a)</SelectItem>
                       <SelectItem value="admin">Administrador</SelectItem>
                     </SelectContent>
                   </Select>
@@ -186,7 +186,7 @@ export function TeamSettings() {
                 <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Users className="h-8 w-8 opacity-50" />
-                    <p>Nenhum membro encontrado ou clínica não configurada.</p>
+                    <p>Nenhum membro encontrado ou escritório não configurado.</p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -202,7 +202,7 @@ export function TeamSettings() {
                   </TableCell>
                   <TableCell>
                     <Badge variant={member.role === 'admin' ? 'default' : 'secondary'}>
-                      {member.role === 'admin' ? 'Administrador' : member.role === 'dentista' ? 'Dentista' : 'Atendente'}
+                      {member.role === 'admin' ? 'Administrador' : member.role === 'dentista' ? 'Advogado(a)' : 'Secretária(o)'}
                     </Badge>
                   </TableCell>
                   <TableCell>
