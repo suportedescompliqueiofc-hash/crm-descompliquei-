@@ -10,12 +10,11 @@ export interface CadenceLog {
   id: string;
   lead_id: string;
   cadencia_id: string;
-  passo_atual_ordem: number;
-  status: string;
-  proxima_execucao: string | null;
-  ultima_execucao: string | null;
-  status_ultima_execucao: 'sucesso' | 'erro' | null;
-  erro_log: string | null;
+  passo_ordem: number;
+  status: 'sucesso' | 'erro';
+  mensagem_erro: string | null;
+  enviado_em: string;
+  // Dados do Join
   leads: {
     nome: string | null;
     telefone: string;
@@ -32,51 +31,60 @@ export function useCadenceMonitoring(dateRange?: DateRange) {
   const queryClient = useQueryClient();
 
   const { data: logs = [], isLoading } = useQuery({
-    queryKey: ['cadence_monitoring', orgId, dateRange],
+    queryKey: ['cadence_monitoring_history', orgId, dateRange],
     queryFn: async () => {
       if (!user || !orgId) return [];
       
-      // JOIN explícito usando os nomes das FKs para evitar erro PGRST200 (ambiguidade)
+      // Consultando a tabela de LOGS HISTÓRICOS
+      // Usamos a sintaxe !nome_da_tabela para garantir que o Supabase encontre a FK correta
       let query = supabase
-        .from('lead_cadencias')
+        .from('cadencia_logs')
         .select(`
-          *,
-          leads!lead_cadencias_lead_id_fkey (nome, telefone),
-          cadencias!lead_cadencias_cadencia_id_fkey (nome)
+          id,
+          lead_id,
+          cadencia_id,
+          passo_ordem,
+          status,
+          mensagem_erro,
+          enviado_em,
+          leads (nome, telefone),
+          cadencias (nome)
         `)
         .eq('organization_id', orgId)
-        .order('ultima_execucao', { ascending: false, nullsFirst: false });
+        .order('enviado_em', { ascending: false });
 
       if (dateRange?.from) {
-        // Uso de formato ISO completo para estabilidade no PostgREST
-        query = query.gte('ultima_execucao', startOfDay(dateRange.from).toISOString());
+        query = query.gte('enviado_em', startOfDay(dateRange.from).toISOString());
       }
       if (dateRange?.to) {
-        query = query.lte('ultima_execucao', endOfDay(dateRange.to).toISOString());
+        query = query.lte('enviado_em', endOfDay(dateRange.to).toISOString());
       }
 
       const { data, error } = await query;
+      
       if (error) {
-        console.error("[useCadenceMonitoring] Error fetching logs:", error);
+        console.error("[useCadenceMonitoring] Erro na busca:", error);
         throw error;
       }
       
       return data as unknown as CadenceLog[];
     },
     enabled: !!user && !!orgId,
-    staleTime: 1000 * 30, // 30 segundos
+    staleTime: 1000 * 30,
   });
 
+  // Função para parar uma cadência ativa (continua operando na tabela principal)
   const stopLeadCadence = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (leadId: string) => {
       const { error } = await supabase
         .from('lead_cadencias')
         .update({ status: 'cancelado', proxima_execucao: null })
-        .eq('id', id);
+        .eq('lead_id', leadId)
+        .eq('status', 'ativo');
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cadence_monitoring'] });
+      queryClient.invalidateQueries({ queryKey: ['cadence_monitoring_history'] });
       toast.success('Fluxo interrompido para este cliente.');
     }
   });
