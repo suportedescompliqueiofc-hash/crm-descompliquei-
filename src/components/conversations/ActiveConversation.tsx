@@ -283,7 +283,7 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             </div>
         </div>
 
-        {/* Linha Inferior do Header (Desktop/Mobile) */}
+        {/* Linha Inferior do Header */}
         <div className="flex items-center justify-between px-3 pb-2 gap-3 overflow-x-auto scrollbar-none">
             <div className="flex items-center gap-2 flex-shrink-0">
                 {lead && stages.length > 0 && (
@@ -316,7 +316,6 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                 {lead && <div className="scale-90 origin-right"><TagManager leadId={lead.id} /></div>}
             </div>
             
-            {/* AiLock no mobile aparece aqui se a tela for muito pequena */}
             <div className="xs:hidden">
                 {lead && <AiLockControl lead={lead} />}
             </div>
@@ -335,17 +334,21 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
       )}
 
       <ScrollArea className="flex-1 bg-muted/10">
-        {/* Container das mensagens otimizado para telas ultra-wide */}
         <div className="p-3 sm:p-4 space-y-2 max-w-4xl 2xl:max-w-5xl mx-auto min-h-full">
           {messagesLoading ? <p className="text-center text-muted-foreground text-xs py-4">Carregando...</p> : (
             groupedMessages.map((item, index) => {
               if (item.type === 'separator') return <DateSeparator key={`sep-${index}`} dateString={item.date} />;
 
               const msg = item as Message;
-              const isOutgoing = msg.direcao === 'saida';
               
-              // Lógica de ícone HUMANO vs ROBÔ corrigida e robusta
+              // LÓGICA DE DIRECIONAMENTO E ÍCONES:
+              // isFromLead: É uma mensagem que o CLIENTE mandou (entrada do sistema).
+              // isAi: É uma mensagem enviada pelo robô.
+              // isOutgoing: Tudo o que o escritório mandou (Agente ou Bot) deve ficar à direita.
+              
+              const isFromLead = msg.remetente === 'lead';
               const isAi = msg.remetente === 'bot';
+              const isOutgoing = !isFromLead; // Bot, Agente, e Agente_CRM são todos "Saída"
               
               const hasNewAttachments = msg.message_attachments && msg.message_attachments.length > 0;
               const legacyAttachmentIndex = msg.conteudo?.toLowerCase().indexOf('attachments:');
