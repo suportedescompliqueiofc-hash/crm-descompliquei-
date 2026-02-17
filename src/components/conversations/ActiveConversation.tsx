@@ -51,14 +51,13 @@ const AttachmentRenderer = ({ attachment, isOutgoing }: { attachment: Attachment
   const type = (attachment.file_type || '').toLowerCase();
   const path = (attachment.file_path || '').toLowerCase();
   
-  // Detecção robusta de áudio por tipo ou extensão
+  // Detecção ultra-robusta de áudio
   const isAudio = type.includes('audio') || 
                   type.includes('ptt') || 
-                  path.endsWith('.ogg') || 
-                  path.endsWith('.mp3') || 
-                  path.endsWith('.wav') || 
-                  path.endsWith('.m4a') ||
-                  path.endsWith('.webm');
+                  path.includes('.ogg') || 
+                  path.includes('.mp3') || 
+                  path.includes('.m4a') ||
+                  path.includes('.webm');
 
   if (isAudio) {
     return <AudioMessage filePath={attachment.file_path} variant={isOutgoing ? 'outgoing' : 'incoming'} />;
@@ -257,24 +256,26 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             const isAi = msg.remetente === 'bot';
             const isOutgoing = !isFromLead;
             
-            // Verificações flexíveis de tipo (audio e ptt)
+            // Verificações ultra-flexíveis de tipo
             const typeLower = (msg.tipo_conteudo || '').toLowerCase();
             const pathLower = (msg.media_path || '').toLowerCase();
-            
+            const contentLower = (msg.conteudo || '').toLowerCase();
+
             const isAudio = typeLower.includes('audio') || 
                             typeLower.includes('ptt') || 
-                            pathLower.endsWith('.ogg') || 
-                            pathLower.endsWith('.mp3') || 
-                            pathLower.endsWith('.m4a') || 
-                            pathLower.endsWith('.webm');
+                            pathLower.includes('.ogg') || 
+                            pathLower.includes('.mp3') || 
+                            pathLower.includes('.m4a') || 
+                            pathLower.includes('.webm') ||
+                            (isOutgoing && contentLower.startsWith('http') && (contentLower.includes('.ogg') || contentLower.includes('.mp3') || contentLower.includes('.m4a')));
 
             const isVisualMedia = !isAudio && (
                                 typeLower.includes('image') || 
                                 typeLower.includes('imagem') || 
                                 typeLower.includes('video') ||
-                                pathLower.endsWith('.jpg') ||
-                                pathLower.endsWith('.png') ||
-                                pathLower.endsWith('.mp4')
+                                pathLower.includes('.jpg') ||
+                                pathLower.includes('.png') ||
+                                pathLower.includes('.mp4')
             );
 
             return (
@@ -291,18 +292,20 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                         {msg.message_attachments?.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}
                     </div>
                     
-                    {/* Fallback para media_path direto ou conteúdo (se for URL de áudio) */}
-                    {!msg.message_attachments?.length && (msg.media_path || (isAudio && msg.conteudo?.startsWith('http'))) && (
+                    {/* Fallback direto e agressivo para áudio e mídia se não houver anexos */}
+                    {!msg.message_attachments?.length && (msg.media_path || msg.conteudo) && (
                         <div className="mb-1">
                             {isAudio ? (
-                                <AudioMessage filePath={msg.media_path || msg.conteudo} variant={isOutgoing ? 'outgoing' : 'incoming'} />
+                                <AudioMessage filePath={msg.media_path || msg.conteudo || ''} variant={isOutgoing ? 'outgoing' : 'incoming'} />
                             ) : isVisualMedia ? (
-                                <MediaMessage path={msg.media_path} type={msg.tipo_conteudo?.includes('video') ? 'video' : 'imagem'} />
+                                <MediaMessage path={msg.media_path || msg.conteudo} type={typeLower.includes('video') || pathLower.includes('.mp4') ? 'video' : 'imagem'} />
                             ) : null}
                         </div>
                     )}
 
-                    {msg.conteudo && !isAudio && <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed break-words">{msg.conteudo}</p>}
+                    {msg.conteudo && !isAudio && !isVisualMedia && !typeLower.includes('pdf') && (
+                        <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed break-words">{msg.conteudo}</p>
+                    )}
                     
                     <div className={cn("flex items-center justify-end gap-1 mt-1 opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}>
                       <span className="text-[9px] sm:text-[10px] tabular-nums">{format(new Date(msg.criado_em), 'HH:mm')}</span>
