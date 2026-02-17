@@ -11,12 +11,15 @@ serve(async (req) => {
 
   try {
     const { filePath } = await req.json();
-    const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
-    const bucketsToTry = ['media-mensagens', 'audio-mensagens', 'campaign-media'];
-    
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const buckets = ['media-mensagens', 'audio-mensagens', 'campaign-media'];
     let signedUrl = null;
 
-    for (const bucket of bucketsToTry) {
+    for (const bucket of buckets) {
       let cleanPath = filePath.trim();
       if (cleanPath.startsWith(`${bucket}/`)) {
         cleanPath = cleanPath.substring(bucket.length + 1);
@@ -29,9 +32,21 @@ serve(async (req) => {
       }
     }
 
-    if (!signedUrl) return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: corsHeaders });
-    return new Response(JSON.stringify({ signedUrl }), { status: 200, headers: corsHeaders });
+    if (!signedUrl) {
+      return new Response(
+        JSON.stringify({ error: 'Áudio não encontrado.' }), 
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ signedUrl }), 
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
+    return new Response(
+      JSON.stringify({ error: error.message }), 
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });
