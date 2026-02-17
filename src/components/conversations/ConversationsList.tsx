@@ -45,26 +45,20 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
 
   const isOutgoing = sender === 'agente' || sender === 'bot' || sender === 'agente_crm';
 
-  if (type === 'audio') {
-    return <div className="flex items-center gap-1 text-muted-foreground min-w-0"><Mic className="h-3 w-3 flex-shrink-0" /> <span className="truncate">Áudio</span></div>;
-  }
-  if (type === 'imagem') {
-    return <div className="flex items-center gap-1 text-muted-foreground min-w-0"><ImageIcon className="h-3 w-3 flex-shrink-0" /> <span className="truncate">Foto</span></div>;
-  }
-  if (type === 'video') {
-    return <div className="flex items-center gap-1 text-muted-foreground min-w-0"><Video className="h-3 w-3 flex-shrink-0" /> <span className="truncate">Vídeo</span></div>;
-  }
-  if (type === 'pdf' || type === 'arquivo') {
-    return <div className="flex items-center gap-1 text-muted-foreground min-w-0"><FileText className="h-3 w-3 flex-shrink-0" /> <span className="truncate">Arquivo</span></div>;
-  }
-
-  if (content === 'Nenhuma mensagem ainda') return <span className="italic text-muted-foreground/60 truncate">{content}</span>;
-
+  // Usamos flex e min-w-0 para que o texto interno possa truncar
   return (
-    <p className="truncate text-muted-foreground/90">
-      {isOutgoing && <span className="font-medium text-primary mr-1 flex-shrink-0">Você:</span>}
-      {content}
-    </p>
+    <div className="flex items-center gap-1 min-w-0 w-full overflow-hidden text-muted-foreground/80">
+      {isOutgoing && <span className="font-medium text-primary flex-shrink-0">Você:</span>}
+      
+      {type === 'audio' && <Mic className="h-3 w-3 flex-shrink-0" />}
+      {type === 'imagem' && <ImageIcon className="h-3 w-3 flex-shrink-0" />}
+      {type === 'video' && <Video className="h-3 w-3 flex-shrink-0" />}
+      {type === 'pdf' || type === 'arquivo' && <FileText className="h-3 w-3 flex-shrink-0" />}
+      
+      <span className="truncate flex-1">
+        {type !== 'texto' ? (type === 'audio' ? 'Áudio' : type === 'imagem' ? 'Foto' : type === 'video' ? 'Vídeo' : 'Arquivo') : (content === 'Nenhuma mensagem ainda' ? content : content)}
+      </span>
+    </div>
   );
 };
 
@@ -82,11 +76,11 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
     <Link
       to={`/conversas/${conversation.id}`}
       className={cn(
-        "flex gap-3 p-3 transition-all cursor-pointer border-b border-border/40 relative items-center w-full group",
-        isActive ? "bg-muted border-l-4 border-l-primary" : "bg-transparent hover:bg-muted/30"
+        "flex gap-3 p-3 transition-all cursor-pointer border-b border-border/40 relative items-center w-full group overflow-hidden",
+        isActive ? "bg-muted border-l-4 border-l-primary shadow-inner" : "bg-transparent hover:bg-muted/40"
       )}
     >
-      <Avatar className="h-12 w-12 flex-shrink-0 shadow-sm">
+      <Avatar className="h-12 w-12 flex-shrink-0 shadow-sm border border-border/20">
         <AvatarFallback className={cn("text-sm font-semibold", isActive ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground")}>
           {getInitials(conversation.nome)}
         </AvatarFallback>
@@ -96,14 +90,14 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
       <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
         
         {/* Linha Superior: Nome e Horário */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-bold text-sm truncate text-foreground">
+        <div className="flex items-center justify-between gap-2 w-full min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <span className="font-bold text-sm truncate text-foreground flex-1">
               {conversation.nome || conversation.telefone}
             </span>
             
             <div className="flex items-center gap-0.5 flex-shrink-0">
-              {conversation.tags?.slice(0, 3).map(tag => {
+              {conversation.tags?.slice(0, 2).map(tag => {
                 const isHex = tag.color?.startsWith('#');
                 const preset = TAG_COLORS.find(c => c.name === tag.color);
                 return (
@@ -118,13 +112,13 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             </div>
           </div>
           
-          <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap">
+          <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap flex-shrink-0">
             {lastMessageTime || '--:--'}
           </span>
         </div>
 
         {/* Linha Inferior: Preview da Mensagem */}
-        <div className="flex items-center justify-between gap-2 h-5">
+        <div className="flex items-center justify-between gap-2 w-full min-w-0 h-5">
           <div className="text-xs min-w-0 flex-1">
             <MessagePreview 
               content={conversation.last_message_content} 
@@ -133,9 +127,9 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             />
           </div>
           
-          {/* Badge de status opcional (estilo WhatsApp) */}
+          {/* Badge de status opcional */}
           <div className="flex-shrink-0 flex items-center">
-             {/* Aqui entrariam os badges de mensagens não lidas no futuro */}
+             {/* Espaço reservado para contadores de mensagens não lidas */}
           </div>
         </div>
       </div>
