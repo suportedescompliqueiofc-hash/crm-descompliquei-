@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Loader2 } from 'lucide-react';
+import { Play, Pause, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -32,52 +33,52 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
-      const setAudioData = () => {
+      setHasError(false);
+      setIsLoading(true);
+
+      const handleLoadedMetadata = () => {
         if (audio.duration && !isNaN(audio.duration)) {
-            setDuration(audio.duration);
-        }
-        if (!isDragging) {
-            setCurrentTime(audio.currentTime);
+          setDuration(audio.duration);
         }
         setIsLoading(false);
       };
 
-      const setAudioTime = () => {
+      const handleTimeUpdate = () => {
         if (!isDragging) {
-            setCurrentTime(audio.currentTime);
+          setCurrentTime(audio.currentTime);
         }
       };
 
-      const handleEnd = () => {
+      const handleEnded = () => {
         setIsPlaying(false);
         setCurrentTime(0);
       };
-      
-      const handleCanPlay = () => {
+
+      const handleError = () => {
+        console.error("Erro ao carregar áudio:", audio.error);
+        setHasError(true);
         setIsLoading(false);
-        // Tenta pegar a duração novamente caso tenha falhado no carregamento inicial
-        if (audio.duration && !isNaN(audio.duration)) {
-            setDuration(audio.duration);
-        }
       };
 
-      // Usando loadeddata e durationchange para garantir que pegamos a duração
-      audio.addEventListener('loadeddata', setAudioData);
-      audio.addEventListener('durationchange', setAudioData);
-      audio.addEventListener('timeupdate', setAudioTime);
-      audio.addEventListener('ended', handleEnd);
-      audio.addEventListener('canplay', handleCanPlay);
+      // Eventos cruciais para o navegador
+      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.addEventListener('timeupdate', handleTimeUpdate);
+      audio.addEventListener('ended', handleEnded);
+      audio.addEventListener('error', handleError);
       
+      // Alguns navegadores disparam canplay antes de metadata se o arquivo for pequeno
+      audio.addEventListener('canplay', () => setIsLoading(false));
+
+      // Se já carregou (ex: cache)
       if (audio.readyState >= 1) {
-        setAudioData();
+        handleLoadedMetadata();
       }
 
       return () => {
-        audio.removeEventListener('loadeddata', setAudioData);
-        audio.removeEventListener('durationchange', setAudioData);
-        audio.removeEventListener('timeupdate', setAudioTime);
-        audio.removeEventListener('ended', handleEnd);
-        audio.removeEventListener('canplay', handleCanPlay);
+        audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        audio.removeEventListener('timeupdate', handleTimeUpdate);
+        audio.removeEventListener('ended', handleEnded);
+        audio.removeEventListener('error', handleError);
       };
     }
   }, [audioUrl, isDragging]);
@@ -89,11 +90,17 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
   }, [playbackRate]);
 
   const togglePlay = () => {
-    if (audioRef.current && !isLoading) {
+    if (audioRef.current && !isLoading && !hasError) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        audioRef.current.play();
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error("Autoplay prevent ou erro de reprodução:", error);
+            setIsPlaying(false);
+          });
+        }
       }
       setIsPlaying(!isPlaying);
     }
@@ -119,21 +126,33 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
     setIsDragging(false);
   };
 
+  if (hasError) {
+    return (
+      <div className={cn(
+        "flex items-center gap-2 p-2 rounded-lg border border-dashed",
+        isOutgoing ? "bg-white/10 border-white/20 text-white" : "bg-destructive/5 border-destructive/20 text-destructive"
+      )}>
+        <AlertCircle className="h-4 w-4" />
+        <span className="text-[10px] font-medium">Erro ao reproduzir</span>
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-[9px] underline" onClick={() => window.open(audioUrl)}>Abrir link</Button>
+      </div>
+    );
+  }
+
   return (
     <div className={cn(
         "flex flex-col gap-1",
-        // Larguras ajustadas: mantive mobile (260/320) e reduzi desktop para 360px
-        "w-[260px] xs:w-[320px] sm:w-[340px] md:w-[360px]"
+        "w-[260px] xs:w-[300px] sm:w-[320px] md:w-[340px]"
     )}>
-      <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      <audio ref={audioRef} src={audioUrl} preload="metadata" crossOrigin="anonymous" />
       
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         <Button 
           onClick={togglePlay} 
           size="icon" 
           variant="ghost" 
           className={cn(
-            "flex-shrink-0 h-11 w-11 transition-colors rounded-full",
+            "flex-shrink-0 h-10 w-10 transition-colors rounded-full",
             isOutgoing 
               ? "text-primary-foreground hover:bg-white/20 hover:text-white" 
               : "text-foreground hover:bg-black/5"
@@ -141,34 +160,31 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
           disabled={isLoading}
         >
           {isLoading ? (
-            <Loader2 className="h-6 w-6 animate-spin" />
+            <Loader2 className="h-5 w-5 animate-spin" />
           ) : isPlaying ? (
-            <Pause className="h-6 w-6 fill-current" />
+            <Pause className="h-5 w-5 fill-current" />
           ) : (
-            <Play className="h-6 w-6 fill-current ml-0.5" />
+            <Play className="h-5 w-5 fill-current ml-0.5" />
           )}
         </Button>
         
-        <div className="flex-grow flex flex-col gap-1.5 min-w-0 pt-1">
-          <div className="flex items-center gap-3">
+        <div className="flex-grow flex flex-col gap-1 min-w-0 pt-0.5">
+          <div className="flex items-center gap-2.5">
             <Slider
               value={[currentTime]}
               max={duration || 1}
-              step={0.01}
+              step={0.1}
               onValueChange={handleSliderChange}
               onValueCommit={handleSliderCommit}
               className={cn(
-                "flex-1 cursor-pointer py-1.5",
-                "[&>span:first-child]:h-1.5",
+                "flex-1 cursor-pointer py-1",
+                "[&>span:first-child]:h-1",
                 isOutgoing 
                   ? "[&>span:first-child]:bg-black/20" 
                   : "[&>span:first-child]:bg-muted-foreground/20",
                 "[&>span:first-child>span]:bg-current",
                 isOutgoing ? "text-white" : "text-primary",
-                "[&>span[role=slider]]:h-3.5 [&>span[role=slider]]:w-3.5 [&>span[role=slider]]:border-0 [&>span[role=slider]]:shadow-md [&>span[role=slider]]:transition-transform active:[&>span[role=slider]]:scale-125",
-                isOutgoing
-                   ? "[&>span[role=slider]]:bg-white"
-                   : "[&>span[role=slider]]:bg-primary"
+                "[&>span[role=slider]]:h-3 [&>span[role=slider]]:w-3 [&>span[role=slider]]:border-0 [&>span[role=slider]]:shadow-sm"
               )}
               disabled={isLoading || duration === 0}
             />
@@ -179,10 +195,10 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
                 onClick={toggleSpeed}
                 disabled={isLoading}
                 className={cn(
-                    "h-7 px-2 text-xs font-bold rounded-full flex-shrink-0 min-w-[2.5rem] transition-all",
+                    "h-6 px-1.5 text-[10px] font-bold rounded-md flex-shrink-0 min-w-[2.2rem]",
                     isOutgoing
-                        ? "bg-black/20 text-white hover:bg-black/30 hover:text-white" 
-                        : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                        ? "bg-black/20 text-white hover:bg-black/30" 
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
                 )}
             >
                 {playbackRate.toFixed(1)}x
@@ -190,15 +206,11 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
           </div>
 
           <div className={cn(
-            "flex justify-between items-center text-xs px-0.5 font-medium",
-            isOutgoing ? "text-white/90" : "text-muted-foreground"
+            "flex justify-between items-center text-[10px] px-0.5 font-medium",
+            isOutgoing ? "text-white/80" : "text-muted-foreground"
           )}>
-            <span className="font-mono tabular-nums">
-                {formatTime(currentTime)}
-            </span>
-            <span className="font-mono tabular-nums">
-                {formatTime(duration)}
-            </span>
+            <span className="font-mono tabular-nums">{formatTime(currentTime)}</span>
+            <span className="font-mono tabular-nums">{formatTime(duration)}</span>
           </div>
         </div>
       </div>

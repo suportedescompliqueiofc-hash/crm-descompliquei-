@@ -49,10 +49,21 @@ const DateSeparator = ({ dateString }: { dateString: string }) => {
 
 const AttachmentRenderer = ({ attachment, isOutgoing }: { attachment: Attachment; isOutgoing: boolean }) => {
   const type = (attachment.file_type || '').toLowerCase();
-  // Verificação abrangente para áudio (audio ou ptt)
-  if (type.includes('audio') || type.includes('ptt')) {
+  const path = (attachment.file_path || '').toLowerCase();
+  
+  // Detecção robusta de áudio por tipo ou extensão
+  const isAudio = type.includes('audio') || 
+                  type.includes('ptt') || 
+                  path.endsWith('.ogg') || 
+                  path.endsWith('.mp3') || 
+                  path.endsWith('.wav') || 
+                  path.endsWith('.m4a') ||
+                  path.endsWith('.webm');
+
+  if (isAudio) {
     return <AudioMessage filePath={attachment.file_path} variant={isOutgoing ? 'outgoing' : 'incoming'} />;
   }
+  
   if (type.includes('image') || type.includes('imagem') || type.includes('video')) {
     return <MediaMessage path={attachment.file_path} type={type.includes('video') ? 'video' : 'imagem'} />;
   }
@@ -248,10 +259,23 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             
             // Verificações flexíveis de tipo (audio e ptt)
             const typeLower = (msg.tipo_conteudo || '').toLowerCase();
-            const isAudio = typeLower.includes('audio') || typeLower.includes('ptt');
-            const isVisualMedia = typeLower.includes('image') || 
+            const pathLower = (msg.media_path || '').toLowerCase();
+            
+            const isAudio = typeLower.includes('audio') || 
+                            typeLower.includes('ptt') || 
+                            pathLower.endsWith('.ogg') || 
+                            pathLower.endsWith('.mp3') || 
+                            pathLower.endsWith('.m4a') || 
+                            pathLower.endsWith('.webm');
+
+            const isVisualMedia = !isAudio && (
+                                typeLower.includes('image') || 
                                 typeLower.includes('imagem') || 
-                                typeLower.includes('video');
+                                typeLower.includes('video') ||
+                                pathLower.endsWith('.jpg') ||
+                                pathLower.endsWith('.png') ||
+                                pathLower.endsWith('.mp4')
+            );
 
             return (
               <div key={msg.id} className={cn("group relative flex flex-col gap-0.5 py-0.5", isOutgoing ? "items-end" : "items-start")}>
