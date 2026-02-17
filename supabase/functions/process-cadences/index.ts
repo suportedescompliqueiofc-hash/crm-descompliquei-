@@ -7,7 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// URL do Webhook específica para Cadências conforme solicitado
 const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/fluxo-cadencia-gleyce';
 
 serve(async (req) => {
@@ -19,9 +18,9 @@ serve(async (req) => {
   );
 
   try {
-    console.log("[process-cadences] Verificando execuções pendentes...");
+    console.log("[process-cadences] Iniciando verificação...");
 
-    // 1. Buscar leads cuja próxima execução já passou
+    // 1. Busca leads com execução pendente
     const { data: leadsInCadence, error: fetchError } = await supabaseAdmin
       .from('lead_cadencias')
       .select(`
@@ -29,33 +28,43 @@ serve(async (req) => {
         leads (id, nome, telefone, usuario_id),
         cadencias (
           id,
-          passos:cadencia_passos (*)
+          nome,
+          cadencia_passos (*)
         )
       `)
       .eq('status', 'ativo')
       .lte('proxima_execucao', new Date().toISOString());
 
     if (fetchError) throw fetchError;
+    
     if (!leadsInCadence || leadsInCadence.length === 0) {
+      console.log("[process-cadences] Nada para processar no momento.");
       return new Response(JSON.stringify({ success: true, count: 0 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
+    console.log(`[process-cadences] Encontrados ${leadsInCadence.length} itens.`);
 
     const results = [];
 
     for (const item of leadsInCadence) {
       try {
         const lead = item.leads;
-        const allSteps = item.cadencias.passos.sort((a: any, b: any) => a.posicao_ordem - b.posicao_ordem);
+        const cadence = item.cadencias;
         
-        // O passo_atual_ordem começa em 0. O primeiro envio é o passo 1.
-        const currentStep = allSteps.find((s: any) => s.posicao_ordem === (item.passo_atual_ordem + 1));
+        // Correção aqui: O Supabase retorna a tabela relacionada pelo nome real dela
+        const allSteps = (cadence.cadencia_passos || []).sort((a: any, b: any) => a.posicao_ordem - b.posicao_ordem);
+        
+        // Próximo passo a ser enviado
+        const stepNumberToSend = (item.passo_atual_ordem || 0) + 1;
+        const currentStep = allSteps.find((s: any) => s.posicao_ordem === stepNumberToSend);
 
         if (!currentStep) {
+          console.log(`[process-cadences] Cadência concluída para o lead ${lead.id}`);
           await supabaseAdmin.from('lead_cadencias').update({ status: 'concluido' }).eq('id', item.id);
           continue;
         }
 
-        // --- ENVIO DA MENSAGEM ---
+        // --- PREPARAÇÃO DA MÍDIA ---
         let url_midia = null;
         if (currentStep.arquivo_path) {
           const { data } = supabaseAdmin.storage.from('media-mensagens').getPublicUrl(currentStep.arquivo_path);
@@ -64,17 +73,19 @@ serve(async (req) => {
 
         const personalizedMessage = (currentStep.conteudo || '').replace(/\{\{nome_lead\}\}/g, lead.nome || 'Cliente');
 
-        // Payload idêntico ao das mensagens rápidas, incluindo user_id
+        // PAYLOAD IDÊNTICO ÀS MENSAGENS RÁPIDAS
         const payload = {
           lead_id: lead.id,
           mensagem: personalizedMessage,
           tipo: currentStep.tipo_mensagem,
           url_midia: url_midia,
-          titulo_pdf: currentStep.tipo_mensagem === 'pdf' ? currentStep.nome || 'Documento' : null,
+          titulo_pdf: currentStep.tipo_mensagem === 'pdf' ? (cadence.nome || 'Documento') : null,
           telefone: lead.telefone,
-          user_id: lead.usuario_id, // Incluindo o dono do lead como remetente
+          user_id: lead.usuario_id,
           remetente: 'bot'
         };
+
+        console.log(`[process-cadences] Enviando Passo ${stepNumberToSend} para ${lead.telefone}`);
 
         const response = await fetch(WEBHOOK_URL, {
           method: 'POST',
@@ -82,14 +93,16 @@ serve(async (req) => {
           body: JSON.stringify(payload)
         });
 
-        if (!response.ok) throw new Error(`Webhook Error: ${response.status}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Webhook Error (${response.status}): ${errorText}`);
+        }
 
-        // --- AGENDAMENTO DO PRÓXIMO PASSO E LOG DE SUCESSO ---
-        const nextStep = allSteps.find((s: any) => s.posicao_ordem === (currentStep.posicao_ordem + 1));
-        
+        // --- AGENDAMENTO DO PRÓXIMO PASSO ---
+        const nextStep = allSteps.find((s: any) => s.posicao_ordem === (stepNumberToSend + 1));
         const now = new Date();
         let nextDate = null;
-        let finalStatus = item.status;
+        let finalStatus = 'ativo';
 
         if (nextStep) {
           nextDate = now;
@@ -104,7 +117,7 @@ serve(async (req) => {
         await supabaseAdmin
           .from('lead_cadencias')
           .update({ 
-            passo_atual_ordem: currentStep.posicao_ordem, 
+            passo_atual_ordem: stepNumberToSend, 
             proxima_execucao: nextDate,
             status: finalStatus,
             ultima_execucao: now.toISOString(),
@@ -113,12 +126,10 @@ serve(async (req) => {
           })
           .eq('id', item.id);
 
-        results.push({ lead_id: lead.id, step: currentStep.posicao_ordem, status: 'sent' });
+        results.push({ lead_id: lead.id, step: stepNumberToSend, status: 'sent' });
 
       } catch (err) {
-        console.error(`Error processing lead ${item.lead_id}:`, err.message);
-        
-        // Log de Erro no Banco para a UI mostrar
+        console.error(`[process-cadences] Erro no lead ${item.lead_id}:`, err.message);
         await supabaseAdmin
           .from('lead_cadencias')
           .update({ 
@@ -127,16 +138,16 @@ serve(async (req) => {
             erro_log: err.message
           })
           .eq('id', item.id);
-
         results.push({ lead_id: item.lead_id, status: 'error', error: err.message });
       }
     }
 
-    return new Response(JSON.stringify({ success: true, processed: results.length, details: results }), {
+    return new Response(JSON.stringify({ success: true, processed: results.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
+    console.error('[process-cadences] Erro fatal:', error.message);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
