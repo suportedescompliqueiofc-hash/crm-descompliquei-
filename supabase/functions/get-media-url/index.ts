@@ -7,7 +7,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Tratamento de CORS para pre-flight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -17,7 +16,7 @@ serve(async (req) => {
     
     if (!mediaPath) {
       return new Response(
-        JSON.stringify({ error: 'Caminho da mídia não fornecido.' }), 
+        JSON.stringify({ error: 'Caminho não fornecido.' }), 
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -27,38 +26,30 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Buckets onde as mídias podem estar
     const buckets = ['media-mensagens', 'campaign-media', 'audio-mensagens'];
     let signedUrl = null;
-    let lastError = null;
 
-    // Limpa o caminho (remove o nome do bucket se ele vier no início do caminho)
-    let cleanPath = mediaPath.trim();
-    
+    // Tenta limpar e buscar em cada bucket
     for (const bucket of buckets) {
-      let pathForBucket = cleanPath;
-      if (pathForBucket.startsWith(`${bucket}/`)) {
-        pathForBucket = pathForBucket.substring(bucket.length + 1);
+      let cleanPath = mediaPath.trim();
+      // Remove o nome do bucket se ele vier no início do caminho (ex: "media-mensagens/caminho/arquivo.jpg")
+      if (cleanPath.startsWith(`${bucket}/`)) {
+        cleanPath = cleanPath.substring(bucket.length + 1);
       }
 
-      console.log(`[get-media-url] Tentando bucket: ${bucket}, path: ${pathForBucket}`);
-
-      const { data, error } = await supabaseAdmin.storage
+      const { data } = await supabaseAdmin.storage
         .from(bucket)
-        .createSignedUrl(pathForBucket, 86400); // 24 horas
+        .createSignedUrl(cleanPath, 86400); // 24h
 
       if (data?.signedUrl) {
         signedUrl = data.signedUrl;
-        console.log(`[get-media-url] Sucesso no bucket: ${bucket}`);
         break;
       }
-      lastError = error;
     }
 
     if (!signedUrl) {
-      console.error(`[get-media-url] Arquivo não encontrado em nenhum bucket: ${cleanPath}`, lastError);
       return new Response(
-        JSON.stringify({ error: 'Arquivo não encontrado no servidor.', details: lastError }), 
+        JSON.stringify({ error: 'Arquivo não encontrado.' }), 
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -69,7 +60,6 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[get-media-url] Erro crítico:', error.message);
     return new Response(
       JSON.stringify({ error: error.message }), 
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
