@@ -14,15 +14,13 @@ export default function Conversations() {
   const { data: lead } = useLead(leadId || null);
   const isMobile = useIsMobile();
   
-  // Por padrão, esconde a barra no mobile, mas mostra no desktop
-  const [showQuickMessages, setShowQuickMessages] = useState(true);
+  // Por padrão, inicia fechado (false)
+  const [showQuickMessages, setShowQuickMessages] = useState(false);
 
-  // Fecha o painel de mensagens rápidas ao mudar de lead ou entrar no mobile
+  // Fecha o painel de mensagens rápidas sempre que o leadId mudar (clique em nova conversa)
   useEffect(() => {
-    if (isMobile) {
-        setShowQuickMessages(false);
-    }
-  }, [isMobile]);
+    setShowQuickMessages(false);
+  }, [leadId]);
 
   return (
     <div className="h-[calc(100vh-4rem)]">
