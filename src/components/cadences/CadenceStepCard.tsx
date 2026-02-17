@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Clock, Upload, Plus, X, MessageSquare, Mic, ImageIcon, Video, FileText } from "lucide-react";
+import { Trash2, Clock, Upload, Plus, X, MessageSquare, Mic, ImageIcon, Video, FileText, CheckCircle2, FileCheck } from "lucide-react";
 import { CadenceStep } from "@/hooks/useCadences";
 import { useRef } from "react";
 
@@ -119,6 +119,11 @@ export function CadenceStepCard({ step, isLast, onUpdate, onDelete }: CadenceSte
                         <CheckCircle2 className="h-4 w-4" /> {step.temp_file.name}
                         <button onClick={(e) => { e.stopPropagation(); onUpdate({ temp_file: null }); }} className="text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
                       </div>
+                    ) : step.arquivo_path ? (
+                      <div className="flex items-center gap-2 text-xs font-medium text-blue-600">
+                        <FileCheck className="h-4 w-4" /> Arquivo atual salvo
+                        <span className="text-[9px] opacity-60 truncate max-w-[150px]">({step.arquivo_path.split('/').pop()})</span>
+                      </div>
                     ) : (
                       <>
                         <Upload className="h-5 w-5 text-muted-foreground mb-1" />
@@ -166,5 +171,3 @@ export function CadenceStepCard({ step, isLast, onUpdate, onDelete }: CadenceSte
     </div>
   );
 }
-
-import { CheckCircle2 } from "lucide-react";

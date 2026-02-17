@@ -122,6 +122,69 @@ export function useCadences() {
     },
   });
 
+  const updateCadence = useMutation({
+    mutationFn: async ({ id, nome, descricao, passos }: { id: string; nome: string; descricao: string; passos: CadenceStep[] }) => {
+      if (!user || !orgId) throw new Error("Não autorizado");
+
+      // 1. Atualizar a cadência pai
+      const { error: cadenceError } = await supabase
+        .from('cadencias')
+        .update({ nome, descricao, atualizado_em: new Date().toISOString() })
+        .eq('id', id);
+
+      if (cadenceError) throw cadenceError;
+
+      // 2. Remover passos antigos (estratégia de re-sincronização)
+      const { error: deleteError } = await supabase
+        .from('cadencia_passos')
+        .delete()
+        .eq('cadencia_id', id);
+
+      if (deleteError) throw deleteError;
+
+      // 3. Processar novos passos e uploads
+      const stepsToInsert = await Promise.all(passos.map(async (step) => {
+        let arquivo_path = step.arquivo_path;
+
+        if (step.temp_file) {
+          const fileExt = step.temp_file.name.split('.').pop();
+          const fileName = `${Date.now()}_${step.posicao_ordem}.${fileExt}`;
+          const filePath = `${orgId}/cadences/${id}/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('media-mensagens')
+            .upload(filePath, step.temp_file);
+
+          if (uploadError) throw uploadError;
+          arquivo_path = filePath;
+        }
+
+        return {
+          cadencia_id: id,
+          posicao_ordem: step.posicao_ordem,
+          tempo_espera: step.tempo_espera,
+          unidade_tempo: step.unidade_tempo,
+          tipo_mensagem: step.tipo_mensagem,
+          conteudo: step.conteudo,
+          arquivo_path
+        };
+      }));
+
+      // 4. Inserir passos atualizados
+      const { error: stepsError } = await supabase
+        .from('cadencia_passos')
+        .insert(stepsToInsert);
+
+      if (stepsError) throw stepsError;
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cadences', orgId] });
+      toast.success('Fluxo atualizado com sucesso!');
+    },
+    onError: (err: any) => toast.error(`Erro ao atualizar: ${err.message}`),
+  });
+
   const deleteCadence = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('cadencias').delete().eq('id', id);
@@ -137,7 +200,9 @@ export function useCadences() {
     cadences, 
     isLoading, 
     createCadence: createCadence.mutate, 
+    updateCadence: updateCadence.mutate,
     isCreating: createCadence.isPending, 
+    isUpdating: updateCadence.isPending,
     deleteCadence: deleteCadence.mutate 
   };
 }

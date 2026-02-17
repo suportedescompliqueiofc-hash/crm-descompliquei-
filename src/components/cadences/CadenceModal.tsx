@@ -1,29 +1,45 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Save, Plus, ChevronDown, Sparkles } from "lucide-react";
-import { CadenceStep, useCadences } from "@/hooks/useCadences";
+import { CadenceStep, useCadences, Cadence } from "@/hooks/useCadences";
 import { CadenceStepCard } from "./CadenceStepCard";
 
 interface CadenceModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  cadence?: Cadence | null;
 }
 
-export function CadenceModal({ open, onOpenChange }: CadenceModalProps) {
-  const { createCadence, isCreating } = useCadences();
+export function CadenceModal({ open, onOpenChange, cadence }: CadenceModalProps) {
+  const { createCadence, updateCadence, isCreating, isUpdating } = useCadences();
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [passos, setPassos] = useState<CadenceStep[]>([]);
+
+  // Sincroniza dados quando abre para visualização/edição
+  useEffect(() => {
+    if (open) {
+      if (cadence) {
+        setNome(cadence.nome || "");
+        setDescricao(cadence.descricao || "");
+        setPassos(cadence.passos || []);
+      } else {
+        setNome("");
+        setDescricao("");
+        setPassos([]);
+      }
+    }
+  }, [open, cadence]);
 
   const handleAddStep = () => {
     const nextPos = passos.length + 1;
     setPassos([...passos, {
       posicao_ordem: nextPos,
-      tempo_espera: nextPos === 1 ? 1 : 24, // Sugestão: 1 min/hora/dia se primeiro, senão 24
+      tempo_espera: nextPos === 1 ? 1 : 24,
       unidade_tempo: nextPos === 1 ? 'minutos' : 'horas',
       tipo_mensagem: 'texto',
       conteudo: '',
@@ -46,30 +62,35 @@ export function CadenceModal({ open, onOpenChange }: CadenceModalProps) {
 
   const handleSave = () => {
     if (!nome || passos.length === 0) return;
-    createCadence({ nome, descricao, passos }, {
-      onSuccess: () => {
-        onOpenChange(false);
-        setNome("");
-        setDescricao("");
-        setPassos([]);
-      }
-    });
+    
+    if (cadence) {
+      updateCadence({ id: cadence.id, nome, descricao, passos }, {
+        onSuccess: () => onOpenChange(false)
+      });
+    } else {
+      createCadence({ nome, descricao, passos }, {
+        onSuccess: () => onOpenChange(false)
+      });
+    }
   };
+
+  const isPending = isCreating || isUpdating;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle className="text-xl flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" /> Nova Cadência
+            <Sparkles className="h-5 w-5 text-primary" /> {cadence ? "Detalhes da Cadência" : "Nova Cadência"}
           </DialogTitle>
-          <DialogDescription>Construa seu fluxo de mensagens automáticas.</DialogDescription>
+          <DialogDescription>
+            {cadence ? "Visualize ou ajuste seu fluxo de mensagens automáticas." : "Construa seu fluxo de mensagens automáticas."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden">
           <ScrollArea className="h-full">
             <div className="p-6 pt-2 space-y-8">
-              {/* Header Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Nome da Cadência *</Label>
@@ -91,7 +112,6 @@ export function CadenceModal({ open, onOpenChange }: CadenceModalProps) {
                 </div>
               </div>
 
-              {/* Fluxograma */}
               <div className="flex flex-col items-center space-y-4 pb-10">
                 <div className="bg-primary/10 text-primary border border-primary/20 px-6 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[2px]">
                   Início do Fluxo
@@ -137,10 +157,10 @@ export function CadenceModal({ open, onOpenChange }: CadenceModalProps) {
           <Button 
             className="bg-primary hover:bg-primary/90 gap-2 min-w-[140px]" 
             onClick={handleSave}
-            disabled={isCreating || !nome || passos.length === 0}
+            disabled={isPending || !nome || passos.length === 0}
           >
             <Save className="h-4 w-4" />
-            {isCreating ? "Salvando..." : "Salvar Fluxo"}
+            {isPending ? "Salvando..." : (cadence ? "Salvar Alterações" : "Salvar Fluxo")}
           </Button>
         </DialogFooter>
       </DialogContent>

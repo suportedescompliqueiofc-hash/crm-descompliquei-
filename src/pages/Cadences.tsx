@@ -14,7 +14,18 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 export default function Cadences() {
   const { cadences, isLoading, deleteCadence } = useCadences();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCadence, setSelectedCadence] = useState<Cadence | null>(null);
   const [cadenceToDelete, setCadenceToDelete] = useState<Cadence | null>(null);
+
+  const handleOpenCreate = () => {
+    setSelectedCadence(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenDetails = (cadence: Cadence) => {
+    setSelectedCadence(cadence);
+    setIsModalOpen(true);
+  };
 
   const confirmDelete = () => {
     if (cadenceToDelete) {
@@ -34,7 +45,7 @@ export default function Cadences() {
           <p className="text-muted-foreground mt-1">Crie fluxos automáticos de mensagens para nutrir seus leads.</p>
         </div>
         
-        <Button onClick={() => setIsModalOpen(true)} className="gap-2 bg-primary hover:bg-primary/90 shadow-md h-10">
+        <Button onClick={handleOpenCreate} className="gap-2 bg-primary hover:bg-primary/90 shadow-md h-10">
           <Plus className="h-4 w-4" /> Nova Cadência
         </Button>
       </div>
@@ -49,7 +60,7 @@ export default function Cadences() {
             <GitMerge className="h-10 w-10 text-muted-foreground/40" />
           </div>
           <CardTitle className="text-muted-foreground mb-2">Nenhuma cadência criada ainda.</CardTitle>
-          <Button variant="link" onClick={() => setIsModalOpen(true)} className="text-primary font-bold underline-offset-4">Criar a primeira</Button>
+          <Button variant="link" onClick={handleOpenCreate} className="text-primary font-bold underline-offset-4">Criar a primeira</Button>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -94,7 +105,14 @@ export default function Cadences() {
                         <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
                         <div className="w-8 h-8 rounded-full bg-background border flex items-center justify-center text-[10px] font-bold shadow-sm opacity-30">...</div>
                     </div>
-                    <Button variant="ghost" size="sm" className="h-8 text-xs font-semibold text-primary hover:bg-primary/10">Ver Detalhes</Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 text-xs font-semibold text-primary hover:bg-primary/10"
+                      onClick={() => handleOpenDetails(cadence)}
+                    >
+                      Ver Detalhes
+                    </Button>
                 </div>
               </CardContent>
             </Card>
@@ -102,7 +120,11 @@ export default function Cadences() {
         </div>
       )}
 
-      <CadenceModal open={isModalOpen} onOpenChange={setIsModalOpen} />
+      <CadenceModal 
+        open={isModalOpen} 
+        onOpenChange={setIsModalOpen} 
+        cadence={selectedCadence}
+      />
 
       <AlertDialog open={!!cadenceToDelete} onOpenChange={() => setCadenceToDelete(null)}>
         <AlertDialogContent>
