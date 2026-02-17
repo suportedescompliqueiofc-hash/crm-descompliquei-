@@ -43,11 +43,18 @@ export function useConversationsList() {
 
   useEffect(() => {
     if (!orgId) return;
-    const channel = supabase.channel(`list_sync_${orgId}`)
+    
+    console.log('useConversationsList: Tentando conectar ao Realtime para lista lateral...');
+    const channel = supabase.channel('conversations-list-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, () => {
         queryClient.invalidateQueries({ queryKey: ['conversations', orgId] });
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('useConversationsList: Inscrição Realtime da lista ativa.');
+        }
+      });
+
     return () => { supabase.removeChannel(channel); };
   }, [orgId, queryClient]);
 
@@ -89,57 +96,9 @@ export function useConversationsList() {
 
 export function useMessages(leadId: string | null) {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const queryKey = useMemo(() => ['messages_v6', leadId], [leadId]);
-
-  useEffect(() => {
-    if (!leadId || !user) return;
-    
-    const channel = supabase.channel(`messages_realtime_${leadId}`)
-      .on('postgres_changes', 
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'mensagens', 
-          filter: `lead_id=eq.${leadId}` 
-        },
-        (payload) => {
-          const newMessage = payload.new as Message;
-          
-          queryClient.setQueryData<Message[]>(queryKey, (old) => {
-            const currentMessages = old || [];
-            
-            // Verifica se a mensagem já existe (por ID real)
-            const exists = currentMessages.find(m => m.id === newMessage.id);
-            if (exists) return currentMessages;
-
-            // Filtra mensagens temporárias que tenham o mesmo conteúdo (limpando espaços para bater o match)
-            const filtered = currentMessages.filter(m => {
-              if (!m.id.startsWith('temp-')) return true;
-              return m.conteudo.trim() !== newMessage.conteudo.trim();
-            });
-            
-            return [...filtered, newMessage].sort((a, b) => 
-                new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
-            );
-          });
-        }
-      )
-      .on('postgres_changes', 
-        { event: 'DELETE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` },
-        (payload) => {
-          queryClient.setQueryData<Message[]>(queryKey, (old) => 
-            (old || []).filter(m => m.id !== payload.old.id)
-          );
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [leadId, user, queryClient, queryKey]);
-
+  
   return useQuery<Message[], Error>({
-    queryKey,
+    queryKey: ['messages_initial', leadId],
     queryFn: async () => {
       if (!leadId || !user) return [];
       const { data: rawMessages, error } = await supabase
@@ -158,7 +117,6 @@ export function useMessages(leadId: string | null) {
       })) as Message[];
     },
     enabled: !!leadId && !!user,
-    staleTime: 1000 * 60, // Aumentado para 1 minuto para confiar mais no cache/realtime
   });
 }
 
@@ -177,44 +135,8 @@ export function useSendMessage() {
       if (!response.ok) throw new Error("Falha ao enviar");
       return null;
     },
-    onMutate: async ({ leadId, content }) => {
-      const queryKey = ['messages_v6', leadId];
-      await queryClient.cancelQueries({ queryKey });
-      const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
-      
-      const optimisticMessage: Message = {
-        id: `temp-${Date.now()}`,
-        lead_id: leadId,
-        user_id: user?.id || null,
-        conteudo: content,
-        direcao: 'saida',
-        remetente: 'agente_crm',
-        tipo_conteudo: 'texto',
-        criado_em: new Date().toISOString(),
-        media_path: null,
-        id_mensagem: null,
-        message_attachments: []
-      };
-      
-      queryClient.setQueryData<Message[]>(queryKey, (old) => [...(old || []), optimisticMessage]);
-      return { previousMessages };
-    },
-    onError: (err, variables, context) => {
-      if (context?.previousMessages) {
-        queryClient.setQueryData(['messages_v6', variables.leadId], context.previousMessages);
-      }
-      toast.error('Erro ao enviar mensagem.');
-    },
-    onSettled: (data, error, variables) => {
-      // Invalida a lista lateral para atualizar o preview
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      
-      // NÃO invalidamos a query do chat aqui para evitar o salto de sumiço.
-      // Deixamos o Realtime injetar a mensagem real e remover a temporária organicamente.
-      // Apenas um timeout longo de segurança para garantir consistência final.
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
-      }, 5000);
+    onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
     }
   });
 }
@@ -239,23 +161,17 @@ export function useSendAudioMessage() {
       });
       return null;
     },
-    onSettled: (data, error, variables) => {
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
-      }, 2000);
+    onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
     }
   });
 }
 
 export function useDeleteMessage() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ messageId, leadId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
       await supabase.functions.invoke('delete-message', { body: { messageId, leadId, id_mensagem } });
       return messageId;
-    },
-    onSuccess: (_, { leadId }) => {
-      queryClient.invalidateQueries({ queryKey: ['messages_v6', leadId] });
     }
   });
 }
