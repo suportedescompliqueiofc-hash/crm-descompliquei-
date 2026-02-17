@@ -257,6 +257,9 @@ export type Database = {
           status: string | null
           proxima_execucao: string | null
           criado_em: string
+          ultima_execucao: string | null
+          status_ultima_execucao: string | null
+          erro_log: string | null
         }
         Insert: {
           id?: string
@@ -267,6 +270,9 @@ export type Database = {
           status?: string | null
           proxima_execucao?: string | null
           criado_em?: string
+          ultima_execucao?: string | null
+          status_ultima_execucao?: string | null
+          erro_log?: string | null
         }
         Update: {
           id?: string
@@ -277,6 +283,9 @@ export type Database = {
           status?: string | null
           proxima_execucao?: string | null
           criado_em?: string
+          ultima_execucao?: string | null
+          status_ultima_execucao?: string | null
+          erro_log?: string | null
         }
         Relationships: [
           {

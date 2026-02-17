@@ -36,28 +36,35 @@ export function useCadenceMonitoring(dateRange?: DateRange) {
     queryFn: async () => {
       if (!user || !orgId) return [];
       
+      // JOIN explícito usando os nomes das FKs para evitar erro PGRST200 (ambiguidade)
       let query = supabase
         .from('lead_cadencias')
         .select(`
           *,
-          leads (nome, telefone),
-          cadencias (nome)
+          leads!lead_cadencias_lead_id_fkey (nome, telefone),
+          cadencias!lead_cadencias_cadencia_id_fkey (nome)
         `)
         .eq('organization_id', orgId)
-        .order('ultima_execucao', { ascending: false });
+        .order('ultima_execucao', { ascending: false, nullsFirst: false });
 
       if (dateRange?.from) {
-        query = query.gte('ultima_execucao', format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss'));
+        // Uso de formato ISO completo para estabilidade no PostgREST
+        query = query.gte('ultima_execucao', startOfDay(dateRange.from).toISOString());
       }
       if (dateRange?.to) {
-        query = query.lte('ultima_execucao', format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss'));
+        query = query.lte('ultima_execucao', endOfDay(dateRange.to).toISOString());
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error("[useCadenceMonitoring] Error fetching logs:", error);
+        throw error;
+      }
+      
       return data as unknown as CadenceLog[];
     },
     enabled: !!user && !!orgId,
+    staleTime: 1000 * 30, // 30 segundos
   });
 
   const stopLeadCadence = useMutation({
