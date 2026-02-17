@@ -91,7 +91,6 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const { updateLead } = useLeads();
   const { mutate: deleteMessage } = useDeleteMessage();
   
-  // ESTADO LOCAL PARA FORÇAR RENDERIZAÇÃO INSTANTÂNEA
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [messageContent, setMessageContent] = useState("");
   const [isAiActive, setIsAiActive] = useState(true);
@@ -100,35 +99,25 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Sincroniza estado local com dados iniciais do cache
   useEffect(() => {
     if (initialMessages) {
       setLocalMessages(initialMessages);
     }
   }, [initialMessages]);
 
-  // LÓGICA DE ESCUTA TOTAL VIA REALTIME (CHANNEL)
   useEffect(() => {
     if (!leadId) return;
 
-    console.log(`Tentando conectar ao Realtime para o lead: ${leadId}...`);
-
     const channel = supabase
-      .channel('custom-all-channel')
+      .channel(`chat-sync-${leadId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` },
         (payload) => {
-          console.log('Mensagem nova recebida via Websocket:', payload);
           const newMessage = payload.new as Message;
-          
           setLocalMessages((prev) => {
-            // Evita duplicidade (ex: mensagens que enviamos e já apareceram via otimismo)
-            const alreadyExists = prev.some(m => m.id === newMessage.id || (m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo));
-            if (alreadyExists) {
-                // Se for uma mensagem real substituindo uma temporária
-                return prev.map(m => (m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo) ? newMessage : m);
-            }
+            const alreadyExists = prev.some(m => m.id === newMessage.id);
+            if (alreadyExists) return prev;
             return [...prev, newMessage];
           });
         }
@@ -140,16 +129,9 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
           setLocalMessages((prev) => prev.filter(m => m.id !== payload.old.id));
         }
       )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Inscrição Realtime ativa (SUBSCRIBED). Se mensagens não aparecerem, verifique as políticas de RLS e se a publicação está em FULL.');
-        } else {
-          console.log('Status da conexão Realtime:', status);
-        }
-      });
+      .subscribe();
 
     return () => {
-      console.log('Limpando inscrição Realtime...');
       supabase.removeChannel(channel);
     };
   }, [leadId]);
@@ -167,23 +149,6 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (messageContent.trim()) {
-      const tempId = `temp-${Date.now()}`;
-      const optimisticMsg: Message = {
-        id: tempId,
-        lead_id: leadId,
-        user_id: null,
-        conteudo: messageContent.trim(),
-        direcao: 'saida',
-        remetente: 'agente_crm',
-        tipo_conteudo: 'texto',
-        criado_em: new Date().toISOString(),
-        media_path: null,
-        id_mensagem: null,
-        message_attachments: []
-      };
-
-      // Adiciona imediatamente ao estado local para feedback visual instantâneo
-      setLocalMessages(prev => [...prev, optimisticMsg]);
       sendMessage({ leadId, content: messageContent.trim() });
       setMessageContent("");
     }
@@ -285,8 +250,24 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                     ) : (<AvatarFallback className="bg-muted text-muted-foreground text-xs font-medium">{getInitials(lead?.nome)}</AvatarFallback>)}
                   </Avatar>
                   <div className={cn("p-2 sm:p-3 rounded-2xl relative shadow-sm transition-all min-w-[100px]", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border border-border/40 rounded-bl-none")}>
-                    <div className="mb-1 space-y-1">{msg.message_attachments?.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}</div>
+                    {/* Renderização de Mídias via Anexos */}
+                    <div className="mb-1 space-y-1">
+                        {msg.message_attachments?.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}
+                    </div>
+                    
+                    {/* Fallback para media_path direto se não houver anexos e for áudio/mídia */}
+                    {!msg.message_attachments?.length && msg.media_path && (
+                        <div className="mb-1">
+                            {msg.tipo_conteudo === 'audio' ? (
+                                <AudioMessage filePath={msg.media_path} variant={isOutgoing ? 'outgoing' : 'incoming'} />
+                            ) : (msg.tipo_conteudo === 'imagem' || msg.tipo_conteudo === 'video') ? (
+                                <MediaMessage path={msg.media_path} type={msg.tipo_conteudo as any} />
+                            ) : null}
+                        </div>
+                    )}
+
                     {msg.conteudo && msg.tipo_conteudo !== 'audio' && <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed break-words">{msg.conteudo}</p>}
+                    
                     <div className={cn("flex items-center justify-end gap-1 mt-1 opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}>
                       <span className="text-[9px] sm:text-[10px] tabular-nums">{format(new Date(msg.criado_em), 'HH:mm')}</span>
                       {isOutgoing && <CheckCircle className="h-2.5 w-2.5" />}
