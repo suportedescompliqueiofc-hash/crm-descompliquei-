@@ -49,8 +49,8 @@ const DateSeparator = ({ dateString }: { dateString: string }) => {
 
 const AttachmentRenderer = ({ attachment, isOutgoing }: { attachment: Attachment; isOutgoing: boolean }) => {
   const type = (attachment.file_type || '').toLowerCase();
-  // Verificação mais flexível para áudio
-  if (type.includes('audio')) {
+  // Verificação abrangente para áudio (audio ou ptt)
+  if (type.includes('audio') || type.includes('ptt')) {
     return <AudioMessage filePath={attachment.file_path} variant={isOutgoing ? 'outgoing' : 'incoming'} />;
   }
   if (type.includes('image') || type.includes('imagem') || type.includes('video')) {
@@ -246,11 +246,12 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             const isAi = msg.remetente === 'bot';
             const isOutgoing = !isFromLead;
             
-            // Verificações flexíveis de tipo
-            const isAudio = (msg.tipo_conteudo || '').toLowerCase().includes('audio');
-            const isVisualMedia = (msg.tipo_conteudo || '').toLowerCase().includes('image') || 
-                                (msg.tipo_conteudo || '').toLowerCase().includes('imagem') || 
-                                (msg.tipo_conteudo || '').toLowerCase().includes('video');
+            // Verificações flexíveis de tipo (audio e ptt)
+            const typeLower = (msg.tipo_conteudo || '').toLowerCase();
+            const isAudio = typeLower.includes('audio') || typeLower.includes('ptt');
+            const isVisualMedia = typeLower.includes('image') || 
+                                typeLower.includes('imagem') || 
+                                typeLower.includes('video');
 
             return (
               <div key={msg.id} className={cn("group relative flex flex-col gap-0.5 py-0.5", isOutgoing ? "items-end" : "items-start")}>
@@ -266,11 +267,11 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                         {msg.message_attachments?.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}
                     </div>
                     
-                    {/* Fallback para media_path direto se não houver anexos */}
-                    {!msg.message_attachments?.length && msg.media_path && (
+                    {/* Fallback para media_path direto ou conteúdo (se for URL de áudio) */}
+                    {!msg.message_attachments?.length && (msg.media_path || (isAudio && msg.conteudo?.startsWith('http'))) && (
                         <div className="mb-1">
                             {isAudio ? (
-                                <AudioMessage filePath={msg.media_path} variant={isOutgoing ? 'outgoing' : 'incoming'} />
+                                <AudioMessage filePath={msg.media_path || msg.conteudo} variant={isOutgoing ? 'outgoing' : 'incoming'} />
                             ) : isVisualMedia ? (
                                 <MediaMessage path={msg.media_path} type={msg.tipo_conteudo?.includes('video') ? 'video' : 'imagem'} />
                             ) : null}

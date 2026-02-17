@@ -23,8 +23,8 @@ export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessagePro
       return;
     }
 
-    // Suporte para Optimistic UI (blob local)
-    if (filePath.startsWith('blob:')) {
+    // Suporte imediato para Blobs locais (UI Otimista) ou URLs completas
+    if (filePath.startsWith('blob:') || filePath.startsWith('http://') || filePath.startsWith('https://')) {
       setAudioUrl(filePath);
       setIsLoading(false);
       setError(null);
@@ -35,42 +35,26 @@ export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessagePro
     setError(null);
 
     try {
-      // Chama a função centralizada para URLs de mídia
+      // Tenta buscar URL assinada via Edge Function centralizada
       const { data, error: functionError } = await supabase.functions.invoke('get-media-url', {
         body: { mediaPath: filePath },
       });
 
       if (functionError || !data?.signedUrl) {
-        console.warn('Falha ao buscar áudio via Edge Function, tentando fallback direto...');
-        // Tentativa de fallback direto em diferentes buckets para máxima resiliência
-        const buckets = ['media-mensagens', 'audio-mensagens', 'campaign-media'];
-        let foundUrl = null;
-
-        for (const bucket of buckets) {
-            let cleanPath = filePath;
-            if (cleanPath.startsWith(`${bucket}/`)) {
-                cleanPath = cleanPath.substring(bucket.length + 1);
-            }
-            const { data: fallbackData } = supabase.storage.from(bucket).getPublicUrl(cleanPath);
-            if (fallbackData?.publicUrl) {
-                // Checagem básica se a URL é válida (não 404 instantâneo)
-                foundUrl = fallbackData.publicUrl;
-                break;
-            }
-        }
-
-        if (foundUrl) {
-            setAudioUrl(foundUrl);
+        // Fallback resiliente para buscar no bucket principal
+        const { data: fallbackData } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
+        if (fallbackData?.publicUrl) {
+            setAudioUrl(fallbackData.publicUrl);
             setError(null);
         } else {
-            setError("Áudio não encontrado no servidor.");
+            setError("Áudio não localizado");
         }
       } else {
         setAudioUrl(data.signedUrl);
       }
     } catch (err) {
-      console.error("Exceção ao buscar áudio:", err);
-      setError("Falha na comunicação");
+      console.error("Erro ao carregar áudio:", err);
+      setError("Erro de rede");
     } finally {
       setIsLoading(false);
     }
@@ -95,7 +79,7 @@ export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessagePro
   if (error || !audioUrl) {
     return (
       <div className={cn(
-        "flex flex-col gap-2 p-3 w-64 rounded-xl border border-dashed", 
+        "flex flex-col gap-2 p-3 w-64 rounded-xl border border-dashed min-h-[60px] justify-center", 
         variant === 'outgoing' ? "bg-white/10 text-white/70 border-white/30" : "bg-destructive/5 text-destructive border-destructive/20"
       )}>
         <div className="flex items-center justify-between gap-2">
@@ -112,7 +96,6 @@ export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessagePro
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <p className="text-[9px] opacity-60 font-mono truncate">{filePath.split('/').pop()}</p>
       </div>
     );
   }
