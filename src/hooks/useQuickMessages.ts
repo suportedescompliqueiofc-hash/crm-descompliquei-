@@ -17,6 +17,15 @@ export interface QuickMessage {
   position: number;
 }
 
+export interface ScheduledMessage {
+  id: string;
+  lead_id: string;
+  quick_message_id: string;
+  scheduled_for: string;
+  status: 'pending' | 'sent' | 'error';
+  created_at: string;
+}
+
 const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/botoes-crm-gleyce';
 
 export function useQuickMessages() {
@@ -213,7 +222,7 @@ export function useQuickMessages() {
         titulo_pdf: message.tipo === 'pdf' ? message.titulo : null,
         telefone: phone,
         user_id: user.id,
-        remetente: 'bot' // Define explicitamente como bot para the backend
+        remetente: 'bot'
       };
 
       const response = await fetch(WEBHOOK_URL, {
@@ -228,41 +237,31 @@ export function useQuickMessages() {
 
       return true;
     },
-    // Optimistic Update: Adiciona mensagem ao chat imediatamente
     onMutate: async ({ message, leadId }) => {
       if (!user) return;
-      
       const queryKey = ['messages_v6', leadId];
-      // Cancela refetches pendentes para não sobrescrever nossa atualização otimista
       await queryClient.cancelQueries({ queryKey });
-      
       const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
-      
       const tempId = `temp-qm-${Date.now()}`;
-      
       const optimisticMessage: Message = {
         id: tempId,
         lead_id: leadId,
         user_id: user.id,
         conteudo: message.conteudo || '',
         direcao: 'saida',
-        remetente: 'bot', // Define como bot no frontend para exibir o robô
+        remetente: 'bot',
         tipo_conteudo: message.tipo,
         criado_em: new Date().toISOString(),
         media_path: message.arquivo_path,
         id_mensagem: null,
         message_attachments: []
       };
-
-      // Simula o anexo se houver arquivo
       if (message.arquivo_path) {
         let fileType: 'imagem' | 'video' | 'audio' | 'arquivo' = 'arquivo';
-        
         if (message.tipo === 'imagem') fileType = 'imagem';
         else if (message.tipo === 'video') fileType = 'video';
         else if (message.tipo === 'audio') fileType = 'audio';
         const finalType = message.tipo === 'pdf' ? 'pdf' : fileType;
-
         optimisticMessage.message_attachments = [{
           id: `att-${tempId}`,
           message_id: tempId,
@@ -270,15 +269,12 @@ export function useQuickMessages() {
           file_type: finalType as any
         }];
       }
-
       queryClient.setQueryData<Message[]>(queryKey, (old) => 
         old ? [...old, optimisticMessage] : [optimisticMessage]
       );
-      
       return { previousMessages };
     },
     onError: (err: any, variables, context: any) => {
-      // Rollback em caso de erro
       if (context?.previousMessages) {
         queryClient.setQueryData(['messages_v6', variables.leadId], context.previousMessages);
       }
@@ -289,22 +285,53 @@ export function useQuickMessages() {
     },
   });
 
+  const scheduleQuickMessage = useMutation({
+    mutationFn: async ({ 
+      message, 
+      leadId, 
+      scheduledFor 
+    }: { 
+      message: QuickMessage; 
+      leadId: string; 
+      scheduledFor: string;
+    }) => {
+      if (!user || !orgId) throw new Error("Usuário não autenticado");
+
+      const { error } = await supabase
+        .from('scheduled_quick_messages')
+        .insert([{
+          organization_id: orgId,
+          lead_id: leadId,
+          quick_message_id: message.id,
+          scheduled_for: scheduledFor,
+          user_id: user.id,
+          status: 'pending'
+        }]);
+
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => {
+      toast.success('Mensagem agendada com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['scheduled_messages', orgId] });
+    },
+    onError: (error: any) => {
+      toast.error(`Erro ao agendar: ${error.message}`);
+    }
+  });
+
   const updateMessagesOrder = useMutation({
     mutationFn: async (updates: { id: string; position: number; folder_id: string | null }[]) => {
       if (!user || !orgId) return;
-
       const promises = updates.map(update => 
         supabase
           .from('mensagens_rapidas')
           .update({ position: update.position, folder_id: update.folder_id })
           .eq('id', update.id)
       );
-
       await Promise.all(promises);
     },
-    onSuccess: () => {
-      // Silent success
-    },
+    onSuccess: () => {},
     onError: (err: any) => {
       toast.error(`Erro ao salvar ordem das mensagens: ${err.message}`);
       queryClient.invalidateQueries({ queryKey: ['quick_messages', orgId] });
@@ -319,6 +346,8 @@ export function useQuickMessages() {
     isCreating: createQuickMessage.isPending || updateQuickMessage.isPending,
     deleteQuickMessage: deleteQuickMessage.mutate,
     sendQuickMessage: sendQuickMessage.mutate,
+    scheduleQuickMessage: scheduleQuickMessage.mutate,
+    isScheduling: scheduleQuickMessage.isPending,
     isSending: sendQuickMessage.isPending,
     updateMessagesOrder
   };

@@ -5,7 +5,7 @@ import { useQuickMessageFolders, QuickMessageFolder } from "@/hooks/useQuickMess
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { Search, Zap, Mic, Image as ImageIcon, Video, FileText, MessageSquare, Send, Folder, GripVertical } from "lucide-react";
+import { Search, Zap, Mic, Image as ImageIcon, Video, FileText, MessageSquare, Send, Folder, GripVertical, Clock, Calendar as CalendarIcon } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Lead } from "@/hooks/useLeads";
@@ -25,6 +25,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format, startOfDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   DndContext, 
   closestCenter, 
@@ -49,11 +61,13 @@ interface QuickMessagesSidebarProps {
 
 function SortableMessageItem({ 
   msg, 
-  onClick, 
+  onClick,
+  onSchedule,
   getIcon 
 }: { 
   msg: QuickMessage; 
   onClick: (msg: QuickMessage) => void;
+  onSchedule: (msg: QuickMessage) => void;
   getIcon: (tipo: string) => React.ReactNode;
 }) {
   const {
@@ -92,7 +106,7 @@ function SortableMessageItem({
           <div className="mt-0.5 flex-shrink-0 bg-muted rounded p-1 group-hover/btn:bg-background transition-colors">
             {getIcon(msg.tipo)}
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 pr-12">
             <div className="font-medium text-xs leading-tight">
               {msg.titulo}
             </div>
@@ -102,8 +116,23 @@ function SortableMessageItem({
               </p>
             )}
           </div>
-          <div className="opacity-0 group-hover/btn:opacity-100 absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-primary-foreground p-1 rounded-full shadow-sm transition-opacity">
-            <Send className="h-2.5 w-2.5" />
+          
+          <div className="opacity-0 group-hover/btn:opacity-100 absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 transition-opacity">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-full bg-background/80 hover:bg-primary/20 text-primary shadow-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSchedule(msg);
+              }}
+              title="Agendar Mensagem"
+            >
+              <Clock className="h-3.5 w-3.5" />
+            </Button>
+            <div className="bg-primary text-primary-foreground p-1.5 rounded-full shadow-sm">
+              <Send className="h-3 w-3" />
+            </div>
           </div>
         </div>
       </Button>
@@ -112,20 +141,21 @@ function SortableMessageItem({
 }
 
 export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
-  const { quickMessages, sendQuickMessage, isLoading: isLoadingMsgs, updateMessagesOrder } = useQuickMessages();
+  const { quickMessages, sendQuickMessage, scheduleQuickMessage, isLoading: isLoadingMsgs, updateMessagesOrder } = useQuickMessages();
   const { folders, isLoading: isLoadingFolders } = useQuickMessageFolders();
   const [searchTerm, setSearchTerm] = useState("");
   const [messageToConfirm, setMessageToConfirm] = useState<QuickMessage | null>(null);
+  const [messageToSchedule, setMessageToSchedule] = useState<QuickMessage | null>(null);
   
-  // Local state for optimistic updates
+  // Agendamento
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedTime, setSelectedTime] = useState("09:00");
+
   const [localMessages, setLocalMessages] = useState<QuickMessage[]>([]);
   const [localFolders, setLocalFolders] = useState<QuickMessageFolder[]>([]);
-
-  // Refs para rastrear a última versão dos dados sincronizados e evitar loops
   const lastSyncedMessagesRef = useRef<string>("");
   const lastSyncedFoldersRef = useRef<string>("");
 
-  // Sincronização Estável: Mensagens
   useEffect(() => {
     if (!isLoadingMsgs && quickMessages) {
       const serverStr = JSON.stringify(quickMessages);
@@ -136,7 +166,6 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
     }
   }, [quickMessages, isLoadingMsgs]);
 
-  // Sincronização Estável: Pastas
   useEffect(() => {
     if (!isLoadingFolders && folders) {
       const serverStr = JSON.stringify(folders);
@@ -158,11 +187,33 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   );
 
   const handleClickMessage = (msg: QuickMessage) => setMessageToConfirm(msg);
+  const handleScheduleClick = (msg: QuickMessage) => setMessageToSchedule(msg);
 
   const handleConfirmSend = () => {
     if (!lead || !messageToConfirm) return;
     sendQuickMessage({ message: messageToConfirm, leadId: lead.id, phone: lead.telefone });
     setMessageToConfirm(null);
+  };
+
+  const handleConfirmSchedule = () => {
+    if (!lead || !messageToSchedule || !selectedDate) return;
+    
+    const [hours, minutes] = selectedTime.split(':').map(Number);
+    const combinedDate = new Date(selectedDate);
+    combinedDate.setHours(hours, minutes, 0, 0);
+
+    if (combinedDate <= new Date()) {
+      toast.error("O horário deve ser no futuro.");
+      return;
+    }
+
+    scheduleQuickMessage({
+      message: messageToSchedule,
+      leadId: lead.id,
+      scheduledFor: combinedDate.toISOString()
+    });
+
+    setMessageToSchedule(null);
   };
 
   const getIcon = (tipo: string) => {
@@ -180,10 +231,8 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-
     const oldIndex = localMessages.findIndex((item) => item.id === active.id);
     const newIndex = localMessages.findIndex((item) => item.id === over.id);
-
     if (oldIndex !== -1 && newIndex !== -1) {
       const newItems = arrayMove(localMessages, oldIndex, newIndex);
       setLocalMessages(newItems);
@@ -195,10 +244,9 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   if (!lead) return null;
 
   return (
-    // Largura responsiva: w-72 em notebooks, w-80 em monitores maiores, w-96 em monitores gigantes (2xl)
     <div className="h-full flex flex-col bg-background w-72 xl:w-80 2xl:w-96 flex-shrink-0 shadow-sm">
       <div className="p-3 border-b flex-shrink-0">
-        <h3 className="font-semibold flex items-center gap-2 mb-2 text-sm">
+        <h3 className="font-semibold flex items-center gap-2 mb-2 text-sm text-foreground">
           <Zap className="h-4 w-4 text-primary" />
           Mensagens Rápidas
         </h3>
@@ -234,14 +282,19 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
                       <AccordionContent className="pt-1 pb-0 px-1">
                         <SortableContext items={msgs.map(m => m.id)} strategy={verticalListSortingStrategy}>
                           {msgs.map(msg => (
-                            <SortableMessageItem key={msg.id} msg={msg} onClick={handleClickMessage} getIcon={getIcon} />
+                            <SortableMessageItem 
+                              key={msg.id} 
+                              msg={msg} 
+                              onClick={handleClickMessage}
+                              onSchedule={handleScheduleClick}
+                              getIcon={getIcon} 
+                            />
                           ))}
                         </SortableContext>
                       </AccordionContent>
                     </AccordionItem>
                   );
                 })}
-
                 {getMessagesByFolder(null).length > 0 && (
                   <AccordionItem value="uncategorized" className="border-b-0">
                     <AccordionTrigger className="hover:no-underline py-1.5 px-2 rounded hover:bg-muted/50 transition-colors">
@@ -253,7 +306,13 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
                     <AccordionContent className="pt-1 pb-0 px-1">
                       <SortableContext items={getMessagesByFolder(null).map(m => m.id)} strategy={verticalListSortingStrategy}>
                         {getMessagesByFolder(null).map(msg => (
-                          <SortableMessageItem key={msg.id} msg={msg} onClick={handleClickMessage} getIcon={getIcon} />
+                          <SortableMessageItem 
+                            key={msg.id} 
+                            msg={msg} 
+                            onClick={handleClickMessage}
+                            onSchedule={handleScheduleClick}
+                            getIcon={getIcon} 
+                          />
                         ))}
                       </SortableContext>
                     </AccordionContent>
@@ -265,12 +324,13 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
         )}
       </ScrollArea>
 
+      {/* Modal de Confirmação Envio Imediato */}
       <AlertDialog open={!!messageToConfirm} onOpenChange={(open) => !open && setMessageToConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar envio</AlertDialogTitle>
             <AlertDialogDescription>
-              Deseja enviar a mensagem <strong>"{messageToConfirm?.titulo}"</strong> para {lead?.nome}?
+              Deseja enviar a mensagem <strong>"{messageToConfirm?.titulo}"</strong> para {lead?.nome} agora?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -281,6 +341,68 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal de Agendamento */}
+      <Dialog open={!!messageToSchedule} onOpenChange={(open) => !open && setMessageToSchedule(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" />
+              Agendar Mensagem
+            </DialogTitle>
+            <DialogDescription>
+              Selecione o dia e horário para enviar <strong>"{messageToSchedule?.titulo}"</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Data do Envio</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !selectedDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate ? format(selectedDate, "PPP", { locale: ptBR }) : <span>Selecione uma data</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    initialFocus
+                    locale={ptBR}
+                    disabled={(date) => date < startOfDay(new Date())}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Horário</label>
+              <Input
+                type="time"
+                value={selectedTime}
+                onChange={(e) => setSelectedTime(e.target.value)}
+                className="w-full"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMessageToSchedule(null)}>Cancelar</Button>
+            <Button onClick={handleConfirmSchedule} className="bg-primary hover:bg-primary/90">
+              Agendar para {selectedTime}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
