@@ -67,7 +67,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
             
             {/* Logo Text */}
             <div className={`flex flex-col whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}`}>
-              <h1 className="text-sm font-bold text-sidebar-foreground uppercase tracking-widest font-serif leading-none mb-0.5">GLEYCE CABRAL</h1>
+              <h1 className="text-sm font-bold text-sidebar-foreground uppercase tracking-wider font-serif leading-none mb-0.5">GLEYCE CABRAL</h1>
               <p className="text-[9px] text-sidebar-primary tracking-wide uppercase font-medium truncate">Advocacia</p>
             </div>
           </div>
