@@ -38,7 +38,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const isConversationsPage = location.pathname.startsWith('/conversas');
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <div className="hidden lg:block">
         <Sidebar 
           isCollapsed={isSidebarCollapsed} 
@@ -47,7 +47,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       </div>
       
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent side="left" className="p-0 w-64 bg-sidebar border-r-0">
+        <SheetContent side="left" className="p-0 w-[280px] bg-sidebar border-r-0">
           <SidebarContent />
         </SheetContent>
       </Sheet>
@@ -57,12 +57,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         isSidebarCollapsed={isSidebarCollapsed}
       />
       <main className={cn(
-        "pt-16 transition-all duration-300",
+        "pt-16 transition-all duration-300 min-h-screen",
         isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'
       )}>
         <div className={cn(
-          "h-[calc(100vh-4rem)]",
-          !isConversationsPage && "p-6"
+          "w-full max-w-full overflow-x-hidden",
+          !isConversationsPage && "p-4 sm:p-6"
         )}>
           {children}
         </div>

@@ -9,7 +9,7 @@ import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { Button } from "@/components/ui/button";
 
-// Componente de Tooltip Personalizado (igual ao de Relatórios)
+// Componente de Tooltip Personalizado
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -57,7 +57,6 @@ export default function Dashboard() {
       return acc;
     }, {} as Record<number, number>);
 
-    // Cores padrão do sistema
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
     return stages.map((stage, index) => ({
@@ -82,7 +81,7 @@ export default function Dashboard() {
 
   if (metricsError) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
+      <div className="flex flex-col items-center justify-center min-h-[400px] h-96 gap-4 p-4 text-center">
         <div className="bg-destructive/10 p-6 rounded-full"><AlertTriangle className="h-10 w-10 text-destructive" /></div>
         <h3 className="text-xl font-semibold">Erro ao carregar o painel</h3>
         <Button onClick={() => refetch()} variant="outline" className="gap-2"><RefreshCw className="h-4 w-4" /> Tentar Novamente</Button>
@@ -96,35 +95,35 @@ export default function Dashboard() {
 
   const metricsData = [
     { title: "Total Contatos", value: metrics.totalContatos.toString(), icon: UserPlus, description: "Todos os registros" },
-    { title: "Leads Marketing", value: (metrics.marketingLeads || 0).toString(), icon: Megaphone, description: "Origem Marketing (Ads)" },
+    { title: "Leads Marketing", value: (metrics.marketingLeads || 0).toString(), icon: Megaphone, description: "Anúncios (Ads)" },
     { title: "Leads Orgânico", value: (metrics.organicLeads || 0).toString(), icon: Users, description: "Indicação, Manual..." },
-    { title: "Taxa de Conversão", value: `${metrics.conversionRate}%`, icon: TrendingUp, description: "Funil de vendas" },
+    { title: "Taxa Conversão", value: `${metrics.conversionRate}%`, icon: TrendingUp, description: "Vendas fechadas" },
     { title: "Faturamento", value: `R$ ${metrics.faturamentoTotal.toLocaleString('pt-BR')}`, icon: DollarSign, description: "Contratos fechados" },
-    { title: "CAC Global", value: `R$ ${metrics.cac.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: Calculator, description: "Custo por Aquisição" },
+    { title: "CAC Global", value: `R$ ${metrics.cac.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: Calculator, description: "Custo Aquisição" },
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8 max-w-full overflow-hidden">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Painel de Controle</h1>
-          <p className="text-muted-foreground mt-1">Visão geral do desempenho do seu escritório.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Painel de Controle</h1>
+          <p className="text-sm text-muted-foreground mt-1">Desempenho do seu escritório.</p>
         </div>
-        <DateRangePicker date={dateRange} setDate={setDateRange} />
+        <div className="w-full md:w-auto"><DateRangePicker date={dateRange} setDate={setDateRange} className="w-full" /></div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
         {metricsData.map((metric) => (
-          <Card key={metric.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
+          <Card key={metric.title} className="p-0 overflow-hidden shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-4 pb-1">
+              <CardTitle className="text-[10px] sm:text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                 {metric.title}
               </CardTitle>
-              <metric.icon className="h-4 w-4 text-muted-foreground" />
+              <metric.icon className="h-3 w-3 sm:h-4 sm:w-4 text-primary opacity-60" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metric.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">
+            <CardContent className="p-3 sm:p-4 pt-0">
+              <div className="text-lg sm:text-2xl font-bold truncate">{metric.value}</div>
+              <p className="hidden sm:block text-[10px] text-muted-foreground mt-1">
                 {metric.description}
               </p>
             </CardContent>
@@ -132,77 +131,43 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="col-span-1 shadow-sm border-border/60">
-          <CardHeader>
-            <CardTitle>Evolução de Leads</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <Card className="col-span-1 shadow-sm border-border/60 overflow-hidden">
+          <CardHeader className="p-4"><CardTitle className="text-base sm:text-lg">Evolução de Leads</CardTitle></CardHeader>
+          <CardContent className="p-2 sm:p-4 pt-0">
+            <div className="h-[250px] sm:h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={metrics.leadsOverTime} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <AreaChart data={metrics.leadsOverTime} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   {GRADIENTS}
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
-                  <XAxis dataKey="day" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
+                  <XAxis dataKey="day" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis fontSize={10} tickLine={false} axisLine={false} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Legend iconType="circle" />
-                  <Area 
-                    type="monotone" 
-                    dataKey="captados" 
-                    name="Captados" 
-                    stroke="hsl(var(--primary))" 
-                    strokeWidth={2}
-                    fill="url(#colorCaptados)" 
-                    activeDot={{ r: 6, strokeWidth: 0 }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="convertidos" 
-                    name="Convertidos" 
-                    stroke="#10b981" 
-                    strokeWidth={2}
-                    fill="url(#colorConvertidos)" 
-                    activeDot={{ r: 6, strokeWidth: 0 }}
-                  />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
+                  <Area type="monotone" dataKey="captados" name="Captados" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#colorCaptados)" />
+                  <Area type="monotone" dataKey="convertidos" name="Convertidos" stroke="#10b981" strokeWidth={2} fill="url(#colorConvertidos)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="col-span-1 shadow-sm border-border/60">
-          <CardHeader>
-            <CardTitle>Distribuição do Funil</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
+        <Card className="col-span-1 shadow-sm border-border/60 overflow-hidden">
+          <CardHeader className="p-4"><CardTitle className="text-base sm:text-lg">Distribuição do Funil</CardTitle></CardHeader>
+          <CardContent className="p-2 sm:p-4 pt-0">
+            <div className="h-[250px] sm:h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie 
                     data={stageDistribution} 
-                    cx="50%" 
-                    cy="50%" 
-                    innerRadius={60} 
-                    outerRadius={80} 
-                    paddingAngle={5} 
-                    dataKey="value" 
-                    nameKey="name"
-                    stroke="hsl(var(--card))"
-                    strokeWidth={2}
+                    cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={5} dataKey="value" nameKey="name" stroke="hsl(var(--card))" strokeWidth={2}
                   >
                     {stageDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
                   <Tooltip content={<CustomTooltip />} />
-                  <Legend 
-                    layout="vertical" 
-                    verticalAlign="middle" 
-                    align="right"
-                    iconType="circle"
-                    formatter={(value) => <span className="text-xs text-foreground font-medium ml-1">{value}</span>}
-                  />
+                  <Legend layout="vertical" verticalAlign="middle" align="right" iconType="circle" formatter={(value) => <span className="text-[10px] font-medium ml-1 truncate max-w-[80px] inline-block">{value}</span>} />
                 </PieChart>
               </ResponsiveContainer>
             </div>

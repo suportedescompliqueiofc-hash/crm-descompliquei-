@@ -193,35 +193,35 @@ export default function Leads() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Gestão de Leads</h1>
-          <p className="text-muted-foreground mt-1">Total: {leads.length} leads</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Gestão de Leads</h1>
+          <p className="text-sm text-muted-foreground mt-1">Total: {leads.length} leads</p>
         </div>
-        <Button className="gap-2" onClick={handleCreate}>
+        <Button className="gap-2 w-full sm:w-auto" onClick={handleCreate}>
           <Plus className="h-4 w-4" />
           Novo Lead
         </Button>
       </div>
 
       {/* Search and Filters */}
-      <Card className="shadow-sm">
-        <CardContent className="p-6">
-          <div className="flex gap-4">
+      <Card className="shadow-sm overflow-hidden">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por nome ou telefone..."
-                className="pl-10"
+                className="pl-10 w-full"
                 value={filters.searchTerm}
                 onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
               />
             </div>
             <Button
               variant="outline"
-              className="gap-2"
+              className="gap-2 w-full sm:w-auto"
               onClick={() => setShowFilters(!showFilters)}
             >
               <Filter className="h-4 w-4" />
@@ -230,11 +230,11 @@ export default function Leads() {
           </div>
 
           {showFilters && (
-            <div className="mt-6 pt-6 border-t grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label>Status</Label>
+            <div className="mt-6 pt-6 border-t grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Status</Label>
                 <Select value={filters.status} onValueChange={(v) => handleFilterChange('status', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todos">Todos</SelectItem>
                     <SelectItem value="Ativo">Ativo</SelectItem>
@@ -244,10 +244,10 @@ export default function Leads() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Etapa do Funil</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Etapa do Funil</Label>
                 <Select value={filters.posicao_pipeline} onValueChange={(v) => handleFilterChange('posicao_pipeline', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todos">Todas</SelectItem>
                     {stages.map(stage => (
@@ -256,10 +256,10 @@ export default function Leads() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Origem (Tipo)</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Origem (Tipo)</Label>
                 <Select value={filters.origem} onValueChange={(v) => handleFilterChange('origem', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todos">Todas</SelectItem>
                     <SelectItem value="marketing">Marketing</SelectItem>
@@ -267,22 +267,23 @@ export default function Leads() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Fonte (Detalhe)</Label>
-                <Input value={filters.fonte} onChange={(e) => handleFilterChange('fonte', e.target.value)} placeholder="Ex: Facebook" />
+              <div className="space-y-1.5">
+                <Label className="text-xs">Fonte (Detalhe)</Label>
+                <Input value={filters.fonte} className="h-9" onChange={(e) => handleFilterChange('fonte', e.target.value)} placeholder="Ex: Facebook" />
               </div>
-              <div>
-                <Label>Área/Serviço</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Área/Serviço</Label>
                 <Input 
                   placeholder="Ex: Divórcio" 
+                  className="h-9"
                   value={filters.procedimento} 
                   onChange={(e) => handleFilterChange('procedimento', e.target.value)} 
                 />
               </div>
-              <div>
-                <Label>Gênero</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Gênero</Label>
                 <Select value={filters.genero} onValueChange={(v) => handleFilterChange('genero', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todos">Todos</SelectItem>
                     <SelectItem value="M">Masculino</SelectItem>
@@ -291,18 +292,19 @@ export default function Leads() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Mês de Cadastro</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Mês de Cadastro</Label>
                 <Input 
                   type="month" 
+                  className="h-9"
                   value={filters.cadastroMes} 
                   onChange={(e) => handleFilterChange('cadastroMes', e.target.value)} 
                 />
               </div>
-              <div>
-                <Label>Etiqueta</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Etiqueta</Label>
                 <Select value={filters.tagId} onValueChange={(v) => handleFilterChange('tagId', v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Todos">Todas as Etiquetas</SelectItem>
                     {availableTags.map(tag => (
@@ -316,76 +318,78 @@ export default function Leads() {
         </CardContent>
       </Card>
 
-      {/* Table */}
-      <Card className="shadow-sm">
+      {/* Table - Wrapped in a horizontal scroll container */}
+      <Card className="shadow-sm overflow-hidden border-none sm:border">
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12"><Checkbox /></TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>Telefone</TableHead>
-                {/* Removido Idade/Gênero */}
-                <TableHead>Origem</TableHead>
-                <TableHead>Fonte</TableHead>
-                <TableHead>Área/Serviço</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Etapa</TableHead>
-                <TableHead>Data de Cadastro</TableHead>
-                <TableHead>Último Contato</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {currentLeads.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={11} className="text-center py-12">
-                    <p className="text-muted-foreground">Nenhum lead encontrado com os filtros aplicados</p>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                currentLeads.map((lead) => {
-                  const stage = getStageByPosition(lead.posicao_pipeline);
-                  return (
-                    <TableRow key={lead.id} className="hover:bg-muted/50">
-                      <TableCell><Checkbox /></TableCell>
-                      <TableCell><p className="font-medium text-foreground">{lead.nome}</p></TableCell>
-                      <TableCell><p className="text-sm text-muted-foreground">{lead.telefone}</p></TableCell>
-                      
-                      {/* Novas colunas */}
-                      <TableCell>
-                        <Badge variant="outline" className={lead.origem === 'marketing' ? 'border-primary text-primary' : ''}>
-                          {lead.origem === 'marketing' ? 'Marketing' : 'Orgânico'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell><span className="text-sm text-muted-foreground">{lead.fonte || '-'}</span></TableCell>
-
-                      <TableCell><span className="text-sm font-medium text-primary">{lead.procedimento_interesse || '-'}</span></TableCell>
-                      <TableCell><Badge className={getStatusColor(lead.status)}>{lead.status}</Badge></TableCell>
-                      <TableCell>{stage && <Badge style={{ backgroundColor: stage.cor, color: 'white' }}>{stage.nome}</Badge>}</TableCell>
-                      <TableCell><span className="text-sm text-muted-foreground">{formatDate(lead.criado_em)}</span></TableCell>
-                      <TableCell><span className="text-sm text-muted-foreground">{formatTime(lead.ultimo_contato)}</span></TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-2">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(lead)}><Pencil className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteRequest(lead)}><Trash2 className="h-4 w-4" /></Button>
-                        </div>
+          <div className="w-full overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-muted-foreground/10">
+            <div className="min-w-[1000px] w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12"><Checkbox /></TableHead>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Telefone</TableHead>
+                    <TableHead>Origem</TableHead>
+                    <TableHead>Fonte</TableHead>
+                    <TableHead>Área/Serviço</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Etapa</TableHead>
+                    <TableHead>Data de Cadastro</TableHead>
+                    <TableHead>Último Contato</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentLeads.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={11} className="text-center py-12">
+                        <p className="text-muted-foreground">Nenhum lead encontrado com os filtros aplicados</p>
                       </TableCell>
                     </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
+                  ) : (
+                    currentLeads.map((lead) => {
+                      const stage = getStageByPosition(lead.posicao_pipeline);
+                      return (
+                        <TableRow key={lead.id} className="hover:bg-muted/50">
+                          <TableCell><Checkbox /></TableCell>
+                          <TableCell><p className="font-medium text-foreground">{lead.nome}</p></TableCell>
+                          <TableCell><p className="text-sm text-muted-foreground">{lead.telefone}</p></TableCell>
+                          
+                          <TableCell>
+                            <Badge variant="outline" className={lead.origem === 'marketing' ? 'border-primary text-primary' : ''}>
+                              {lead.origem === 'marketing' ? 'Marketing' : 'Orgânico'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell><span className="text-sm text-muted-foreground">{lead.fonte || '-'}</span></TableCell>
+
+                          <TableCell><span className="text-sm font-medium text-primary">{lead.procedimento_interesse || '-'}</span></TableCell>
+                          <TableCell><Badge className={getStatusColor(lead.status)}>{lead.status}</Badge></TableCell>
+                          <TableCell>{stage && <Badge style={{ backgroundColor: stage.cor, color: 'white' }}>{stage.nome}</Badge>}</TableCell>
+                          <TableCell><span className="text-sm text-muted-foreground">{formatDate(lead.criado_em)}</span></TableCell>
+                          <TableCell><span className="text-sm text-muted-foreground">{formatTime(lead.ultimo_contato)}</span></TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-2">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(lead)}><Pencil className="h-4 w-4" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteRequest(lead)}><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         </CardContent>
         
         {/* Pagination Controls */}
         {filteredLeads.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-4 border-t">
-            <div className="text-sm text-muted-foreground">
+          <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-4 border-t gap-4">
+            <div className="text-xs sm:text-sm text-muted-foreground order-2 sm:order-1">
               Mostrando {startIndex + 1} a {Math.min(endIndex, filteredLeads.length)} de {filteredLeads.length} leads
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1 sm:space-x-2 order-1 sm:order-2">
               <Button
                 variant="outline"
                 size="icon"
@@ -404,8 +408,8 @@ export default function Leads() {
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <div className="text-sm font-medium">
-                Página {currentPage} de {totalPages}
+              <div className="text-xs sm:text-sm font-medium px-2">
+                Pág {currentPage} / {totalPages}
               </div>
               <Button
                 variant="outline"
@@ -433,9 +437,9 @@ export default function Leads() {
       <LeadModal open={isModalOpen} onOpenChange={handleModalOpenChange} lead={selectedLead} mode={modalMode} />
 
       <AlertDialog open={isDeleting} onOpenChange={setIsDeleting}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[90vw] max-w-md">
           <AlertDialogHeader><AlertDialogTitle>Você tem certeza?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita. Isso excluirá permanentemente o lead "{selectedLead?.nome}".</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">Sim, excluir lead</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter className="flex-row gap-2 mt-4"><AlertDialogCancel className="flex-1 mt-0">Cancelar</AlertDialogCancel><AlertDialogAction onClick={confirmDelete} className="flex-1 bg-destructive hover:bg-destructive/90">Sim, excluir</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
