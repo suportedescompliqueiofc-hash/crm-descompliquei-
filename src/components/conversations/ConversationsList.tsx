@@ -44,27 +44,27 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
   if (!content && !type) return <span className="italic text-muted-foreground/60">Nenhuma mensagem</span>;
 
   const isOutgoing = sender === 'agente' || sender === 'bot' || sender === 'agente_crm';
-  const prefix = isOutgoing ? <span className="mr-1 font-medium text-primary">Você:</span> : null;
 
   if (type === 'audio') {
-    return <div className="flex items-center gap-1 text-muted-foreground truncate"><Mic className="h-3 w-3 flex-shrink-0" /> <span>Áudio</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground min-w-0"><Mic className="h-3 w-3 flex-shrink-0" /> <span className="truncate">Áudio</span></div>;
   }
   if (type === 'imagem') {
-    return <div className="flex items-center gap-1 text-muted-foreground truncate"><ImageIcon className="h-3 w-3 flex-shrink-0" /> <span>Foto</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground min-w-0"><ImageIcon className="h-3 w-3 flex-shrink-0" /> <span className="truncate">Foto</span></div>;
   }
   if (type === 'video') {
-    return <div className="flex items-center gap-1 text-muted-foreground truncate"><Video className="h-3 w-3 flex-shrink-0" /> <span>Vídeo</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground min-w-0"><Video className="h-3 w-3 flex-shrink-0" /> <span className="truncate">Vídeo</span></div>;
   }
   if (type === 'pdf' || type === 'arquivo') {
-    return <div className="flex items-center gap-1 text-muted-foreground truncate"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Arquivo</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground min-w-0"><FileText className="h-3 w-3 flex-shrink-0" /> <span className="truncate">Arquivo</span></div>;
   }
 
-  if (content === 'Nenhuma mensagem ainda') return <span className="italic text-muted-foreground/60">{content}</span>;
+  if (content === 'Nenhuma mensagem ainda') return <span className="italic text-muted-foreground/60 truncate">{content}</span>;
 
   return (
-    <span className="truncate block">
-      {prefix}{content}
-    </span>
+    <p className="truncate text-muted-foreground/90">
+      {isOutgoing && <span className="font-medium text-primary mr-1 flex-shrink-0">Você:</span>}
+      {content}
+    </p>
   );
 };
 
@@ -86,44 +86,46 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
         isActive ? "bg-muted border-l-4 border-l-primary" : "bg-transparent hover:bg-muted/30"
       )}
     >
-      <Avatar className="h-12 w-12 flex-shrink-0">
+      <Avatar className="h-12 w-12 flex-shrink-0 shadow-sm">
         <AvatarFallback className={cn("text-sm font-semibold", isActive ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground")}>
           {getInitials(conversation.nome)}
         </AvatarFallback>
       </Avatar>
       
-      {/* Container de conteúdo com min-w-0 para permitir o truncamento do texto flexível */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+      {/* O flex-1 min-w-0 é CRUCIAL para que o truncamento funcione dentro de um flex container */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+        
         {/* Linha Superior: Nome e Horário */}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span className="font-bold text-sm truncate text-foreground">
               {conversation.nome || conversation.telefone}
             </span>
             
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {conversation.tags?.slice(0, 2).map(tag => {
-                const preset = TAG_COLORS.find(c => c.name === tag.color);
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+              {conversation.tags?.slice(0, 3).map(tag => {
                 const isHex = tag.color?.startsWith('#');
+                const preset = TAG_COLORS.find(c => c.name === tag.color);
                 return (
                   <div 
                     key={tag.id} 
-                    className={cn("w-2 h-2 rounded-full ring-1 ring-background", !isHex && preset?.selector)} 
+                    className={cn("w-2 h-2 rounded-full border border-background shadow-xs", !isHex && preset?.selector)} 
                     style={isHex ? { backgroundColor: tag.color } : undefined}
+                    title={tag.name}
                   />
                 );
               })}
             </div>
           </div>
           
-          <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap flex-shrink-0">
+          <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap">
             {lastMessageTime || '--:--'}
           </span>
         </div>
 
-        {/* Linha Inferior: Preview da Mensagem e Badges */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-xs text-muted-foreground truncate flex-1">
+        {/* Linha Inferior: Preview da Mensagem */}
+        <div className="flex items-center justify-between gap-2 h-5">
+          <div className="text-xs min-w-0 flex-1">
             <MessagePreview 
               content={conversation.last_message_content} 
               type={conversation.last_message_type} 
@@ -131,8 +133,10 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             />
           </div>
           
-          {/* Espaço para Badge de Não Lidas (Simulado conforme WhatsApp) */}
-          {/* Se houvesse um contador, ele apareceria aqui à direita do texto cortado */}
+          {/* Badge de status opcional (estilo WhatsApp) */}
+          <div className="flex-shrink-0 flex items-center">
+             {/* Aqui entrariam os badges de mensagens não lidas no futuro */}
+          </div>
         </div>
       </div>
     </Link>
@@ -150,13 +154,13 @@ export function ConversationsList() {
 
   return (
     <div className="flex flex-col h-full bg-card border-r w-full">
-      <div className="p-4 border-b">
+      <div className="p-4 border-b bg-card/50 backdrop-blur-sm sticky top-0 z-20">
         <h2 className="text-xl font-bold mb-4">Conversas</h2>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar conversas..."
-            className="pl-10 h-10 bg-muted/30 border-muted-foreground/20"
+            className="pl-10 h-10 bg-muted/30 border-muted-foreground/20 focus-visible:ring-primary"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -173,7 +177,7 @@ export function ConversationsList() {
                     <Skeleton className="h-4 w-24" />
                     <Skeleton className="h-3 w-8" />
                   </div>
-                  <Skeleton className="h-3 w-32" />
+                  <Skeleton className="h-3 w-full" />
                 </div>
               </div>
             ))
@@ -183,7 +187,7 @@ export function ConversationsList() {
             ))
           ) : (
             <div className="p-8 text-center text-muted-foreground text-sm">
-              Nenhuma conversa encontrada.
+              {searchTerm ? "Nenhuma conversa encontrada para esta busca." : "Nenhuma conversa disponível."}
             </div>
           )}
         </div>
