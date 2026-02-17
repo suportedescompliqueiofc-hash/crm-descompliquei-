@@ -100,54 +100,72 @@ export function useConversationsList() {
 
 export function useMessages(leadId: string | null) {
   const { user } = useAuth();
+  const { profile } = useProfile();
   const queryClient = useQueryClient();
   const queryKey = ['messages_v6', leadId];
+  const orgId = profile?.organization_id;
 
   useEffect(() => {
-    if (!leadId || !user) return;
+    if (!leadId || !user || !orgId) return;
     
-    // SISTEMÁTICA DE REALTIME AGRESSIVA: Injeta dados no cache imediatamente
-    const channel = supabase.channel(`chat_active_${leadId}`)
+    // ABORDAGEM INFALÍVEL: Canal global de mensagens por Organização
+    // Evita problemas de filtros complexos no banco de dados
+    const channelName = `org_chat_sync_${orgId}`;
+    const channel = supabase.channel(channelName)
       .on('postgres_changes', 
         { 
           event: 'INSERT', 
           schema: 'public', 
-          table: 'mensagens', 
-          filter: `lead_id=eq.${leadId}` 
+          table: 'mensagens'
         },
         (payload) => {
           const newMessage = payload.new as Message;
           
-          // 1. Atualiza o cache local IMEDIATAMENTE (sem esperar o banco responder)
-          queryClient.setQueryData<Message[]>(queryKey, (oldMessages) => {
-            const currentMessages = oldMessages || [];
-            
-            // Evita duplicidade: se já existir uma mensagem (otimista ou real) com mesmo conteúdo enviada agora, remove a otimista
-            const filtered = currentMessages.filter(msg => {
-               if (msg.id.startsWith('temp-') && msg.conteudo === newMessage.conteudo) return false;
-               if (msg.id === newMessage.id) return false;
-               return true;
+          // Verifica se a mensagem pertence ao chat que estamos visualizando agora
+          if (newMessage.lead_id === leadId) {
+            // Injeta imediatamente no cache do React Query
+            queryClient.setQueryData<Message[]>(queryKey, (oldMessages) => {
+              const currentMessages = oldMessages || [];
+              
+              // Evita duplicidade se o componente já inseriu uma versão temporária
+              const exists = currentMessages.some(m => 
+                m.id === newMessage.id || (m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo)
+              );
+              
+              if (exists) {
+                // Se já existe (ex: acabamos de enviar e o banco confirmou), substitui a temporária pela real
+                return currentMessages.map(m => 
+                  (m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo) ? newMessage : m
+                );
+              }
+
+              // Se for mensagem recebida (n8n), adiciona ao final da lista
+              return [...currentMessages, newMessage];
             });
 
-            return [...filtered, newMessage];
-          });
-
-          // 2. Força um refetch silencioso para garantir que anexos sejam carregados
-          queryClient.invalidateQueries({ queryKey });
+            // Força um pequeno refresh silencioso em 500ms para carregar anexos/mídias se houver
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey });
+            }, 500);
+          }
         }
       )
       .on('postgres_changes', 
-        { event: 'DELETE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` },
+        { event: 'DELETE', schema: 'public', table: 'mensagens' },
         (payload) => {
-          queryClient.setQueryData<Message[]>(queryKey, (old) => 
-            (old || []).filter(m => m.id !== payload.old.id)
-          );
+          if (payload.old && payload.old.lead_id === leadId) {
+            queryClient.setQueryData<Message[]>(queryKey, (old) => 
+              (old || []).filter(m => m.id !== payload.old.id)
+            );
+          }
         }
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [leadId, user, queryClient]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [leadId, user, orgId, queryClient, queryKey]);
 
   return useQuery<Message[], Error>({
     queryKey,
@@ -169,7 +187,7 @@ export function useMessages(leadId: string | null) {
       })) as Message[];
     },
     enabled: !!leadId && !!user,
-    staleTime: 0, // Garante que os dados estejam sempre "frescos" para o Realtime atuar
+    staleTime: 1000, // Mantém os dados por 1 segundo antes de considerar velhos
   });
 }
 
@@ -202,7 +220,7 @@ export function useSendMessage() {
         user_id: user?.id || null,
         conteudo: content,
         direcao: 'saida',
-        remetente: 'agente_crm', // HUMANO
+        remetente: 'agente_crm',
         tipo_conteudo: 'texto',
         criado_em: new Date().toISOString(),
         media_path: null,
@@ -220,7 +238,6 @@ export function useSendMessage() {
       }
     },
     onSettled: (data, error, variables) => {
-      // Sincronização final rápida
       queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     }
