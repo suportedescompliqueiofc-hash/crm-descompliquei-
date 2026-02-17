@@ -1,10 +1,10 @@
--- Atualização da frequência do Cron para 1 minuto
+-- Atualização da frequência do Cron para 1 minuto usando os nomes exatos do banco
 -- Isso garante que cadências ativadas via chat sejam processadas quase em tempo real
 
 -- 1. Reprogramar Processamento de Cadências
-SELECT cron.unschedule('process-cadences-job');
+SELECT cron.unschedule('process-cadence-flows');
 SELECT cron.schedule(
-  'process-cadences-job',
+  'process-cadence-flows',
   '* * * * *', -- Executa a cada minuto
   $$
   SELECT net.http_post(
@@ -15,9 +15,9 @@ SELECT cron.schedule(
 );
 
 -- 2. Reprogramar Mensagens Agendadas (Quick Messages)
-SELECT cron.unschedule('process-scheduled-messages-job');
+SELECT cron.unschedule('process-quick-messages');
 SELECT cron.schedule(
-  'process-scheduled-messages-job',
+  'process-quick-messages',
   '* * * * *', -- Executa a cada minuto
   $$
   SELECT net.http_post(
