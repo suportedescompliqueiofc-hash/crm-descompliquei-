@@ -8,114 +8,115 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 30 10% 98%; /* Fundo creme bem suave */
-    --foreground: 339 20% 20%; /* Texto Mauve escuro/marrom */
+    /* Fundo Off-White Profissional (Papel de carta) */
+    --background: 210 20% 98%; 
+    /* Texto Preto Suave (Cinza Chumbo) para leitura confortável */
+    --foreground: 220 15% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 339 20% 20%;
+    --card-foreground: 220 15% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 339 20% 20%;
+    --popover-foreground: 220 15% 15%;
 
-    /* Primary: Dourado da Logo Monção */
-    /* Baseado em #C5A47E -> HSL(32, 41%, 63%) - Ajustado para contraste */
-    --primary: 32 45% 55%; 
+    /* Primary: Dourado Nobre (Advocacia) */
+    /* Baseado em um tom Ouro Clássico */
+    --primary: 38 45% 55%; 
     --primary-foreground: 0 0% 100%;
     
-    /* Secondary: Mauve/Vinho Suave da Logo */
-    /* Baseado em #5D404A -> HSL(339, 19%, 31%) */
-    --secondary: 339 19% 31%;
-    --secondary-foreground: 32 40% 95%;
+    /* Secondary: Preto/Grafite Sóbrio */
+    --secondary: 220 10% 15%;
+    --secondary-foreground: 38 45% 90%;
 
-    --muted: 30 10% 96%;
-    --muted-foreground: 339 10% 50%;
+    --muted: 210 15% 95%;
+    --muted-foreground: 215 10% 45%;
 
-    /* Accent: Dourado claro para fundos/detalhes */
-    --accent: 32 45% 92%;
-    --accent-foreground: 339 19% 31%;
+    /* Accent: Dourado muito suave para fundos/detalhes */
+    --accent: 38 45% 94%;
+    --accent-foreground: 220 10% 15%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 339 15% 90%;
-    --input: 339 15% 95%;
-    --ring: 32 45% 55%;
+    --border: 220 13% 91%;
+    --input: 220 13% 95%;
+    --ring: 38 45% 55%;
 
     --radius: 0.5rem;
 
-    /* Success: Verde suave */
-    --success: 142 30% 45%;
+    /* Success: Verde Jurídico (Sóbrio) */
+    --success: 142 30% 35%;
     --success-foreground: 0 0% 100%;
 
-    /* Warning: Dourado/Laranja */
-    --warning: 35 90% 55%;
+    /* Warning: Âmbar */
+    --warning: 38 90% 50%;
     --warning-foreground: 0 0% 100%;
 
     /* Info */
     --info: 210 30% 50%;
     --info-foreground: 0 0% 100%;
 
-    /* Gradients - Mauve & Gold */
-    --gradient-primary: linear-gradient(135deg, hsl(339 19% 31%) 0%, hsl(339 19% 45%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(32 45% 55%) 0%, hsl(32 45% 70%) 100%);
+    /* Gradients - Preto & Ouro */
+    --gradient-primary: linear-gradient(135deg, hsl(220 10% 10%) 0%, hsl(220 10% 20%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(38 45% 55%) 0%, hsl(38 45% 70%) 100%);
 
     /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgb(93 64 74 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(93 64 74 / 0.1), 0 2px 4px -2px rgb(93 64 74 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(93 64 74 / 0.1), 0 4px 6px -4px rgb(93 64 74 / 0.1);
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 
-    /* Sidebar - Baseado no fundo da logo (Mauve Escuro) */
-    --sidebar-background: 339 19% 31%; /* #5D404A */
-    --sidebar-foreground: 32 40% 95%; /* Creme/Dourado muito claro */
-    --sidebar-primary: 32 45% 63%; /* Dourado da Logo */
-    --sidebar-primary-foreground: 339 19% 31%;
-    --sidebar-accent: 339 19% 25%; /* Mauve mais escuro para hover */
-    --sidebar-accent-foreground: 32 45% 63%;
-    --sidebar-border: 339 19% 35%;
-    --sidebar-ring: 32 45% 63%;
+    /* Sidebar - Preto Absoluto/Grafite para elegância */
+    --sidebar-background: 220 10% 10%; /* Quase preto */
+    --sidebar-foreground: 38 30% 90%; /* Dourado muito claro/Branco */
+    --sidebar-primary: 38 45% 55%; /* Dourado da Marca */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 10% 16%; /* Cinza escuro para hover */
+    --sidebar-accent-foreground: 38 45% 60%;
+    --sidebar-border: 220 10% 16%;
+    --sidebar-ring: 38 45% 55%;
   }
 
   :root.dark {
-    --background: 339 20% 10%; /* Mauve quase preto */
-    --foreground: 32 30% 90%;
+    --background: 220 10% 8%;
+    --foreground: 38 20% 90%;
 
-    --card: 339 20% 13%;
-    --card-foreground: 32 30% 90%;
+    --card: 220 10% 12%;
+    --card-foreground: 38 20% 90%;
 
-    --popover: 339 20% 13%;
-    --popover-foreground: 32 30% 90%;
+    --popover: 220 10% 12%;
+    --popover-foreground: 38 20% 90%;
 
-    /* Primary: Dourado Vibrante para Dark Mode */
-    --primary: 32 45% 63%; 
-    --primary-foreground: 339 19% 20%;
+    /* Primary: Dourado mais brilhante para Dark Mode */
+    --primary: 38 50% 60%; 
+    --primary-foreground: 220 10% 10%;
     
     /* Secondary */
-    --secondary: 339 15% 25%;
-    --secondary-foreground: 32 45% 80%;
+    --secondary: 220 10% 20%;
+    --secondary-foreground: 38 40% 85%;
 
-    --muted: 339 15% 20%;
-    --muted-foreground: 339 10% 60%;
+    --muted: 220 10% 16%;
+    --muted-foreground: 215 10% 60%;
 
     /* Accent */
-    --accent: 339 15% 20%;
-    --accent-foreground: 32 45% 63%;
+    --accent: 220 10% 16%;
+    --accent-foreground: 38 50% 60%;
 
     --destructive: 0 60% 40%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 339 15% 20%;
-    --input: 339 15% 20%;
-    --ring: 32 45% 63%;
+    --border: 220 10% 20%;
+    --input: 220 10% 20%;
+    --ring: 38 50% 60%;
 
-    /* Sidebar - Mantém consistência ou ajusta levemente */
-    --sidebar-background: 339 25% 15%; /* Mauve bem escuro */
-    --sidebar-foreground: 32 30% 90%;
-    --sidebar-primary: 32 45% 63%;
-    --sidebar-primary-foreground: 339 25% 15%;
-    --sidebar-accent: 339 25% 20%;
-    --sidebar-accent-foreground: 32 45% 70%;
-    --sidebar-border: 339 25% 20%;
-    --sidebar-ring: 32 45% 63%;
+    /* Sidebar */
+    --sidebar-background: 220 10% 6%;
+    --sidebar-foreground: 38 30% 90%;
+    --sidebar-primary: 38 50% 60%;
+    --sidebar-primary-foreground: 220 10% 10%;
+    --sidebar-accent: 220 10% 14%;
+    --sidebar-accent-foreground: 38 50% 70%;
+    --sidebar-border: 220 10% 14%;
+    --sidebar-ring: 38 50% 60%;
   }
 }
 

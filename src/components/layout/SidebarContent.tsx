@@ -28,7 +28,7 @@ const menuItems = [
   { title: "Pipeline", icon: GitBranch, path: "/pipeline" },
   { title: "Conversas", icon: MessageSquare, path: "/conversas" },
   { title: "Notificações", icon: Bell, path: "/notificacoes" },
-  { title: "Vendas", icon: ShoppingCart, path: "/vendas" }, 
+  { title: "Contratos", icon: ShoppingCart, path: "/vendas" }, 
   { title: "Relatórios", icon: BarChart3, path: "/reports" },
   { title: "Marketing", icon: Target, path: "/marketing" },
   { title: "Campanhas", icon: Megaphone, path: "/campaigns" },
@@ -59,17 +59,16 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
         {/* Logo & Toggle */}
         <div className={`flex items-center transition-all h-20 flex-shrink-0 ${isCollapsed ? 'px-2 justify-center' : 'px-4'}`}>
           <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
-            {/* Logo Icon - Sempre visível ou ajustado */}
-            <img 
-              src="https://guotjrwrnpsclfemwjql.supabase.co/storage/v1/object/public/media-mensagens/CRM/logo%20principal%20sem%20fundo%20cor%20original%202.png" 
-              alt="Logo Monção" 
-              className={`h-9 w-auto object-contain transition-all duration-300 flex-shrink-0 ${isCollapsed ? 'mx-auto' : ''}`}
-            />
+            {/* Logo Icon */}
+            <Avatar className={`h-10 w-10 border-2 border-sidebar-primary/20 transition-all duration-300 flex-shrink-0 ${isCollapsed ? 'mx-auto' : ''}`}>
+                <AvatarImage src="https://guotjrwrnpsclfemwjql.supabase.co/storage/v1/object/public/media-mensagens/Logo/Logo%20Dra%20Gleyce.jpeg" className="object-cover" />
+                <AvatarFallback className="bg-sidebar-primary text-sidebar-background font-serif">GC</AvatarFallback>
+            </Avatar>
             
-            {/* Logo Text - Colapsável */}
+            {/* Logo Text */}
             <div className={`flex flex-col whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}`}>
-              <h1 className="text-sm font-bold text-sidebar-foreground uppercase tracking-widest font-serif leading-none mb-0.5">MONÇÃO</h1>
-              <p className="text-[9px] text-sidebar-primary tracking-wide uppercase font-medium truncate">Odontologia & Estética</p>
+              <h1 className="text-sm font-bold text-sidebar-foreground uppercase tracking-widest font-serif leading-none mb-0.5">GLEYCE CABRAL</h1>
+              <p className="text-[9px] text-sidebar-primary tracking-wide uppercase font-medium truncate">Advocacia</p>
             </div>
           </div>
           
@@ -80,7 +79,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
           )}
         </div>
         
-        {/* Toggle Button for Collapsed State (Centered) */}
+        {/* Toggle Button for Collapsed State */}
         {toggleCollapse && isCollapsed && (
           <div className="flex justify-center pb-2">
              <Button variant="ghost" size="icon" className="text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 h-8 w-8" onClick={toggleCollapse}>
