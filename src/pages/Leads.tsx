@@ -1,4 +1,3 @@
-Área/Serviço)">
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { Search, Filter, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
