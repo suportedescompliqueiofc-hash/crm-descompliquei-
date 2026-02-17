@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/campanhas-crm-moncao';
+const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/campanhas-crm-gleyce';
 
 // Personaliza a mensagem com os dados do lead
 const personalizeMessage = (template: string, lead: any, clinicName: string): string => {

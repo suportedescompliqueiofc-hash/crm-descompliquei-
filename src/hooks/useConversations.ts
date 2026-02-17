@@ -144,7 +144,7 @@ export function useSendMessage() {
   return useMutation({
     mutationFn: async ({ leadId, content }: { leadId: string; content: string }) => {
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
-      await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-moncao', {
+      await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead_id: leadId, user_id: user?.id, conteudo_mensagem: content, telefone: lead?.telefone }),
@@ -164,7 +164,7 @@ export function useSendAudioMessage() {
       await supabase.storage.from('media-mensagens').upload(filePath, audioBlob);
       const { data: { publicUrl } } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
-      await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-moncao', {
+      await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead_id: leadId, user_id: user?.id, tipo: 'audio', url_midia: publicUrl, telefone: lead?.telefone }),

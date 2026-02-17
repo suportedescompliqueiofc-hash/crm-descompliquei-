@@ -17,7 +17,7 @@ export interface QuickMessage {
   position: number;
 }
 
-const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/botoes-crm-moncao';
+const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/botoes-crm-gleyce';
 
 export function useQuickMessages() {
   const { user } = useAuth();
@@ -213,7 +213,7 @@ export function useQuickMessages() {
         titulo_pdf: message.tipo === 'pdf' ? message.titulo : null,
         telefone: phone,
         user_id: user.id,
-        remetente: 'bot' // Define explicitamente como bot para o backend
+        remetente: 'bot' // Define explicitamente como bot para the backend
       };
 
       const response = await fetch(WEBHOOK_URL, {

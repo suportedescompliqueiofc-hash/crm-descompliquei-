@@ -233,7 +233,7 @@ export function useLeadTags(leadId: string | undefined) {
           .single();
 
         if (leadData?.telefone && tagData?.label_lid) {
-          await fetch('https://webhook.orbevision.shop/webhook/adiciona-etiqueta-moncao', {
+          await fetch('https://webhook.orbevision.shop/webhook/adiciona-etiqueta-gleyce', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -281,7 +281,7 @@ export function useLeadTags(leadId: string | undefined) {
 
         // 3. Dispara o Webhook de retirada
         if (leadData?.telefone && tagData?.label_lid) {
-          await fetch('https://webhook.orbevision.shop/webhook/retira-etiqueta-moncao', {
+          await fetch('https://webhook.orbevision.shop/webhook/retira-etiqueta-gleyce', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
