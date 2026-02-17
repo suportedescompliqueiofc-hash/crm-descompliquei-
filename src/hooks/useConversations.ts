@@ -41,25 +41,44 @@ export function useConversationsList() {
   const queryClient = useQueryClient();
   const orgId = profile?.organization_id;
 
+  // Escuta mudanças em qualquer mensagem da organização para atualizar a lista lateral
   useEffect(() => {
     if (!orgId) return;
-    const channel = supabase.channel(`list_sync_${orgId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, () => {
-        // Para a lista lateral, a invalidação ainda é segura pois envolve joins complexos
-        queryClient.invalidateQueries({ queryKey: ['conversations', orgId] });
-      })
+
+    const channel = supabase
+      .channel(`list_sync_${orgId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'mensagens' },
+        () => {
+          // Quando qualquer mensagem muda, invalidamos a lista de conversas para reordenar e atualizar previews
+          queryClient.invalidateQueries({ queryKey: ['conversations', orgId] });
+        }
+      )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [orgId, queryClient]);
 
   return useQuery<Conversation[], Error>({
     queryKey: ['conversations', orgId],
     queryFn: async () => {
       if (!orgId) return [];
+      
       const { data: leads, error: leadsError } = await supabase
         .from('leads')
-        .select(`*, leads_tags(tags(*))`)
+        .select(`
+          *,
+          leads_tags (
+            tags (
+              *
+            )
+          )
+        `)
         .eq('organization_id', orgId);
+
       if (leadsError) throw leadsError;
 
       const conversations = await Promise.all(
@@ -71,7 +90,9 @@ export function useConversationsList() {
             .order('criado_em', { ascending: false })
             .limit(1)
             .maybeSingle();
+
           const tags = lead.leads_tags?.map((lt: any) => lt.tags).filter(Boolean) || [];
+
           return {
             ...lead,
             last_message_content: lastMessage?.conteudo || 'Nenhuma mensagem ainda',
@@ -82,7 +103,10 @@ export function useConversationsList() {
           };
         })
       );
-      return conversations.sort((a, b) => new Date(b.last_message_timestamp!).getTime() - new Date(a.last_message_timestamp!).getTime());
+
+      return conversations.sort((a, b) => 
+        new Date(b.last_message_timestamp!).getTime() - new Date(a.last_message_timestamp!).getTime()
+      );
     },
     enabled: !!orgId,
   });
@@ -93,11 +117,14 @@ export function useMessages(leadId: string | null) {
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ['messages_v6', leadId], [leadId]);
 
+  // Realtime Subscription para o Chat Ativo
   useEffect(() => {
     if (!leadId || !user) return;
-    
-    const channel = supabase.channel(`messages_realtime_${leadId}`)
-      .on('postgres_changes', 
+
+    const channel = supabase
+      .channel(`messages_realtime_${leadId}`)
+      .on(
+        'postgres_changes',
         { 
           event: 'INSERT', 
           schema: 'public', 
@@ -107,25 +134,23 @@ export function useMessages(leadId: string | null) {
         (payload) => {
           const newMessage = payload.new as Message;
           
+          // Atualiza o cache do React Query injetando a nova mensagem diretamente
           queryClient.setQueryData<Message[]>(queryKey, (old) => {
-            const current = old || [];
+            const currentMessages = old || [];
             
-            // Lógica de substituição inteligente:
-            // Se já temos uma mensagem temporária com o mesmo conteúdo, removemos a temporária e colocamos a real
-            const exists = current.find(m => m.id === newMessage.id);
-            if (exists) return current;
+            // Evita duplicidade caso a mensagem já tenha sido adicionada via atualização otimista (mutação)
+            const exists = currentMessages.find(m => m.id === newMessage.id);
+            if (exists) return currentMessages;
 
-            const filtered = current.filter(m => 
-                !(m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo)
-            );
-            
-            return [...filtered, newMessage].sort((a, b) => 
-                new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
+            // Retorna a nova lista ordenada por data
+            return [...currentMessages, newMessage].sort((a, b) => 
+              new Date(a.criado_em).getTime() - new Date(b.criado_em).getTime()
             );
           });
         }
       )
-      .on('postgres_changes', 
+      .on(
+        'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` },
         (payload) => {
           queryClient.setQueryData<Message[]>(queryKey, (old) => 
@@ -135,22 +160,30 @@ export function useMessages(leadId: string | null) {
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [leadId, user, queryClient, queryKey]);
 
   return useQuery<Message[], Error>({
     queryKey,
     queryFn: async () => {
       if (!leadId || !user) return [];
+      
       const { data: rawMessages, error } = await supabase
         .from('mensagens')
         .select('*')
         .eq('lead_id', leadId)
         .order('criado_em', { ascending: true });
+
       if (error) throw error;
       
+      // Busca anexos para estas mensagens
       const messageIds = rawMessages.map(m => m.id);
-      const { data: attachments } = await supabase.from('message_attachments').select('*').in('message_id', messageIds);
+      const { data: attachments } = await supabase
+        .from('message_attachments')
+        .select('*')
+        .in('message_id', messageIds);
       
       return rawMessages.map(msg => ({
         ...msg,
@@ -158,7 +191,7 @@ export function useMessages(leadId: string | null) {
       })) as Message[];
     },
     enabled: !!leadId && !!user,
-    staleTime: 1000 * 30, 
+    staleTime: 1000 * 30, // Considera o cache fresco por 30 segundos, mas o Realtime cuida do resto
   });
 }
 
@@ -168,18 +201,32 @@ export function useSendMessage() {
 
   return useMutation({
     mutationFn: async ({ leadId, content }: { leadId: string; content: string }) => {
-      const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
+      const { data: lead } = await supabase
+        .from('leads')
+        .select('telefone')
+        .eq('id', leadId)
+        .single();
+
       const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: leadId, user_id: user?.id, conteudo_mensagem: content, telefone: lead?.telefone }),
+        body: JSON.stringify({
+          lead_id: leadId,
+          user_id: user?.id,
+          conteudo_mensagem: content,
+          telefone: lead?.telefone
+        }),
       });
-      if (!response.ok) throw new Error("Falha ao enviar");
+
+      if (!response.ok) throw new Error("Falha ao enviar mensagem");
+      
       return null;
     },
+    // Otimismo: Mostra a mensagem no chat antes mesmo de ir ao servidor
     onMutate: async ({ leadId, content }) => {
       const queryKey = ['messages_v6', leadId];
       await queryClient.cancelQueries({ queryKey });
+
       const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
       
       const optimisticMessage: Message = {
@@ -197,6 +244,7 @@ export function useSendMessage() {
       };
       
       queryClient.setQueryData<Message[]>(queryKey, (old) => [...(old || []), optimisticMessage]);
+
       return { previousMessages };
     },
     onError: (err, variables, context) => {
@@ -206,11 +254,8 @@ export function useSendMessage() {
       toast.error('Erro ao enviar mensagem.');
     },
     onSettled: (data, error, variables) => {
-      // Pequeno delay para permitir que o Realtime processe antes da invalidação final de segurança
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
-        queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      }, 500);
+      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
     }
   });
 }
@@ -224,30 +269,51 @@ export function useSendAudioMessage() {
     mutationFn: async ({ leadId, audioBlob }: { leadId: string; audioBlob: Blob }) => {
       const timestamp = Date.now();
       const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.webm`;
-      const { error: uploadError } = await supabase.storage.from('media-mensagens').upload(filePath, audioBlob);
+
+      const { error: uploadError } = await supabase.storage
+        .from('media-mensagens')
+        .upload(filePath, audioBlob);
+
       if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
-      const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('media-mensagens')
+        .getPublicUrl(filePath);
+
+      const { data: lead } = await supabase
+        .from('leads')
+        .select('telefone')
+        .eq('id', leadId)
+        .single();
+
       await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: leadId, user_id: user?.id, tipo: 'audio', url_midia: publicUrl, telefone: lead?.telefone }),
+        body: JSON.stringify({
+          lead_id: leadId,
+          user_id: user?.id,
+          tipo: 'audio',
+          url_midia: publicUrl,
+          telefone: lead?.telefone
+        }),
       });
+
       return null;
     },
     onSettled: (data, error, variables) => {
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
-      }, 500);
+      queryClient.invalidateQueries({ queryKey: ['messages_v6', variables.leadId] });
     }
   });
 }
 
 export function useDeleteMessage() {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ messageId, leadId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
-      await supabase.functions.invoke('delete-message', { body: { messageId, leadId, id_mensagem } });
+      await supabase.functions.invoke('delete-message', {
+        body: { messageId, leadId, id_mensagem }
+      });
       return messageId;
     },
     onSuccess: (_, { leadId }) => {
