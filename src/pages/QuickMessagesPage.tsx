@@ -28,12 +28,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { useQuickMessages, QuickMessage } from "@/hooks/useQuickMessages";
 import { useQuickMessageFolders, QuickMessageFolder } from "@/hooks/useQuickMessageFolders";
-import { Plus, Trash2, MessageSquare, Mic, Image as ImageIcon, Video, FileText, Upload, Zap, FolderPlus, Folder } from "lucide-react";
+import { Plus, Trash2, MessageSquare, Mic, Image as ImageIcon, Video, FileText, Upload, Zap, FolderPlus, Folder, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { SortableFolder } from "@/components/quick-messages/SortableFolder";
 import { SortableMessageCard } from "@/components/quick-messages/SortableMessageCard";
+import { ScheduledMessagesList } from "@/components/quick-messages/ScheduledMessagesList";
 import { createPortal } from "react-dom";
 import {
   AlertDialog,
@@ -513,7 +514,8 @@ export default function QuickMessagesPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="all">Todas as Pastas</TabsTrigger>
+          <TabsTrigger value="all" className="gap-2"><Folder className="h-4 w-4" /> Bibliotecas</TabsTrigger>
+          <TabsTrigger value="scheduled" className="gap-2"><Calendar className="h-4 w-4" /> Agendamentos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="all" className="mt-6">
@@ -591,6 +593,10 @@ export default function QuickMessagesPage() {
               )}
             </DndContext>
           )}
+        </TabsContent>
+
+        <TabsContent value="scheduled" className="mt-6">
+          <ScheduledMessagesList />
         </TabsContent>
       </Tabs>
 
