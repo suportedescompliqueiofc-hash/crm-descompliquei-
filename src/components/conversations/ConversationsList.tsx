@@ -17,10 +17,8 @@ const formatLastMessageTime = (timestamp?: string | null) => {
   if (!timestamp) return '';
   
   try {
-    // Tenta parseISO primeiro (padrão Supabase/Postgres)
     let date = parseISO(timestamp);
     
-    // Se falhar, tenta converter espaço em T (alguns formatos de data legados do Postgres)
     if (!isValid(date)) {
       date = new Date(timestamp.replace(' ', 'T'));
     }
@@ -49,22 +47,22 @@ const MessagePreview = ({ content, type, sender }: { content?: string, type?: st
   const prefix = isOutgoing ? <span className="mr-1 font-medium text-primary">Você:</span> : null;
 
   if (type === 'audio') {
-    return <div className="flex items-center gap-1 text-muted-foreground"><Mic className="h-3 w-3 flex-shrink-0" /> <span>Áudio</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground truncate"><Mic className="h-3 w-3 flex-shrink-0" /> <span>Áudio</span></div>;
   }
   if (type === 'imagem') {
-    return <div className="flex items-center gap-1 text-muted-foreground"><ImageIcon className="h-3 w-3 flex-shrink-0" /> <span>Foto</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground truncate"><ImageIcon className="h-3 w-3 flex-shrink-0" /> <span>Foto</span></div>;
   }
   if (type === 'video') {
-    return <div className="flex items-center gap-1 text-muted-foreground"><Video className="h-3 w-3 flex-shrink-0" /> <span>Vídeo</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground truncate"><Video className="h-3 w-3 flex-shrink-0" /> <span>Vídeo</span></div>;
   }
   if (type === 'pdf' || type === 'arquivo') {
-    return <div className="flex items-center gap-1 text-muted-foreground"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Arquivo</span></div>;
+    return <div className="flex items-center gap-1 text-muted-foreground truncate"><FileText className="h-3 w-3 flex-shrink-0" /> <span>Arquivo</span></div>;
   }
 
   if (content === 'Nenhuma mensagem ainda') return <span className="italic text-muted-foreground/60">{content}</span>;
 
   return (
-    <span className="truncate block w-full">
+    <span className="truncate block">
       {prefix}{content}
     </span>
   );
@@ -94,9 +92,11 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
         </AvatarFallback>
       </Avatar>
       
-      <div className="flex-1 flex flex-col justify-center gap-0.5">
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+      {/* Container de conteúdo com min-w-0 para permitir o truncamento do texto flexível */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+        {/* Linha Superior: Nome e Horário */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <span className="font-bold text-sm truncate text-foreground">
               {conversation.nome || conversation.telefone}
             </span>
@@ -116,19 +116,23 @@ const ConversationItem = ({ conversation }: { conversation: Conversation }) => {
             </div>
           </div>
           
-          <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap ml-2 flex-shrink-0">
+          <span className="text-[10px] text-muted-foreground font-semibold whitespace-nowrap flex-shrink-0">
             {lastMessageTime || '--:--'}
           </span>
         </div>
 
-        <div className="flex items-center w-full overflow-hidden">
-          <div className="text-xs text-muted-foreground w-full pr-4">
+        {/* Linha Inferior: Preview da Mensagem e Badges */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs text-muted-foreground truncate flex-1">
             <MessagePreview 
               content={conversation.last_message_content} 
               type={conversation.last_message_type} 
               sender={conversation.last_message_sender} 
             />
           </div>
+          
+          {/* Espaço para Badge de Não Lidas (Simulado conforme WhatsApp) */}
+          {/* Se houvesse um contador, ele apareceria aqui à direita do texto cortado */}
         </div>
       </div>
     </Link>
