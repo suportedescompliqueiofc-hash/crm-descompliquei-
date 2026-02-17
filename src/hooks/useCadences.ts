@@ -56,12 +56,18 @@ export function useCadences() {
 
   const createCadence = useMutation({
     mutationFn: async ({ nome, descricao, passos }: { nome: string; descricao: string; passos: CadenceStep[] }) => {
-      if (!user || !orgId) throw new Error("Não autorizado");
+      if (!user || !orgId) {
+        throw new Error("Sua sessão ou organização não foi identificada. Tente recarregar a página.");
+      }
 
       // 1. Criar a cadência pai
       const { data: cadence, error: cadenceError } = await supabase
         .from('cadencias')
-        .insert({ nome, descricao, organization_id: orgId })
+        .insert({ 
+          nome, 
+          descricao, 
+          organization_id: orgId 
+        })
         .select()
         .single();
 
@@ -96,18 +102,24 @@ export function useCadences() {
       }));
 
       // 3. Inserir passos
-      const { error: stepsError } = await supabase
-        .from('cadencia_passos')
-        .insert(stepsToInsert);
+      if (stepsToInsert.length > 0) {
+        const { error: stepsError } = await supabase
+          .from('cadencia_passos')
+          .insert(stepsToInsert);
 
-      if (stepsError) throw stepsError;
+        if (stepsError) throw stepsError;
+      }
+      
       return cadence;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cadences', orgId] });
-      toast.success('Fluxo de cadência criado!');
+      toast.success('Fluxo de cadência criado com sucesso!');
     },
-    onError: (err: any) => toast.error(`Erro ao criar cadência: ${err.message}`),
+    onError: (err: any) => {
+      console.error("Erro na criação da cadência:", err);
+      toast.error(err.message || "Erro ao salvar o fluxo no servidor.");
+    },
   });
 
   const deleteCadence = useMutation({
@@ -117,9 +129,15 @@ export function useCadences() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cadences', orgId] });
-      toast.success('Cadência excluída.');
+      toast.success('Cadência excluída com sucesso.');
     }
   });
 
-  return { cadences, isLoading, createCadence: createCadence.mutate, isCreating: createCadence.isPending, deleteCadence: deleteCadence.mutate };
+  return { 
+    cadences, 
+    isLoading, 
+    createCadence: createCadence.mutate, 
+    isCreating: createCadence.isPending, 
+    deleteCadence: deleteCadence.mutate 
+  };
 }
