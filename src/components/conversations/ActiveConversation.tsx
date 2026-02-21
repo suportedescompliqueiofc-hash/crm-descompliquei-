@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft, Paperclip, Loader2 } from "lucide-react";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft, Paperclip, Loader2, ImageIcon, FileText } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useLead, useLeads } from "@/hooks/useLeads";
 import { useMessages, useSendMessage, Message, Attachment, useDeleteMessage, useSendAudioMessage, useSendMediaMessage } from "@/hooks/useConversations";
 import { useNotifications, useUpdateNotificationStatus } from "@/hooks/useNotifications";
@@ -25,10 +31,10 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AiLockControl } from "./AiLockControl";
 import { CadenceLeadSelector } from "./CadenceLeadSelector";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { TagManager } from "@/components/tags/TagManager";
 import { AudioRecorder } from "./AudioRecorder";
+import { MediaPreviewModal } from "./MediaPreviewModal";
 import { useNavigate } from "react-router-dom";
 
 const DateSeparator = ({ dateString }: { dateString: string }) => {
@@ -77,7 +83,8 @@ interface ActiveConversationProps {
 
 export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMessages }: ActiveConversationProps) {
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const { data: lead, isLoading: leadLoading } = useLead(leadId);
   const { data: messages = [], isLoading: messagesLoading } = useMessages(leadId);
   const { data: notifications } = useNotifications(leadId);
@@ -93,6 +100,10 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const [isAiActive, setIsAiActive] = useState(true);
   const [deletingMessage, setDeletingMessage] = useState<Message | null>(null);
   const [isRecordingMode, setIsRecordingMode] = useState(false);
+  
+  // Media Preview States
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isMediaPreviewOpen, setIsMediaPreviewOpen] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -117,21 +128,25 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
     sendAudio({ leadId, audioBlob: blob }); 
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    let type: 'imagem' | 'video' | 'pdf' = 'imagem';
-    if (file.type.includes('image')) type = 'imagem';
-    else if (file.type.includes('video')) type = 'video';
-    else if (file.type === 'application/pdf') type = 'pdf';
-    else {
-      toast.error("Formato de arquivo não suportado. Use imagens, vídeos ou PDFs.");
-      return;
+  const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setPendingFiles(files);
+      setIsMediaPreviewOpen(true);
     }
+    if (e.target) e.target.value = '';
+  };
 
-    sendMedia({ leadId, file, type });
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  const handleConfirmMediaSend = async (filesWithCaptions: { file: File; caption: string }[]) => {
+    for (const item of filesWithCaptions) {
+      let type: 'imagem' | 'video' | 'pdf' = 'imagem';
+      if (item.file.type.includes('image')) type = 'imagem';
+      else if (item.file.type.includes('video')) type = 'video';
+      else if (item.file.type === 'application/pdf') type = 'pdf';
+      
+      sendMedia({ leadId, file: item.file, type, caption: item.caption });
+    }
+    setPendingFiles([]);
   };
 
   const handleAiToggle = async (checked: boolean) => {
@@ -285,22 +300,44 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                     </PopoverContent>
                 </Popover>
 
-                <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="icon" 
-                    className={cn("h-8 w-8 sm:h-9 sm:w-9 rounded-full text-muted-foreground hover:text-primary", isSendingMedia && "opacity-50")}
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isSendingMedia}
-                >
-                    {isSendingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4 sm:h-5 sm:w-5" />}
-                </Button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className={cn("h-8 w-8 sm:h-9 sm:w-9 rounded-full text-muted-foreground hover:text-primary", isSendingMedia && "opacity-50")}
+                            disabled={isSendingMedia}
+                        >
+                            {isSendingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4 sm:h-5 sm:w-5" />}
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" side="top" className="w-48 rounded-xl p-1 shadow-xl border-border/40">
+                        <DropdownMenuItem className="gap-3 p-2 cursor-pointer rounded-lg" onClick={() => docInputRef.current?.click()}>
+                            <div className="bg-indigo-100 p-2 rounded-full text-indigo-600"><FileText className="h-4 w-4" /></div>
+                            <span className="font-medium text-sm">Documento</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="gap-3 p-2 cursor-pointer rounded-lg" onClick={() => mediaInputRef.current?.click()}>
+                            <div className="bg-blue-100 p-2 rounded-full text-blue-600"><ImageIcon className="h-4 w-4" /></div>
+                            <span className="font-medium text-sm">Fotos e vídeos</span>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+
                 <input 
                     type="file" 
                     className="hidden" 
-                    ref={fileInputRef} 
-                    onChange={handleFileSelect}
-                    accept="image/*,video/*,application/pdf"
+                    ref={mediaInputRef} 
+                    multiple
+                    onChange={handleFileSelection}
+                    accept="image/*,video/*"
+                />
+                <input 
+                    type="file" 
+                    className="hidden" 
+                    ref={docInputRef} 
+                    multiple
+                    onChange={handleFileSelection}
+                    accept="application/pdf"
                 />
             </div>
 
@@ -320,6 +357,14 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
           </form>
         )}
       </footer>
+
+      <MediaPreviewModal 
+        isOpen={isMediaPreviewOpen}
+        files={pendingFiles}
+        onClose={() => { setIsMediaPreviewOpen(false); setPendingFiles([]); }}
+        onSend={handleConfirmMediaSend}
+        onAddFiles={(newFiles) => setPendingFiles([...pendingFiles, ...newFiles])}
+      />
 
       <AlertDialog open={!!deletingMessage} onOpenChange={(open) => !open && setDeletingMessage(null)}>
         <AlertDialogContent className="w-[90vw] max-w-md rounded-2xl">

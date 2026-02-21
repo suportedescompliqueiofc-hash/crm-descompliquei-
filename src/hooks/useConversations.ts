@@ -375,7 +375,7 @@ export function useSendMediaMessage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ leadId, file, type }: { leadId: string; file: File; type: 'imagem' | 'video' | 'pdf' }) => {
+    mutationFn: async ({ leadId, file, type, caption }: { leadId: string; file: File; type: 'imagem' | 'video' | 'pdf'; caption?: string }) => {
       const timestamp = Date.now();
       const fileExt = file.name.split('.').pop();
       const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.${fileExt}`;
@@ -390,7 +390,7 @@ export function useSendMediaMessage() {
         .insert({
             lead_id: leadId,
             user_id: user?.id,
-            conteudo: '',
+            conteudo: caption || '',
             direcao: 'saida',
             remetente: 'agente',
             tipo_conteudo: type,
@@ -421,14 +421,15 @@ export function useSendMediaMessage() {
           tipo: type, 
           url_midia: publicUrl, 
           telefone: lead?.telefone,
-          internal_msg_id: insertedMsg.id
+          internal_msg_id: insertedMsg.id,
+          conteudo_mensagem: caption || ''
         }),
       });
 
       if (!response.ok) throw new Error(`Falha ao enviar ${type} pelo gateway`);
       return insertedMsg;
     },
-    onMutate: async ({ leadId, file, type }) => {
+    onMutate: async ({ leadId, file, type, caption }) => {
       const queryKey = ['messages', leadId];
       await queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
@@ -437,7 +438,7 @@ export function useSendMediaMessage() {
         id: `temp-media-${Date.now()}`,
         lead_id: leadId,
         user_id: user?.id || null,
-        conteudo: '',
+        conteudo: caption || '',
         direcao: 'saida',
         remetente: 'agente',
         tipo_conteudo: type,
