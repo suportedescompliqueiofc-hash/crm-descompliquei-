@@ -144,7 +144,8 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   useEffect(() => { if (lead) setIsAiActive(lead.ia_ativa ?? true); }, [lead]);
   
   useLayoutEffect(() => { 
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); 
+    // Alterado de "smooth" para "auto" para que o scroll seja instantâneo ao abrir a conversa
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" }); 
   }, [messages]);
 
   const handleSendMessage = (e: React.FormEvent) => {
