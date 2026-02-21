@@ -231,7 +231,7 @@ export default function Notifications() {
                             </div>
                             <div className="flex items-center gap-2 mt-2">
                                 <Info className="h-3.5 w-3.5" />
-                                <span>Verificação automática a cada 5 minutos.</span>
+                                <span>Verificação automática a cada 1 minuto.</span>
                             </div>
                         </CardDescription>
                     </CardHeader>
