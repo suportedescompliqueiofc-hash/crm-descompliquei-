@@ -230,6 +230,7 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             
             const isAudio = typeLower.includes('audio') || typeLower.includes('ptt') || pathLower.includes('.ogg') || pathLower.includes('.mp3') || pathLower.includes('.m4a') || pathLower.includes('.webm') || (isOutgoing && contentLower.startsWith('http') && (contentLower.includes('.ogg') || contentLower.includes('.mp3') || contentLower.includes('.m4a')));
             const isVisualMedia = !isAudio && (typeLower.includes('image') || typeLower.includes('imagem') || typeLower.includes('video') || pathLower.includes('.jpg') || pathLower.includes('.png') || pathLower.includes('.mp4'));
+            const isPdf = typeLower.includes('pdf') || pathLower.includes('.pdf');
 
             return (
               <div key={msg.id} className={cn("group relative flex flex-col gap-0.5 py-0.5 animate-in fade-in slide-in-from-bottom-1 duration-200", isOutgoing ? "items-end" : "items-start")}>
@@ -241,8 +242,18 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                   </Avatar>
                   <div className={cn("p-2 sm:p-3 rounded-2xl relative shadow-sm transition-all min-w-[100px]", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border border-border/40 rounded-bl-none")}>
                     <div className="mb-1 space-y-1">{msg.message_attachments?.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}</div>
-                    {!msg.message_attachments?.length && (msg.media_path || msg.conteudo) && (<div className="mb-1">{isAudio ? (<AudioMessage filePath={msg.media_path || msg.conteudo || ''} variant={isOutgoing ? 'outgoing' : 'incoming'} />) : isVisualMedia ? (<MediaMessage path={msg.media_path || msg.conteudo} type={typeLower.includes('video') || pathLower.includes('.mp4') ? 'video' : 'imagem'} />) : null}</div>)}
-                    {msg.conteudo && !isAudio && !isVisualMedia && !typeLower.includes('pdf') && (<p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed break-words">{msg.conteudo}</p>)}
+                    {!msg.message_attachments?.length && (msg.media_path || msg.conteudo) && (
+                      <div className="mb-1">
+                        {isAudio ? (
+                          <AudioMessage filePath={msg.media_path || msg.conteudo || ''} variant={isOutgoing ? 'outgoing' : 'incoming'} />
+                        ) : isVisualMedia ? (
+                          <MediaMessage path={msg.media_path || msg.conteudo} type={typeLower.includes('video') || pathLower.includes('.mp4') ? 'video' : 'imagem'} />
+                        ) : isPdf ? (
+                          <FileMessage path={msg.media_path || msg.conteudo || ''} fileName="Documento PDF" />
+                        ) : null}
+                      </div>
+                    )}
+                    {msg.conteudo && !isAudio && !isVisualMedia && !isPdf && (<p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed break-words">{msg.conteudo}</p>)}
                     <div className={cn("flex items-center justify-end gap-1 mt-1 opacity-70", isOutgoing ? "text-primary-foreground/80" : "text-muted-foreground")}><span className="text-[9px] sm:text-[10px] tabular-nums">{format(new Date(msg.criado_em), 'HH:mm')}</span>{isOutgoing && <CheckCircle className="h-2.5 w-2.5" />}</div>
                   </div>
                   <DropdownMenu>

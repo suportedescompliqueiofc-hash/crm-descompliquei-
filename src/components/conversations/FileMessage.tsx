@@ -27,6 +27,14 @@ export function FileMessage({ path, fileName = "Documento" }: FileMessageProps) 
       return;
     }
 
+    // Se for um blob local (estado otimista) ou uma URL direta, usa imediatamente
+    if (path.startsWith('blob:') || path.startsWith('http')) {
+      setFileUrl(path);
+      setIsLoadingUrl(false);
+      setError(null);
+      return;
+    }
+
     const loadFile = async () => {
       setIsLoadingUrl(true);
       setError(null);
@@ -58,7 +66,7 @@ export function FileMessage({ path, fileName = "Documento" }: FileMessageProps) 
     setIsPdfLoading(false);
   };
 
-  const isPdf = fileName.toLowerCase().endsWith('.pdf') || (fileUrl && fileUrl.toLowerCase().includes('.pdf'));
+  const isPdf = fileName.toLowerCase().endsWith('.pdf') || (fileUrl && fileUrl.toLowerCase().includes('.pdf')) || (path && path.toLowerCase().includes('pdf'));
 
   if (isLoadingUrl) {
     return (
@@ -78,83 +86,61 @@ export function FileMessage({ path, fileName = "Documento" }: FileMessageProps) 
     );
   }
 
-  if (isPdf) {
-    return (
-      <div className="group relative w-full max-w-[240px] overflow-hidden rounded-lg border bg-background shadow-sm hover:shadow-md transition-all">
-        <div className="relative bg-gray-100 min-h-[140px] flex items-center justify-center overflow-hidden cursor-pointer">
-          <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
-            {isPdfLoading && (
-              <div className="absolute inset-0 flex items-center justify-center z-10 bg-gray-50">
-                <Skeleton className="w-full h-full" />
-                <Loader2 className="absolute h-8 w-8 animate-spin text-primary/30" />
-              </div>
-            )}
-            
-            <Document
-              file={fileUrl}
-              onLoadSuccess={onDocumentLoadSuccess}
-              loading={<Skeleton className="w-full h-[140px]" />}
-              className="flex justify-center"
-              error={
-                <div className="flex flex-col items-center justify-center h-[140px] text-muted-foreground p-4 text-center">
-                  <FileText className="h-8 w-8 mb-2 opacity-20" />
-                  <span className="text-[10px]">Indisponível</span>
-                </div>
-              }
-            >
-              <Page 
-                pageNumber={1} 
-                width={240}
-                renderTextLayer={false}
-                renderAnnotationLayer={false}
-                className="opacity-90 hover:opacity-100 transition-opacity"
-              />
-            </Document>
-          </a>
-        </div>
-
-        <div className="flex items-center justify-between p-2 bg-card border-t bg-white/95 dark:bg-zinc-900/95 backdrop-blur">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <div className="bg-red-100 dark:bg-red-900/30 p-1.5 rounded-md text-red-600 dark:text-red-400 shrink-0">
-              <FileType className="h-4 w-4" />
-            </div>
-            <div className="flex flex-col overflow-hidden">
-              <span className="text-xs font-medium truncate text-foreground leading-tight" title={fileName}>
-                {fileName}
-              </span>
-              <span className="text-[9px] text-muted-foreground">
-                {numPages ? `${numPages} pág • ` : ''}PDF
-              </span>
-            </div>
-          </div>
-          
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary shrink-0" asChild>
-            <a href={fileUrl} target="_blank" rel="noopener noreferrer" download title="Baixar PDF">
-              <Download className="h-3.5 w-3.5" />
-            </a>
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex items-center justify-between gap-2 p-2 bg-card border rounded-lg shadow-sm w-full max-w-[240px] hover:bg-muted/50 transition-colors group">
-      <div className="flex items-center gap-2 overflow-hidden">
-        <div className="bg-blue-100 p-1.5 rounded-md text-blue-600">
-          <FileText className="h-4 w-4" />
-        </div>
-        <div className="flex flex-col overflow-hidden">
-          <span className="text-xs font-medium truncate text-foreground">{fileName}</span>
-          <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Arquivo</span>
-        </div>
-      </div>
-      
-      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" asChild>
-        <a href={fileUrl} target="_blank" rel="noopener noreferrer" download>
-          <Download className="h-3.5 w-3.5" />
+    <div className="group relative w-full max-w-[240px] overflow-hidden rounded-lg border bg-background shadow-sm hover:shadow-md transition-all">
+      <div className="relative bg-gray-100 min-h-[140px] flex items-center justify-center overflow-hidden cursor-pointer">
+        <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+          {isPdfLoading && (
+            <div className="absolute inset-0 flex items-center justify-center z-10 bg-gray-50">
+              <Skeleton className="w-full h-full" />
+              <Loader2 className="absolute h-8 w-8 animate-spin text-primary/30" />
+            </div>
+          )}
+          
+          <Document
+            file={fileUrl}
+            onLoadSuccess={onDocumentLoadSuccess}
+            loading={<Skeleton className="w-full h-[140px]" />}
+            className="flex justify-center"
+            error={
+              <div className="flex flex-col items-center justify-center h-[140px] text-muted-foreground p-4 text-center">
+                <FileText className="h-8 w-8 mb-2 opacity-20" />
+                <span className="text-[10px]">Indisponível</span>
+              </div>
+            }
+          >
+            <Page 
+              pageNumber={1} 
+              width={240}
+              renderTextLayer={false}
+              renderAnnotationLayer={false}
+              className="opacity-90 hover:opacity-100 transition-opacity"
+            />
+          </Document>
         </a>
-      </Button>
+      </div>
+
+      <div className="flex items-center justify-between p-2 bg-card border-t bg-white/95 dark:bg-zinc-900/95 backdrop-blur">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <div className="bg-red-100 dark:bg-red-900/30 p-1.5 rounded-md text-red-600 dark:text-red-400 shrink-0">
+            <FileType className="h-4 w-4" />
+          </div>
+          <div className="flex flex-col overflow-hidden">
+            <span className="text-xs font-medium truncate text-foreground leading-tight" title={fileName}>
+              {fileName}
+            </span>
+            <span className="text-[9px] text-muted-foreground">
+              {numPages ? `${numPages} pág • ` : ''}PDF
+            </span>
+          </div>
+        </div>
+        
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary shrink-0" asChild>
+          <a href={fileUrl} target="_blank" rel="noopener noreferrer" download title="Baixar PDF">
+            <Download className="h-3.5 w-3.5" />
+          </a>
+        </Button>
+      </div>
     </div>
   );
 }
