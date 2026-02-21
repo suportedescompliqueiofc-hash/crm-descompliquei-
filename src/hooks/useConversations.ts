@@ -105,10 +105,6 @@ export function useMessages(leadId: string | null) {
           
           queryClient.setQueryData<Message[]>(['messages', leadId], (old) => {
             const current = old || [];
-            
-            // Lógica de Deduplicação Robusta para Saída:
-            // Procuramos qualquer mensagem temporária (ID 'temp') que seja de SAÍDA e do mesmo TIPO.
-            // Isso resolve o problema de remetentes diferentes (agente vs agente_crm).
             const isOutgoing = newMessage.remetente !== 'lead';
             
             if (isOutgoing) {
@@ -117,7 +113,6 @@ export function useMessages(leadId: string | null) {
                 const isTempOutgoing = m.remetente !== 'lead' || m.direcao === 'saida';
                 const isSameType = m.tipo_conteudo === newMessage.tipo_conteudo;
                 
-                // Para texto, o conteúdo deve ser igual. Para áudio/mídia, apenas o tipo e ser a última enviada.
                 if (newMessage.tipo_conteudo === 'texto') {
                   return isTemp && isTempOutgoing && m.conteudo === newMessage.conteudo;
                 }
@@ -126,7 +121,6 @@ export function useMessages(leadId: string | null) {
 
               if (tempIndex !== -1) {
                 const updated = [...current];
-                // Mantemos o anexo se ele existir na temporária (para garantir exibição imediata)
                 updated[tempIndex] = { 
                   ...newMessage, 
                   message_attachments: updated[tempIndex].message_attachments 
@@ -135,9 +129,7 @@ export function useMessages(leadId: string | null) {
               }
             }
 
-            // Evita duplicidade se o Realtime disparar para uma mensagem que o fetch já trouxe
             if (current.some(m => m.id === newMessage.id)) return current;
-
             return [...current, newMessage];
           });
         }
@@ -188,14 +180,39 @@ export function useSendMessage() {
 
   return useMutation({
     mutationFn: async ({ leadId, content }: { leadId: string; content: string }) => {
+      // 1. Registrar a mensagem diretamente no Supabase (Replica o comportamento do n8n)
+      const { data: insertedMsg, error: insertError } = await supabase
+        .from('mensagens')
+        .insert({
+            lead_id: leadId,
+            user_id: user?.id,
+            conteudo: content,
+            direcao: 'saida',
+            remetente: 'agente', // Mantendo o padrão solicitado
+            tipo_conteudo: 'texto'
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // 2. Disparar o Webhook para envio real do WhatsApp
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
+      
       const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: leadId, user_id: user?.id, conteudo_mensagem: content, telefone: lead?.telefone }),
+        body: JSON.stringify({ 
+            lead_id: leadId, 
+            user_id: user?.id, 
+            conteudo_mensagem: content, 
+            telefone: lead?.telefone,
+            internal_msg_id: insertedMsg.id // Envia o ID interno para controle
+        }),
       });
-      if (!response.ok) throw new Error("Falha ao enviar");
-      return null;
+
+      if (!response.ok) throw new Error("Falha ao enviar via WhatsApp");
+      return insertedMsg;
     },
     onMutate: async ({ leadId, content }) => {
       const queryKey = ['messages', leadId];
@@ -208,7 +225,7 @@ export function useSendMessage() {
         user_id: user?.id || null,
         conteudo: content,
         direcao: 'saida',
-        remetente: 'agente_crm',
+        remetente: 'agente',
         tipo_conteudo: 'texto',
         criado_em: new Date().toISOString(),
         media_path: null,
@@ -278,9 +295,35 @@ export function useSendAudioMessage() {
       const timestamp = Date.now();
       const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.ogg`;
       
+      // 1. Upload do Áudio para o Storage
       const { error: uploadError } = await supabase.storage.from('media-mensagens').upload(filePath, audioBlob);
       if (uploadError) throw uploadError;
       
+      // 2. Criar registro na tabela mensagens
+      const { data: insertedMsg, error: insertError } = await supabase
+        .from('mensagens')
+        .insert({
+            lead_id: leadId,
+            user_id: user?.id,
+            conteudo: '',
+            direcao: 'saida',
+            remetente: 'agente',
+            tipo_conteudo: 'audio',
+            media_path: filePath
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // 3. Criar registro na tabela message_attachments
+      await supabase.from('message_attachments').insert({
+        message_id: insertedMsg.id,
+        file_path: filePath,
+        file_type: 'audio'
+      });
+      
+      // 4. Disparar Webhook para envio real
       const { data: { publicUrl } } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
       
@@ -292,11 +335,13 @@ export function useSendAudioMessage() {
           user_id: user?.id, 
           tipo: 'audio', 
           url_midia: publicUrl, 
-          telefone: lead?.telefone 
+          telefone: lead?.telefone,
+          internal_msg_id: insertedMsg.id
         }),
       });
-      if (!response.ok) throw new Error("Falha ao enviar áudio");
-      return null;
+
+      if (!response.ok) throw new Error("Falha ao enviar áudio pelo gateway");
+      return insertedMsg;
     },
     onMutate: async ({ leadId, audioBlob }) => {
       const queryKey = ['messages', leadId];
@@ -309,7 +354,7 @@ export function useSendAudioMessage() {
         user_id: user?.id || null,
         conteudo: '',
         direcao: 'saida',
-        remetente: 'agente_crm',
+        remetente: 'agente',
         tipo_conteudo: 'audio',
         criado_em: new Date().toISOString(),
         media_path: URL.createObjectURL(audioBlob),
