@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 interface MediaMessageProps {
   path: string | null;
   type: 'imagem' | 'video';
+  onView?: (url: string, type: 'imagem' | 'video') => void;
 }
 
-export function MediaMessage({ path, type }: MediaMessageProps) {
+export function MediaMessage({ path, type, onView }: MediaMessageProps) {
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,10 +70,20 @@ export function MediaMessage({ path, type }: MediaMessageProps) {
     );
   }
 
+  const handleView = (e: React.MouseEvent) => {
+    if (onView && mediaUrl) {
+      e.preventDefault();
+      onView(mediaUrl, type);
+    }
+  };
+
   if (type === 'imagem') {
     return (
       <div className="relative group mt-1 max-w-[300px]">
-        <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="block relative rounded-xl overflow-hidden border border-border/40 shadow-sm transition-all hover:brightness-95">
+        <div 
+          onClick={handleView}
+          className="block relative rounded-xl overflow-hidden border border-border/40 shadow-sm transition-all hover:brightness-95 cursor-pointer"
+        >
           <img 
             src={mediaUrl} 
             alt="Mídia da conversa" 
@@ -82,20 +93,25 @@ export function MediaMessage({ path, type }: MediaMessageProps) {
           <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-all">
             <Eye className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
-        </a>
+        </div>
       </div>
     );
   }
 
   if (type === 'video') {
     return (
-      <div className="mt-1 max-w-[300px]">
+      <div className="mt-1 max-w-[300px] relative group">
         <video 
           src={mediaUrl} 
-          controls 
-          className="w-full rounded-xl border border-border/40 shadow-sm max-h-[400px] bg-black"
+          className="w-full rounded-xl border border-border/40 shadow-sm max-h-[400px] bg-black cursor-pointer"
+          onClick={handleView}
           onError={() => setError("Falha ao renderizar vídeo.")}
         />
+        <div 
+          className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:bg-black/20 transition-all rounded-xl"
+        >
+          <Eye className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
       </div>
     );
   }

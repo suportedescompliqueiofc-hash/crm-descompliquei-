@@ -35,6 +35,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { TagManager } from "@/components/tags/TagManager";
 import { AudioRecorder } from "./AudioRecorder";
 import { MediaPreviewModal } from "./MediaPreviewModal";
+import { FullscreenMediaViewer } from "./FullscreenMediaViewer";
 import { useNavigate } from "react-router-dom";
 
 const DateSeparator = ({ dateString }: { dateString: string }) => {
@@ -51,13 +52,41 @@ const DateSeparator = ({ dateString }: { dateString: string }) => {
   );
 };
 
-const AttachmentRenderer = ({ attachment, isOutgoing }: { attachment: Attachment; isOutgoing: boolean }) => {
+const AttachmentRenderer = ({ 
+  attachment, 
+  isOutgoing, 
+  onViewMedia 
+}: { 
+  attachment: Attachment; 
+  isOutgoing: boolean;
+  onViewMedia: (url: string, type: 'imagem' | 'video' | 'pdf', name?: string) => void;
+}) => {
   const type = (attachment.file_type || '').toLowerCase();
   const path = (attachment.file_path || '').toLowerCase();
   const isAudio = type.includes('audio') || type.includes('ptt') || path.includes('.ogg') || path.includes('.mp3') || path.includes('.m4a') || path.includes('.webm');
+  
   if (isAudio) return <AudioMessage filePath={attachment.file_path} variant={isOutgoing ? 'outgoing' : 'incoming'} />;
-  if (type.includes('image') || type.includes('imagem') || type.includes('video')) return <MediaMessage path={attachment.file_path} type={type.includes('video') ? 'video' : 'imagem'} />;
-  if (type.includes('pdf')) return <FileMessage path={attachment.file_path} fileName="Documento PDF" />;
+  
+  if (type.includes('image') || type.includes('imagem') || type.includes('video')) {
+    return (
+      <MediaMessage 
+        path={attachment.file_path} 
+        type={type.includes('video') ? 'video' : 'imagem'} 
+        onView={onViewMedia as any}
+      />
+    );
+  }
+  
+  if (type.includes('pdf')) {
+    return (
+      <FileMessage 
+        path={attachment.file_path} 
+        fileName="Documento PDF" 
+        onView={onViewMedia as any}
+      />
+    );
+  }
+
   return <div className="p-2 bg-muted/20 border rounded text-xs text-muted-foreground mb-1 break-all">Anexo: {attachment.file_path}</div>;
 };
 
@@ -101,9 +130,12 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const [deletingMessage, setDeletingMessage] = useState<Message | null>(null);
   const [isRecordingMode, setIsRecordingMode] = useState(false);
   
-  // Media Preview States
+  // Media Preview States (Send)
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isMediaPreviewOpen, setIsMediaPreviewOpen] = useState(false);
+
+  // Fullscreen Viewer State (View)
+  const [viewingMedia, setViewingMedia] = useState<{ url: string; type: 'imagem' | 'video' | 'pdf'; name?: string } | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -160,6 +192,10 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
         body: JSON.stringify({ action: checked ? 'ativar' : 'desativar', lead_id: lead.id, telefone: lead.telefone }),
       });
     } catch (error) { console.error(error); }
+  };
+
+  const openMediaViewer = (url: string, type: 'imagem' | 'video' | 'pdf', name?: string) => {
+    setViewingMedia({ url, type, name });
   };
 
   const getInitials = (name?: string) => name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'L';
@@ -256,15 +292,32 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                     ) : (<AvatarFallback className="bg-muted text-muted-foreground text-xs font-medium">{getInitials(lead?.nome)}</AvatarFallback>)}
                   </Avatar>
                   <div className={cn("p-2 sm:p-3 rounded-2xl relative shadow-sm transition-all min-w-[100px]", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border border-border/40 rounded-bl-none")}>
-                    <div className="mb-1 space-y-1">{msg.message_attachments?.map(att => <AttachmentRenderer key={att.id} attachment={att} isOutgoing={isOutgoing} />)}</div>
+                    <div className="mb-1 space-y-1">
+                      {msg.message_attachments?.map(att => (
+                        <AttachmentRenderer 
+                          key={att.id} 
+                          attachment={att} 
+                          isOutgoing={isOutgoing} 
+                          onViewMedia={openMediaViewer}
+                        />
+                      ))}
+                    </div>
                     {!msg.message_attachments?.length && (msg.media_path || msg.conteudo) && (
                       <div className="mb-1">
                         {isAudio ? (
                           <AudioMessage filePath={msg.media_path || msg.conteudo || ''} variant={isOutgoing ? 'outgoing' : 'incoming'} />
                         ) : isVisualMedia ? (
-                          <MediaMessage path={msg.media_path || msg.conteudo} type={typeLower.includes('video') || pathLower.includes('.mp4') ? 'video' : 'imagem'} />
+                          <MediaMessage 
+                            path={msg.media_path || msg.conteudo} 
+                            type={typeLower.includes('video') || pathLower.includes('.mp4') ? 'video' : 'imagem'} 
+                            onView={openMediaViewer as any}
+                          />
                         ) : isPdf ? (
-                          <FileMessage path={msg.media_path || msg.conteudo || ''} fileName="Documento PDF" />
+                          <FileMessage 
+                            path={msg.media_path || msg.conteudo || ''} 
+                            fileName="Documento PDF" 
+                            onView={openMediaViewer as any}
+                          />
                         ) : null}
                       </div>
                     )}
@@ -365,6 +418,15 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
         onSend={handleConfirmMediaSend}
         onAddFiles={(newFiles) => setPendingFiles([...pendingFiles, ...newFiles])}
       />
+
+      {viewingMedia && (
+        <FullscreenMediaViewer 
+          mediaUrl={viewingMedia.url}
+          type={viewingMedia.type}
+          fileName={viewingMedia.name}
+          onClose={() => setViewingMedia(null)}
+        />
+      )}
 
       <AlertDialog open={!!deletingMessage} onOpenChange={(open) => !open && setDeletingMessage(null)}>
         <AlertDialogContent className="w-[90vw] max-w-md rounded-2xl">

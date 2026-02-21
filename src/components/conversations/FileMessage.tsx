@@ -11,9 +11,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 interface FileMessageProps {
   path: string;
   fileName?: string;
+  onView?: (url: string, type: 'pdf', name: string) => void;
 }
 
-export function FileMessage({ path, fileName = "Documento" }: FileMessageProps) {
+export function FileMessage({ path, fileName = "Documento", onView }: FileMessageProps) {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +69,13 @@ export function FileMessage({ path, fileName = "Documento" }: FileMessageProps) 
 
   const isPdf = fileName.toLowerCase().endsWith('.pdf') || (fileUrl && fileUrl.toLowerCase().includes('.pdf')) || (path && path.toLowerCase().includes('pdf'));
 
+  const handleView = (e: React.MouseEvent) => {
+    if (onView && fileUrl) {
+      e.preventDefault();
+      onView(fileUrl, 'pdf', fileName);
+    }
+  };
+
   if (isLoadingUrl) {
     return (
       <div className="w-full max-w-[240px] h-40 bg-muted/30 rounded-lg border flex flex-col items-center justify-center gap-2">
@@ -88,40 +96,44 @@ export function FileMessage({ path, fileName = "Documento" }: FileMessageProps) 
 
   return (
     <div className="group relative w-full max-w-[240px] overflow-hidden rounded-lg border bg-background shadow-sm hover:shadow-md transition-all">
-      <div className="relative bg-gray-100 min-h-[140px] flex items-center justify-center overflow-hidden cursor-pointer">
-        <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
-          {isPdfLoading && (
-            <div className="absolute inset-0 flex items-center justify-center z-10 bg-gray-50">
-              <Skeleton className="w-full h-full" />
-              <Loader2 className="absolute h-8 w-8 animate-spin text-primary/30" />
+      <div 
+        className="relative bg-gray-100 min-h-[140px] flex items-center justify-center overflow-hidden cursor-pointer"
+        onClick={handleView}
+      >
+        {isPdfLoading && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 bg-gray-50">
+            <Skeleton className="w-full h-full" />
+            <Loader2 className="absolute h-8 w-8 animate-spin text-primary/30" />
+          </div>
+        )}
+        
+        <Document
+          file={fileUrl}
+          onLoadSuccess={onDocumentLoadSuccess}
+          loading={<Skeleton className="w-full h-[140px]" />}
+          className="flex justify-center"
+          error={
+            <div className="flex flex-col items-center justify-center h-[140px] text-muted-foreground p-4 text-center">
+              <FileText className="h-8 w-8 mb-2 opacity-20" />
+              <span className="text-[10px]">Indisponível</span>
             </div>
-          )}
-          
-          <Document
-            file={fileUrl}
-            onLoadSuccess={onDocumentLoadSuccess}
-            loading={<Skeleton className="w-full h-[140px]" />}
-            className="flex justify-center"
-            error={
-              <div className="flex flex-col items-center justify-center h-[140px] text-muted-foreground p-4 text-center">
-                <FileText className="h-8 w-8 mb-2 opacity-20" />
-                <span className="text-[10px]">Indisponível</span>
-              </div>
-            }
-          >
-            <Page 
-              pageNumber={1} 
-              width={240}
-              renderTextLayer={false}
-              renderAnnotationLayer={false}
-              className="opacity-90 hover:opacity-100 transition-opacity"
-            />
-          </Document>
-        </a>
+          }
+        >
+          <Page 
+            pageNumber={1} 
+            width={240}
+            renderTextLayer={false}
+            renderAnnotationLayer={false}
+            className="opacity-90 hover:opacity-100 transition-opacity"
+          />
+        </Document>
       </div>
 
       <div className="flex items-center justify-between p-2 bg-card border-t bg-white/95 dark:bg-zinc-900/95 backdrop-blur">
-        <div className="flex items-center gap-2 overflow-hidden">
+        <div 
+          className="flex items-center gap-2 overflow-hidden cursor-pointer flex-1"
+          onClick={handleView}
+        >
           <div className="bg-red-100 dark:bg-red-900/30 p-1.5 rounded-md text-red-600 dark:text-red-400 shrink-0">
             <FileType className="h-4 w-4" />
           </div>
