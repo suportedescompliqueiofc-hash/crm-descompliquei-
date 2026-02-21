@@ -106,18 +106,30 @@ export function useMessages(leadId: string | null) {
           queryClient.setQueryData<Message[]>(['messages', leadId], (old) => {
             const current = old || [];
             
-            // Busca se existe uma mensagem otimista com o mesmo conteúdo
-            const tempIndex = current.findIndex(m => 
-              m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo
-            );
+            // Lógica de Deduplicação Aprimorada:
+            // Busca uma mensagem temporária (ID 'temp-') que coincida com a nova.
+            // Se for texto, comparamos o conteúdo.
+            // Se for mídia (audio/imagem/video), comparamos o tipo, já que o conteúdo costuma ser vazio.
+            const tempIndex = current.findIndex(m => {
+              if (!m.id.startsWith('temp')) return false;
+              if (m.remetente !== newMessage.remetente) return false;
+              
+              if (newMessage.tipo_conteudo === 'texto') {
+                return m.conteudo === newMessage.conteudo;
+              } else {
+                // Para áudios e mídias, o balão temporário do mesmo tipo é o alvo da substituição
+                return m.tipo_conteudo === newMessage.tipo_conteudo;
+              }
+            });
 
             if (tempIndex !== -1) {
               const updated = [...current];
-              updated[tempIndex] = { ...newMessage, message_attachments: updated[tempIndex].message_attachments };
+              // Substituímos a temporária pela real preservando a ordem
+              updated[tempIndex] = newMessage;
               return updated;
             }
 
-            // Evita duplicidade se o fetch já pegou a mensagem
+            // Evita duplicidade se o fetch já pegou a mensagem (ex: race condition)
             if (current.some(m => m.id === newMessage.id)) return current;
 
             return [...current, newMessage];
