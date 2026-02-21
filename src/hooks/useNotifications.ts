@@ -91,7 +91,10 @@ export function useUpdateNotificationStatus(leadId: string | null) {
       toast.error('Erro ao atualizar notificação:', { description: err.message });
     },
     onSettled: () => {
+      // Invalida o cache específico do lead
       queryClient.invalidateQueries({ queryKey });
+      // IMPORTANTE: Invalida o cache global das notificações (sininho e página de alertas)
+      queryClient.invalidateQueries({ queryKey: ['all_notifications'] });
     },
   });
 }
