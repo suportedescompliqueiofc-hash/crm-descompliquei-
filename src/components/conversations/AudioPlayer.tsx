@@ -37,9 +37,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
       setIsLoading(true);
 
       const handleLoadedMetadata = () => {
-        // Se a duração for infinita ou inválida, forçamos o áudio a carregar o final para descobrir a duração
         if (!isFinite(audio.duration) || isNaN(audio.duration) || audio.duration === 0) {
-            // Pequeno truque para arquivos sem metadados de duração
             audio.currentTime = 1e101; 
             audio.ontimeupdate = () => {
                 audio.ontimeupdate = null;
@@ -168,7 +166,9 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
               onValueCommit={handleSliderCommit}
               className={cn(
                 "flex-1 cursor-pointer",
-                isOutgoing ? "text-white" : "text-primary",
+                isOutgoing 
+                  ? "[&>span:first-child]:bg-white/20 [&>span:first-child>span]:bg-white [&_[role=slider]]:bg-white" 
+                  : "text-primary",
                 "[&>span:first-child]:h-1",
                 "[&>span[role=slider]]:h-3 [&>span[role=slider]]:w-3 [&>span[role=slider]]:border-0"
               )}
