@@ -106,30 +106,36 @@ export function useMessages(leadId: string | null) {
           queryClient.setQueryData<Message[]>(['messages', leadId], (old) => {
             const current = old || [];
             
-            // Lógica de Deduplicação Aprimorada:
-            // Busca uma mensagem temporária (ID 'temp-') que coincida com a nova.
-            // Se for texto, comparamos o conteúdo.
-            // Se for mídia (audio/imagem/video), comparamos o tipo, já que o conteúdo costuma ser vazio.
-            const tempIndex = current.findIndex(m => {
-              if (!m.id.startsWith('temp')) return false;
-              if (m.remetente !== newMessage.remetente) return false;
-              
-              if (newMessage.tipo_conteudo === 'texto') {
-                return m.conteudo === newMessage.conteudo;
-              } else {
-                // Para áudios e mídias, o balão temporário do mesmo tipo é o alvo da substituição
-                return m.tipo_conteudo === newMessage.tipo_conteudo;
-              }
-            });
+            // Lógica de Deduplicação Robusta para Saída:
+            // Procuramos qualquer mensagem temporária (ID 'temp') que seja de SAÍDA e do mesmo TIPO.
+            // Isso resolve o problema de remetentes diferentes (agente vs agente_crm).
+            const isOutgoing = newMessage.remetente !== 'lead';
+            
+            if (isOutgoing) {
+              const tempIndex = current.findIndex(m => {
+                const isTemp = m.id.startsWith('temp');
+                const isTempOutgoing = m.remetente !== 'lead' || m.direcao === 'saida';
+                const isSameType = m.tipo_conteudo === newMessage.tipo_conteudo;
+                
+                // Para texto, o conteúdo deve ser igual. Para áudio/mídia, apenas o tipo e ser a última enviada.
+                if (newMessage.tipo_conteudo === 'texto') {
+                  return isTemp && isTempOutgoing && m.conteudo === newMessage.conteudo;
+                }
+                return isTemp && isTempOutgoing && isSameType;
+              });
 
-            if (tempIndex !== -1) {
-              const updated = [...current];
-              // Substituímos a temporária pela real preservando a ordem
-              updated[tempIndex] = newMessage;
-              return updated;
+              if (tempIndex !== -1) {
+                const updated = [...current];
+                // Mantemos o anexo se ele existir na temporária (para garantir exibição imediata)
+                updated[tempIndex] = { 
+                  ...newMessage, 
+                  message_attachments: updated[tempIndex].message_attachments 
+                };
+                return updated;
+              }
             }
 
-            // Evita duplicidade se o fetch já pegou a mensagem (ex: race condition)
+            // Evita duplicidade se o Realtime disparar para uma mensagem que o fetch já trouxe
             if (current.some(m => m.id === newMessage.id)) return current;
 
             return [...current, newMessage];
