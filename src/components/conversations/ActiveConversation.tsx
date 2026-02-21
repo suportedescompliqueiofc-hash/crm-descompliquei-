@@ -96,22 +96,18 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Sincronização inicial
   useEffect(() => { 
     if (initialMessages) setLocalMessages(initialMessages); 
   }, [initialMessages]);
 
-  // Realtime Listener
   useEffect(() => {
     if (!leadId) return;
     const channel = supabase.channel(`chat-sync-${leadId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, (payload) => {
           const newMessage = payload.new as Message;
           setLocalMessages((prev) => {
-              // Evita duplicidade: se a mensagem já existe (por ID ou conteúdo/tempo similar otimista), ignoramos ou substituímos
               const exists = prev.some(m => m.id === newMessage.id || (m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo));
               if (exists) {
-                  // Se era uma mensagem temporária, substituímos pela real
                   return prev.map(m => (m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo) ? newMessage : m);
               }
               return [...prev, newMessage];
@@ -232,8 +228,9 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             if (item.type === 'separator') return <DateSeparator key={`sep-${index}`} dateString={item.date} />;
             const msg = item as Message;
             
-            // Lógica de alinhamento robusta baseada em direção e remetente
-            const isOutgoing = msg.direcao === 'saida';
+            // LÓGICA DE ALINHAMENTO CORRIGIDA:
+            // Se o remetente não for o lead (ou seja, se for agente, bot ou crm), fica no lado DIREITO.
+            const isOutgoing = msg.remetente !== 'lead';
             const isAi = msg.remetente === 'bot';
             
             const typeLower = (msg.tipo_conteudo || '').toLowerCase();
