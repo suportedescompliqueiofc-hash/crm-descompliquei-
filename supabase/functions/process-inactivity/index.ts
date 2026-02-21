@@ -25,14 +25,14 @@ serve(async (req) => {
   );
 
   try {
-    console.log("[process-inactivity] Iniciando verificação rigorosa...");
+    console.log("[process-inactivity] Iniciando verificação por regra...");
 
     // 1. Buscar todas as regras ativas
     const { data: activeRules, error: rulesError } = await supabaseAdmin
       .from('inactivity_alerts_config')
       .select('*')
       .eq('is_active', true)
-      .order('minutes', { ascending: true }); // Processa as regras mais curtas primeiro
+      .order('minutes', { ascending: true });
 
     if (rulesError) throw rulesError;
     
@@ -46,7 +46,7 @@ serve(async (req) => {
       const now = new Date();
       const thresholdDate = subMinutes(now, rule.minutes);
       
-      // 2. Buscar leads ativos da organização
+      // 2. Buscar leads ativos
       const { data: leads, error: leadsError } = await supabaseAdmin
         .from('leads')
         .select('id, nome, organization_id, usuario_id')
@@ -56,7 +56,7 @@ serve(async (req) => {
       if (leadsError) continue;
 
       for (const lead of (leads || [])) {
-        // 3. Buscar a ÚLTIMA mensagem do lead para ver se o silêncio é do cliente
+        // 3. Buscar a ÚLTIMA mensagem absoluta
         const { data: lastMessage, error: msgError } = await supabaseAdmin
           .from('mensagens')
           .select('direcao, criado_em')
@@ -70,28 +70,28 @@ serve(async (req) => {
         const msgDate = new Date(lastMessage.criado_em);
         const isExpired = msgDate <= thresholdDate;
 
-        // Se a última mensagem foi NOSSA (saída) e passou do tempo limite
+        // Se a última mensagem foi enviada pelo escritório e o tempo da regra expirou
         if (lastMessage.direcao === 'saida' && isExpired) {
           
           const timeStr = formatToBrasilia(msgDate);
           const alertMsg = `Alerta de Inatividade: ${rule.name} (Última mensagem enviada às ${timeStr})`;
 
-          // 4. VERIFICAÇÃO DE OURO (Envio Único):
-          // Verifica se já existe QUALQUER notificação criada para este lead 
-          // que seja mais recente que a última mensagem que enviamos.
-          // Se houver, significa que já avisamos sobre este período de silêncio.
+          // 4. VERIFICAÇÃO ESPECÍFICA POR REGRA:
+          // Agora o sistema verifica se já existe uma notificação para ESTA REGRA específica
+          // enviada após a última mensagem do escritório.
           const { data: existingNotif, error: checkError } = await supabaseAdmin
             .from('notificacoes')
             .select('id')
             .eq('lead_id', lead.id)
+            .ilike('mensagem', `Alerta de Inatividade: ${rule.name}%`) // Filtra pelo nome da regra
             .gt('criado_em', lastMessage.criado_em)
             .limit(1);
 
           if (checkError) continue;
 
-          // Se não encontrou nenhuma notificação após a última mensagem, cria o alerta
+          // Se esta regra específica ainda não foi disparada para este "vácuo" atual
           if (!existingNotif || existingNotif.length === 0) {
-            console.log(`[process-inactivity] Disparando alerta inédito para ${lead.nome} às ${timeStr}`);
+            console.log(`[process-inactivity] Disparando alerta regra "${rule.name}" para ${lead.nome}`);
             
             const { error: insertError } = await supabaseAdmin
               .from('notificacoes')
