@@ -27,35 +27,53 @@ serve(async (req) => {
     );
 
     const buckets = ['media-mensagens', 'campaign-media', 'audio-mensagens'];
-    let signedUrl = null;
+    let bucketToUse = null;
+    let cleanPath = mediaPath.trim();
 
-    // Tenta limpar e buscar em cada bucket
+    // 1. Tenta identificar o bucket pelo prefixo do path (mais eficiente)
     for (const bucket of buckets) {
-      let cleanPath = mediaPath.trim();
-      // Remove o nome do bucket se ele vier no início do caminho (ex: "media-mensagens/caminho/arquivo.jpg")
       if (cleanPath.startsWith(`${bucket}/`)) {
+        bucketToUse = bucket;
         cleanPath = cleanPath.substring(bucket.length + 1);
-      }
-
-      const { data } = await supabaseAdmin.storage
-        .from(bucket)
-        .createSignedUrl(cleanPath, 86400); // 24h
-
-      if (data?.signedUrl) {
-        signedUrl = data.signedUrl;
         break;
       }
     }
 
-    if (!signedUrl) {
+    // 2. Se não identificou pelo prefixo, tenta encontrar o arquivo (resiliência)
+    if (!bucketToUse) {
+      // Começa pelo bucket mais provável (mensagens)
+      bucketToUse = 'media-mensagens';
+    }
+
+    const { data, error: signError } = await supabaseAdmin.storage
+      .from(bucketToUse)
+      .createSignedUrl(cleanPath, 86400); // 24h
+
+    // 3. Fallback: Se deu erro no bucket padrão, tenta nos outros sem logar erro 400 se possível
+    if (signError || !data?.signedUrl) {
+      for (const bucket of buckets.filter(b => b !== bucketToUse)) {
+        const { data: fallbackData } = await supabaseAdmin.storage
+          .from(bucket)
+          .createSignedUrl(cleanPath, 86400);
+        
+        if (fallbackData?.signedUrl) {
+          return new Response(
+            JSON.stringify({ signedUrl: fallbackData.signedUrl }), 
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+
+    if (!data?.signedUrl) {
       return new Response(
-        JSON.stringify({ error: 'Arquivo não encontrado.' }), 
+        JSON.stringify({ error: 'Arquivo não encontrado em nenhum bucket.' }), 
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     return new Response(
-      JSON.stringify({ signedUrl }), 
+      JSON.stringify({ signedUrl: data.signedUrl }), 
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

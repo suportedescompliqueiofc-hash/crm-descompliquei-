@@ -60,19 +60,13 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
         setIsLoading(false);
       };
 
-      // Eventos cruciais para o navegador
       audio.addEventListener('loadedmetadata', handleLoadedMetadata);
       audio.addEventListener('timeupdate', handleTimeUpdate);
       audio.addEventListener('ended', handleEnded);
       audio.addEventListener('error', handleError);
       
-      // Alguns navegadores disparam canplay antes de metadata se o arquivo for pequeno
-      audio.addEventListener('canplay', () => setIsLoading(false));
-
-      // Se já carregou (ex: cache)
-      if (audio.readyState >= 1) {
-        handleLoadedMetadata();
-      }
+      // Forçar recarregamento ao mudar URL
+      audio.load();
 
       return () => {
         audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
@@ -97,7 +91,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
         const playPromise = audioRef.current.play();
         if (playPromise !== undefined) {
           playPromise.catch(error => {
-            console.error("Autoplay prevent ou erro de reprodução:", error);
+            console.error("Erro ao reproduzir:", error);
             setIsPlaying(false);
           });
         }
@@ -133,8 +127,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
         isOutgoing ? "bg-white/10 border-white/20 text-white" : "bg-destructive/5 border-destructive/20 text-destructive"
       )}>
         <AlertCircle className="h-4 w-4" />
-        <span className="text-[10px] font-medium">Erro ao reproduzir</span>
-        <Button variant="ghost" size="sm" className="h-6 px-2 text-[9px] underline" onClick={() => window.open(audioUrl)}>Abrir link</Button>
+        <span className="text-[10px] font-medium">Erro ao carregar áudio</span>
       </div>
     );
   }
@@ -144,6 +137,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
         "flex flex-col gap-1",
         "w-[260px] xs:w-[300px] sm:w-[320px] md:w-[340px]"
     )}>
+      {/* crossOrigin="anonymous" é essencial para evitar bloqueios de CORS ao processar o áudio */}
       <audio ref={audioRef} src={audioUrl} preload="metadata" crossOrigin="anonymous" />
       
       <div className="flex items-center gap-2.5">
