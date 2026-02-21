@@ -11,7 +11,7 @@ export interface Attachment {
   id: string;
   message_id: string;
   file_path: string;
-  file_type: 'imagem' | 'video' | 'audio' | 'arquivo';
+  file_type: 'imagem' | 'video' | 'audio' | 'arquivo' | 'pdf';
 }
 
 export interface Message {
@@ -180,7 +180,6 @@ export function useSendMessage() {
 
   return useMutation({
     mutationFn: async ({ leadId, content }: { leadId: string; content: string }) => {
-      // 1. Registrar a mensagem diretamente no Supabase (Replica o comportamento do n8n)
       const { data: insertedMsg, error: insertError } = await supabase
         .from('mensagens')
         .insert({
@@ -188,7 +187,7 @@ export function useSendMessage() {
             user_id: user?.id,
             conteudo: content,
             direcao: 'saida',
-            remetente: 'agente', // Mantendo o padrão solicitado
+            remetente: 'agente',
             tipo_conteudo: 'texto'
         })
         .select()
@@ -196,7 +195,6 @@ export function useSendMessage() {
 
       if (insertError) throw insertError;
 
-      // 2. Disparar o Webhook para envio real do WhatsApp
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
       
       const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
@@ -207,7 +205,7 @@ export function useSendMessage() {
             user_id: user?.id, 
             conteudo_mensagem: content, 
             telefone: lead?.telefone,
-            internal_msg_id: insertedMsg.id // Envia o ID interno para controle
+            internal_msg_id: insertedMsg.id 
         }),
       });
 
@@ -295,11 +293,9 @@ export function useSendAudioMessage() {
       const timestamp = Date.now();
       const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.ogg`;
       
-      // 1. Upload do Áudio para o Storage
       const { error: uploadError } = await supabase.storage.from('media-mensagens').upload(filePath, audioBlob);
       if (uploadError) throw uploadError;
       
-      // 2. Criar registro na tabela mensagens
       const { data: insertedMsg, error: insertError } = await supabase
         .from('mensagens')
         .insert({
@@ -316,14 +312,12 @@ export function useSendAudioMessage() {
 
       if (insertError) throw insertError;
 
-      // 3. Criar registro na tabela message_attachments
       await supabase.from('message_attachments').insert({
         message_id: insertedMsg.id,
         file_path: filePath,
         file_type: 'audio'
       });
       
-      // 4. Disparar Webhook para envio real
       const { data: { publicUrl } } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
       
@@ -371,6 +365,97 @@ export function useSendAudioMessage() {
         queryClient.setQueryData(['messages', variables.leadId], context.previousMessages);
       }
       toast.error("Erro ao enviar áudio.");
+    }
+  });
+}
+
+export function useSendMediaMessage() {
+  const { user } = useAuth();
+  const { profile } = useProfile();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ leadId, file, type }: { leadId: string; file: File; type: 'imagem' | 'video' | 'pdf' }) => {
+      const timestamp = Date.now();
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.${fileExt}`;
+      
+      // 1. Upload do Arquivo para o Storage
+      const { error: uploadError } = await supabase.storage.from('media-mensagens').upload(filePath, file);
+      if (uploadError) throw uploadError;
+      
+      // 2. Criar registro na tabela mensagens
+      const { data: insertedMsg, error: insertError } = await supabase
+        .from('mensagens')
+        .insert({
+            lead_id: leadId,
+            user_id: user?.id,
+            conteudo: '',
+            direcao: 'saida',
+            remetente: 'agente',
+            tipo_conteudo: type,
+            media_path: filePath
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // 3. Criar registro na tabela message_attachments
+      await supabase.from('message_attachments').insert({
+        message_id: insertedMsg.id,
+        file_path: filePath,
+        file_type: type === 'pdf' ? 'pdf' : type as any
+      });
+      
+      // 4. Disparar Webhook para envio real
+      const { data: { publicUrl } } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
+      const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
+      
+      const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          lead_id: leadId, 
+          user_id: user?.id, 
+          tipo: type, 
+          url_midia: publicUrl, 
+          telefone: lead?.telefone,
+          internal_msg_id: insertedMsg.id
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Falha ao enviar ${type} pelo gateway`);
+      return insertedMsg;
+    },
+    onMutate: async ({ leadId, file, type }) => {
+      const queryKey = ['messages', leadId];
+      await queryClient.cancelQueries({ queryKey });
+      const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
+
+      const optimisticMessage: Message = {
+        id: `temp-media-${Date.now()}`,
+        lead_id: leadId,
+        user_id: user?.id || null,
+        conteudo: '',
+        direcao: 'saida',
+        remetente: 'agente',
+        tipo_conteudo: type,
+        criado_em: new Date().toISOString(),
+        media_path: URL.createObjectURL(file),
+        id_mensagem: null,
+        message_attachments: []
+      };
+
+      queryClient.setQueryData<Message[]>(queryKey, (old) => [...(old || []), optimisticMessage]);
+
+      return { previousMessages };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData(['messages', variables.leadId], context.previousMessages);
+      }
+      toast.error(`Erro ao enviar ${variables.type}.`);
     }
   });
 }

@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft } from "lucide-react";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft, Paperclip, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useLead, useLeads } from "@/hooks/useLeads";
-import { useMessages, useSendMessage, Message, Attachment, useDeleteMessage, useSendAudioMessage } from "@/hooks/useConversations";
+import { useMessages, useSendMessage, Message, Attachment, useDeleteMessage, useSendAudioMessage, useSendMediaMessage } from "@/hooks/useConversations";
 import { useNotifications, useUpdateNotificationStatus } from "@/hooks/useNotifications";
 import { useStages } from "@/hooks/useStages";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -77,12 +77,14 @@ interface ActiveConversationProps {
 
 export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMessages }: ActiveConversationProps) {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: lead, isLoading: leadLoading } = useLead(leadId);
   const { data: messages = [], isLoading: messagesLoading } = useMessages(leadId);
   const { data: notifications } = useNotifications(leadId);
   const { stages, isLoading: stagesLoading } = useStages();
   const { mutate: sendMessage } = useSendMessage();
   const { mutate: sendAudio, isPending: isSendingAudio } = useSendAudioMessage();
+  const { mutate: sendMedia, isPending: isSendingMedia } = useSendMediaMessage();
   const { mutate: updateNotification } = useUpdateNotificationStatus(leadId);
   const { updateLead } = useLeads();
   const { mutate: deleteMessage } = useDeleteMessage();
@@ -113,6 +115,23 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const handleSendAudio = (blob: Blob) => { 
     setIsRecordingMode(false); 
     sendAudio({ leadId, audioBlob: blob }); 
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    let type: 'imagem' | 'video' | 'pdf' = 'imagem';
+    if (file.type.includes('image')) type = 'imagem';
+    else if (file.type.includes('video')) type = 'video';
+    else if (file.type === 'application/pdf') type = 'pdf';
+    else {
+      toast.error("Formato de arquivo não suportado. Use imagens, vídeos ou PDFs.");
+      return;
+    }
+
+    sendMedia({ leadId, file, type });
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleAiToggle = async (checked: boolean) => {
@@ -202,8 +221,6 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             if (item.type === 'separator') return <DateSeparator key={`sep-${index}`} dateString={item.date} />;
             const msg = item as Message;
             
-            // LÓGICA DE ALINHAMENTO ORIGINAL:
-            // Se o remetente NÃO for o lead (Agente, Bot, CRM), fica na DIREITA.
             const isOutgoing = msg.remetente !== 'lead';
             const isAi = msg.remetente === 'bot';
             
@@ -244,11 +261,50 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
         {isRecordingMode ? (
           <AudioRecorder onSend={handleSendAudio} onCancel={() => setIsRecordingMode(false)} />
         ) : (
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-muted/40 p-1 rounded-full border border-input/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all max-w-5xl mx-auto">
-            <Popover><PopoverTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 rounded-full text-muted-foreground hover:text-primary shrink-0"><Smile className="h-4 w-4 sm:h-5 sm:w-5" /></Button></PopoverTrigger><PopoverContent className="w-auto p-0 border-none" align="start" side="top"><EmojiPicker onEmojiClick={(emoji) => setMessageContent(prev => prev + emoji.emoji)} /></PopoverContent></Popover>
+          <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-muted/40 p-1 rounded-full border border-input/50 focus-within:ring-1 focus-within:ring-primary/30 transition-all max-w-5xl mx-auto relative">
+            <div className="flex items-center shrink-0">
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 rounded-full text-muted-foreground hover:text-primary">
+                            <Smile className="h-4 w-4 sm:h-5 sm:w-5" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 border-none" align="start" side="top">
+                        <EmojiPicker onEmojiClick={(emoji) => setMessageContent(prev => prev + emoji.emoji)} />
+                    </PopoverContent>
+                </Popover>
+
+                <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="icon" 
+                    className={cn("h-8 w-8 sm:h-9 sm:w-9 rounded-full text-muted-foreground hover:text-primary", isSendingMedia && "opacity-50")}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isSendingMedia}
+                >
+                    {isSendingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4 sm:h-5 sm:w-5" />}
+                </Button>
+                <input 
+                    type="file" 
+                    className="hidden" 
+                    ref={fileInputRef} 
+                    onChange={handleFileSelect}
+                    accept="image/*,video/*,application/pdf"
+                />
+            </div>
+
             <Input placeholder="Digite sua mensagem..." value={messageContent} onChange={(e) => setMessageContent(e.target.value)} autoComplete="off" className="border-0 bg-transparent shadow-none focus-visible:ring-0 px-1 h-8 sm:h-9 text-sm" />
+            
             <div className="flex-shrink-0">
-                {messageContent.trim() ? (<Button type="submit" size="icon" className="bg-primary hover:bg-primary/90 h-8 w-8 sm:h-9 sm:w-9 rounded-full shadow-sm"><Send className="h-3.5 w-3.5 sm:h-4 w-4" /></Button>) : (<Button type="button" size="icon" variant="ghost" className={cn("h-8 w-8 sm:h-9 sm:w-9 rounded-full text-muted-foreground", isSendingAudio && "opacity-50")} onClick={() => setIsRecordingMode(true)} disabled={isSendingAudio}><Mic className="h-4 w-4 sm:h-5 sm:w-5" /></Button>)}
+                {messageContent.trim() ? (
+                    <Button type="submit" size="icon" className="bg-primary hover:bg-primary/90 h-8 w-8 sm:h-9 sm:w-9 rounded-full shadow-sm">
+                        <Send className="h-3.5 w-3.5 sm:h-4 w-4" />
+                    </Button>
+                ) : (
+                    <Button type="button" size="icon" variant="ghost" className={cn("h-8 w-8 sm:h-9 sm:w-9 rounded-full text-muted-foreground", isSendingAudio && "opacity-50")} onClick={() => setIsRecordingMode(true)} disabled={isSendingAudio || isSendingMedia}>
+                        <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </Button>
+                )}
             </div>
           </form>
         )}
