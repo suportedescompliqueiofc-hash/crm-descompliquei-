@@ -30,8 +30,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { TagManager } from "@/components/tags/TagManager";
 import { AudioRecorder } from "./AudioRecorder";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
 
 const DateSeparator = ({ dateString }: { dateString: string }) => {
   const date = parseISO(dateString);
@@ -79,7 +77,6 @@ interface ActiveConversationProps {
 
 export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMessages }: ActiveConversationProps) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { data: lead, isLoading: leadLoading } = useLead(leadId);
   const { data: messages = [], isLoading: messagesLoading } = useMessages(leadId);
   const { data: notifications } = useNotifications(leadId);
@@ -96,45 +93,6 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const [isRecordingMode, setIsRecordingMode] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Realtime Listener focado no Query Cache
-  useEffect(() => {
-    if (!leadId) return;
-    const channel = supabase.channel(`chat-sync-${leadId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, (payload) => {
-          const newMessage = payload.new as Message;
-          
-          queryClient.setQueryData<Message[]>(['messages', leadId], (old) => {
-              const current = old || [];
-              
-              // Verifica se esta mensagem real substitui uma otimista/temporária
-              // (Baseado em conteúdo idêntico e ID começando com 'temp')
-              const tempIndex = current.findIndex(m => 
-                m.id.startsWith('temp') && 
-                m.conteudo === newMessage.conteudo &&
-                m.remetente === newMessage.remetente
-              );
-
-              if (tempIndex !== -1) {
-                  const updated = [...current];
-                  updated[tempIndex] = newMessage;
-                  return updated;
-              }
-
-              // Se já existe pelo ID (evita duplicidade do Realtime)
-              if (current.some(m => m.id === newMessage.id)) return current;
-
-              return [...current, newMessage];
-          });
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, (payload) => {
-          queryClient.setQueryData<Message[]>(['messages', leadId], (old) => 
-            (old || []).filter(m => m.id !== payload.old.id)
-          );
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [leadId, queryClient]);
 
   const groupedMessages = useMemo(() => groupMessagesByDay(messages), [messages]);
   

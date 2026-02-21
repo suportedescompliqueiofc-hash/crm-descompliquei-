@@ -91,7 +91,55 @@ export function useConversationsList() {
 
 export function useMessages(leadId: string | null) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   
+  useEffect(() => {
+    if (!leadId) return;
+
+    const channel = supabase.channel(`messages-sync-${leadId}`)
+      .on(
+        'postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, 
+        (payload) => {
+          const newMessage = payload.new as Message;
+          
+          queryClient.setQueryData<Message[]>(['messages', leadId], (old) => {
+            const current = old || [];
+            
+            // Busca se existe uma mensagem otimista com o mesmo conteúdo
+            const tempIndex = current.findIndex(m => 
+              m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo
+            );
+
+            if (tempIndex !== -1) {
+              const updated = [...current];
+              updated[tempIndex] = { ...newMessage, message_attachments: updated[tempIndex].message_attachments };
+              return updated;
+            }
+
+            // Evita duplicidade se o fetch já pegou a mensagem
+            if (current.some(m => m.id === newMessage.id)) return current;
+
+            return [...current, newMessage];
+          });
+        }
+      )
+      .on(
+        'postgres_changes', 
+        { event: 'DELETE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, 
+        (payload) => {
+          queryClient.setQueryData<Message[]>(['messages', leadId], (old) => 
+            (old || []).filter(m => m.id !== payload.old.id)
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [leadId, queryClient]);
+
   return useQuery<Message[], Error>({
     queryKey: ['messages', leadId],
     queryFn: async () => {
@@ -112,7 +160,7 @@ export function useMessages(leadId: string | null) {
       })) as Message[];
     },
     enabled: !!leadId && !!user,
-    staleTime: Infinity, // Mantemos o cache e confiamos no Realtime/Otimismo para atualizar
+    staleTime: Infinity,
   });
 }
 
@@ -160,7 +208,6 @@ export function useSendMessage() {
       }
       toast.error("Erro ao enviar mensagem.");
     },
-    // Removido o invalidateQueries para evitar o flicker de recarregamento
   });
 }
 
