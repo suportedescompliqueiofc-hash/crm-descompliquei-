@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { Lead } from './useLeads';
 import { useProfile } from './useProfile';
 import { Tag } from './useTags';
@@ -130,8 +130,37 @@ export function useSendMessage() {
       if (!response.ok) throw new Error("Falha ao enviar");
       return null;
     },
-    onSettled: () => {
-        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    onMutate: async ({ leadId, content }) => {
+      const queryKey = ['messages_initial', leadId];
+      await queryClient.cancelQueries({ queryKey });
+      const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
+
+      const optimisticMessage: Message = {
+        id: `temp-${Date.now()}`,
+        lead_id: leadId,
+        user_id: user?.id || null,
+        conteudo: content,
+        direcao: 'saida',
+        remetente: 'agente_crm',
+        tipo_conteudo: 'texto',
+        criado_em: new Date().toISOString(),
+        media_path: null,
+        id_mensagem: null,
+        message_attachments: []
+      };
+
+      queryClient.setQueryData<Message[]>(queryKey, (old) => [...(old || []), optimisticMessage]);
+
+      return { previousMessages };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData(['messages_initial', variables.leadId], context.previousMessages);
+      }
+    },
+    onSettled: (data, error, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['messages_initial', variables.leadId] });
     }
   });
 }
@@ -187,7 +216,7 @@ export function useSendAudioMessage() {
       const { data: { publicUrl } } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
       
-      await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
+      const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -198,10 +227,40 @@ export function useSendAudioMessage() {
           telefone: lead?.telefone 
         }),
       });
+      if (!response.ok) throw new Error("Falha ao enviar áudio");
       return null;
     },
-    onSettled: () => {
-        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    onMutate: async ({ leadId, audioBlob }) => {
+      const queryKey = ['messages_initial', leadId];
+      await queryClient.cancelQueries({ queryKey });
+      const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
+
+      const optimisticMessage: Message = {
+        id: `temp-audio-${Date.now()}`,
+        lead_id: leadId,
+        user_id: user?.id || null,
+        conteudo: '',
+        direcao: 'saida',
+        remetente: 'agente_crm',
+        tipo_conteudo: 'audio',
+        criado_em: new Date().toISOString(),
+        media_path: URL.createObjectURL(audioBlob),
+        id_mensagem: null,
+        message_attachments: []
+      };
+
+      queryClient.setQueryData<Message[]>(queryKey, (old) => [...(old || []), optimisticMessage]);
+
+      return { previousMessages };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData(['messages_initial', variables.leadId], context.previousMessages);
+      }
+    },
+    onSettled: (data, error, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['messages_initial', variables.leadId] });
     }
   });
 }

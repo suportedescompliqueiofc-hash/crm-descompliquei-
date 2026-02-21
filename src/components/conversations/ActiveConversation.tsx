@@ -96,14 +96,26 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { if (initialMessages) setLocalMessages(initialMessages); }, [initialMessages]);
+  // Sincronização inicial
+  useEffect(() => { 
+    if (initialMessages) setLocalMessages(initialMessages); 
+  }, [initialMessages]);
 
+  // Realtime Listener
   useEffect(() => {
     if (!leadId) return;
     const channel = supabase.channel(`chat-sync-${leadId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, (payload) => {
           const newMessage = payload.new as Message;
-          setLocalMessages((prev) => prev.some(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
+          setLocalMessages((prev) => {
+              // Evita duplicidade: se a mensagem já existe (por ID ou conteúdo/tempo similar otimista), ignoramos ou substituímos
+              const exists = prev.some(m => m.id === newMessage.id || (m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo));
+              if (exists) {
+                  // Se era uma mensagem temporária, substituímos pela real
+                  return prev.map(m => (m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo) ? newMessage : m);
+              }
+              return [...prev, newMessage];
+          });
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, (payload) => {
           setLocalMessages((prev) => prev.filter(m => m.id !== payload.old.id));
@@ -113,15 +125,25 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   }, [leadId]);
 
   const groupedMessages = useMemo(() => groupMessagesByDay(localMessages), [localMessages]);
+  
   useEffect(() => { if (lead) setIsAiActive(lead.ia_ativa ?? true); }, [lead]);
-  useLayoutEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "auto" }); }, [localMessages, isRecordingMode]);
+  
+  useLayoutEffect(() => { 
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); 
+  }, [localMessages]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (messageContent.trim()) { sendMessage({ leadId, content: messageContent.trim() }); setMessageContent(""); }
+    if (messageContent.trim()) { 
+      sendMessage({ leadId, content: messageContent.trim() }); 
+      setMessageContent(""); 
+    }
   };
 
-  const handleSendAudio = (blob: Blob) => { setIsRecordingMode(false); sendAudio({ leadId, audioBlob: blob }); };
+  const handleSendAudio = (blob: Blob) => { 
+    setIsRecordingMode(false); 
+    sendAudio({ leadId, audioBlob: blob }); 
+  };
 
   const handleAiToggle = async (checked: boolean) => {
     if (!lead) return;
@@ -179,7 +201,7 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                         {currentStage ? <div className="flex items-center gap-1.5 truncate"><span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: currentStage.cor }} />{currentStage.nome}</div> : "Etapa"}
                         </SelectValue>
                     </SelectTrigger>
-                    <SelectContent>{stages.map(stage => (<SelectItem key={stage.id} value={stage.posicao_ordem.toString()}><div className="flex items-center gap-2 text-xs"><span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: stage.cor }} />{stage.nome}</div></SelectItem>))}</SelectContent>
+                    <SelectContent>{stages.map(stage => (<SelectItem key={stage.id} value={stage.posicao_ordem.toString()}>{stage.nome}</SelectItem>))}</SelectContent>
                     </Select>
                 )}
             </div>
@@ -209,17 +231,20 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
           {groupedMessages.map((item, index) => {
             if (item.type === 'separator') return <DateSeparator key={`sep-${index}`} dateString={item.date} />;
             const msg = item as Message;
-            const isFromLead = msg.remetente === 'lead';
+            
+            // Lógica de alinhamento robusta baseada em direção e remetente
+            const isOutgoing = msg.direcao === 'saida';
             const isAi = msg.remetente === 'bot';
-            const isOutgoing = !isFromLead;
+            
             const typeLower = (msg.tipo_conteudo || '').toLowerCase();
             const pathLower = (msg.media_path || '').toLowerCase();
             const contentLower = (msg.conteudo || '').toLowerCase();
+            
             const isAudio = typeLower.includes('audio') || typeLower.includes('ptt') || pathLower.includes('.ogg') || pathLower.includes('.mp3') || pathLower.includes('.m4a') || pathLower.includes('.webm') || (isOutgoing && contentLower.startsWith('http') && (contentLower.includes('.ogg') || contentLower.includes('.mp3') || contentLower.includes('.m4a')));
             const isVisualMedia = !isAudio && (typeLower.includes('image') || typeLower.includes('imagem') || typeLower.includes('video') || pathLower.includes('.jpg') || pathLower.includes('.png') || pathLower.includes('.mp4'));
 
             return (
-              <div key={msg.id} className={cn("group relative flex flex-col gap-0.5 py-0.5", isOutgoing ? "items-end" : "items-start")}>
+              <div key={msg.id} className={cn("group relative flex flex-col gap-0.5 py-0.5 animate-in fade-in slide-in-from-bottom-1 duration-200", isOutgoing ? "items-end" : "items-start")}>
                 <div className={cn("flex items-end gap-2 max-w-[90%] sm:max-w-[85%]", isOutgoing ? "flex-row-reverse" : "flex-row")}>
                   <Avatar className="h-8 w-8 flex-shrink-0 border shadow-sm">
                     {isOutgoing ? (
