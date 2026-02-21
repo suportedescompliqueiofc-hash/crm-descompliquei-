@@ -31,6 +31,7 @@ import { TagManager } from "@/components/tags/TagManager";
 import { AudioRecorder } from "./AudioRecorder";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
 const DateSeparator = ({ dateString }: { dateString: string }) => {
   const date = parseISO(dateString);
@@ -78,8 +79,9 @@ interface ActiveConversationProps {
 
 export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMessages }: ActiveConversationProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: lead, isLoading: leadLoading } = useLead(leadId);
-  const { data: initialMessages, isLoading: messagesLoading } = useMessages(leadId);
+  const { data: messages = [], isLoading: messagesLoading } = useMessages(leadId);
   const { data: notifications } = useNotifications(leadId);
   const { stages, isLoading: stagesLoading } = useStages();
   const { mutate: sendMessage } = useSendMessage();
@@ -88,7 +90,6 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const { updateLead } = useLeads();
   const { mutate: deleteMessage } = useDeleteMessage();
   
-  const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [messageContent, setMessageContent] = useState("");
   const [isAiActive, setIsAiActive] = useState(true);
   const [deletingMessage, setDeletingMessage] = useState<Message | null>(null);
@@ -96,37 +97,52 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { 
-    if (initialMessages) setLocalMessages(initialMessages); 
-  }, [initialMessages]);
-
+  // Realtime Listener focado no Query Cache
   useEffect(() => {
     if (!leadId) return;
     const channel = supabase.channel(`chat-sync-${leadId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, (payload) => {
           const newMessage = payload.new as Message;
-          setLocalMessages((prev) => {
-              const exists = prev.some(m => m.id === newMessage.id || (m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo));
-              if (exists) {
-                  return prev.map(m => (m.id.startsWith('temp-') && m.conteudo === newMessage.conteudo) ? newMessage : m);
+          
+          queryClient.setQueryData<Message[]>(['messages', leadId], (old) => {
+              const current = old || [];
+              
+              // Verifica se esta mensagem real substitui uma otimista/temporária
+              // (Baseado em conteúdo idêntico e ID começando com 'temp')
+              const tempIndex = current.findIndex(m => 
+                m.id.startsWith('temp') && 
+                m.conteudo === newMessage.conteudo &&
+                m.remetente === newMessage.remetente
+              );
+
+              if (tempIndex !== -1) {
+                  const updated = [...current];
+                  updated[tempIndex] = newMessage;
+                  return updated;
               }
-              return [...prev, newMessage];
+
+              // Se já existe pelo ID (evita duplicidade do Realtime)
+              if (current.some(m => m.id === newMessage.id)) return current;
+
+              return [...current, newMessage];
           });
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, (payload) => {
-          setLocalMessages((prev) => prev.filter(m => m.id !== payload.old.id));
+          queryClient.setQueryData<Message[]>(['messages', leadId], (old) => 
+            (old || []).filter(m => m.id !== payload.old.id)
+          );
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [leadId]);
+  }, [leadId, queryClient]);
 
-  const groupedMessages = useMemo(() => groupMessagesByDay(localMessages), [localMessages]);
+  const groupedMessages = useMemo(() => groupMessagesByDay(messages), [messages]);
   
   useEffect(() => { if (lead) setIsAiActive(lead.ia_ativa ?? true); }, [lead]);
   
   useLayoutEffect(() => { 
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); 
-  }, [localMessages]);
+  }, [messages]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,8 +244,8 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             if (item.type === 'separator') return <DateSeparator key={`sep-${index}`} dateString={item.date} />;
             const msg = item as Message;
             
-            // LÓGICA DE ALINHAMENTO CORRIGIDA:
-            // Se o remetente não for o lead (ou seja, se for agente, bot ou crm), fica no lado DIREITO.
+            // LÓGICA DE ALINHAMENTO ORIGINAL:
+            // Se o remetente NÃO for o lead (Agente, Bot, CRM), fica na DIREITA.
             const isOutgoing = msg.remetente !== 'lead';
             const isAi = msg.remetente === 'bot';
             
@@ -285,7 +301,7 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
           <AlertDialogHeader><AlertDialogTitle>Excluir mensagem?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-2">
             <AlertDialogCancel className="flex-1 rounded-xl">Cancelar</AlertDialogCancel>
-            <AlertDialogAction className="flex-1 bg-destructive hover:bg-destructive/90 rounded-xl" onClick={() => { if (deletingMessage) { deleteMessage({ messageId: deletingMessage.id, leadId, id_mensagem: deletingMessage.id_mensagem }); setLocalMessages(prev => prev.filter(m => m.id !== deletingMessage.id)); setDeletingMessage(null); } }}>Excluir</AlertDialogAction>
+            <AlertDialogAction className="flex-1 bg-destructive hover:bg-destructive/90 rounded-xl" onClick={() => { if (deletingMessage) { deleteMessage({ messageId: deletingMessage.id, leadId, id_mensagem: deletingMessage.id_mensagem }); setDeletingMessage(null); } }}>Excluir</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

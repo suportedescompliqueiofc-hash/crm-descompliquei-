@@ -93,7 +93,7 @@ export function useMessages(leadId: string | null) {
   const { user } = useAuth();
   
   return useQuery<Message[], Error>({
-    queryKey: ['messages_initial', leadId],
+    queryKey: ['messages', leadId],
     queryFn: async () => {
       if (!leadId || !user) return [];
       const { data: rawMessages, error } = await supabase
@@ -112,6 +112,7 @@ export function useMessages(leadId: string | null) {
       })) as Message[];
     },
     enabled: !!leadId && !!user,
+    staleTime: Infinity, // Mantemos o cache e confiamos no Realtime/Otimismo para atualizar
   });
 }
 
@@ -131,7 +132,7 @@ export function useSendMessage() {
       return null;
     },
     onMutate: async ({ leadId, content }) => {
-      const queryKey = ['messages_initial', leadId];
+      const queryKey = ['messages', leadId];
       await queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
 
@@ -155,13 +156,11 @@ export function useSendMessage() {
     },
     onError: (err, variables, context) => {
       if (context?.previousMessages) {
-        queryClient.setQueryData(['messages_initial', variables.leadId], context.previousMessages);
+        queryClient.setQueryData(['messages', variables.leadId], context.previousMessages);
       }
+      toast.error("Erro ao enviar mensagem.");
     },
-    onSettled: (data, error, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['messages_initial', variables.leadId] });
-    }
+    // Removido o invalidateQueries para evitar o flicker de recarregamento
   });
 }
 
@@ -182,7 +181,7 @@ export function useDeleteChat() {
     },
     onSuccess: (leadId) => {
       queryClient.invalidateQueries({ queryKey: ['conversations', orgId] });
-      queryClient.invalidateQueries({ queryKey: ['messages_initial', leadId] });
+      queryClient.invalidateQueries({ queryKey: ['messages', leadId] });
       toast.success('Conversa excluída com sucesso.');
     },
     onError: (err: any) => {
@@ -192,10 +191,14 @@ export function useDeleteChat() {
 }
 
 export function useDeleteMessage() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ messageId, leadId, id_mensagem }: { messageId: string; leadId: string; id_mensagem: string | null }) => {
       await supabase.functions.invoke('delete-message', { body: { messageId, leadId, id_mensagem } });
-      return messageId;
+      return { messageId, leadId };
+    },
+    onSuccess: ({ leadId }) => {
+      queryClient.invalidateQueries({ queryKey: ['messages', leadId] });
     }
   });
 }
@@ -231,7 +234,7 @@ export function useSendAudioMessage() {
       return null;
     },
     onMutate: async ({ leadId, audioBlob }) => {
-      const queryKey = ['messages_initial', leadId];
+      const queryKey = ['messages', leadId];
       await queryClient.cancelQueries({ queryKey });
       const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
 
@@ -255,12 +258,9 @@ export function useSendAudioMessage() {
     },
     onError: (err, variables, context) => {
       if (context?.previousMessages) {
-        queryClient.setQueryData(['messages_initial', variables.leadId], context.previousMessages);
+        queryClient.setQueryData(['messages', variables.leadId], context.previousMessages);
       }
-    },
-    onSettled: (data, error, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['messages_initial', variables.leadId] });
+      toast.error("Erro ao enviar áudio.");
     }
   });
 }
