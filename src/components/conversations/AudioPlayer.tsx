@@ -37,10 +37,20 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
       setIsLoading(true);
 
       const handleLoadedMetadata = () => {
-        if (audio.duration && !isNaN(audio.duration)) {
-          setDuration(audio.duration);
+        // Se a duração for infinita ou inválida, forçamos o áudio a carregar o final para descobrir a duração
+        if (!isFinite(audio.duration) || isNaN(audio.duration) || audio.duration === 0) {
+            // Pequeno truque para arquivos sem metadados de duração
+            audio.currentTime = 1e101; 
+            audio.ontimeupdate = () => {
+                audio.ontimeupdate = null;
+                audio.currentTime = 0;
+                setDuration(audio.duration);
+                setIsLoading(false);
+            };
+        } else {
+            setDuration(audio.duration);
+            setIsLoading(false);
         }
-        setIsLoading(false);
       };
 
       const handleTimeUpdate = () => {
@@ -55,7 +65,6 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
       };
 
       const handleError = () => {
-        console.error("Erro ao carregar áudio:", audio.error);
         setHasError(true);
         setIsLoading(false);
       };
@@ -65,9 +74,6 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
       audio.addEventListener('ended', handleEnded);
       audio.addEventListener('error', handleError);
       
-      // Forçar recarregamento ao mudar URL
-      audio.load();
-
       return () => {
         audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
         audio.removeEventListener('timeupdate', handleTimeUpdate);
@@ -75,7 +81,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
         audio.removeEventListener('error', handleError);
       };
     }
-  }, [audioUrl, isDragging]);
+  }, [audioUrl]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -88,13 +94,7 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.error("Erro ao reproduzir:", error);
-            setIsPlaying(false);
-          });
-        }
+        audioRef.current.play().catch(() => setIsPlaying(false));
       }
       setIsPlaying(!isPlaying);
     }
@@ -127,26 +127,22 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
         isOutgoing ? "bg-white/10 border-white/20 text-white" : "bg-destructive/5 border-destructive/20 text-destructive"
       )}>
         <AlertCircle className="h-4 w-4" />
-        <span className="text-[10px] font-medium">Erro ao carregar áudio</span>
+        <span className="text-[10px] font-medium">Erro ao carregar</span>
       </div>
     );
   }
 
   return (
-    <div className={cn(
-        "flex flex-col gap-1",
-        "w-[260px] xs:w-[300px] sm:w-[320px] md:w-[340px]"
-    )}>
-      {/* crossOrigin="anonymous" é essencial para evitar bloqueios de CORS ao processar o áudio */}
+    <div className="flex flex-col gap-1 w-[260px] xs:w-[300px] sm:w-[320px]">
       <audio ref={audioRef} src={audioUrl} preload="metadata" crossOrigin="anonymous" />
       
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
         <Button 
           onClick={togglePlay} 
           size="icon" 
           variant="ghost" 
           className={cn(
-            "flex-shrink-0 h-10 w-10 transition-colors rounded-full",
+            "flex-shrink-0 h-9 w-9 transition-colors rounded-full",
             isOutgoing 
               ? "text-primary-foreground hover:bg-white/20 hover:text-white" 
               : "text-foreground hover:bg-black/5"
@@ -154,16 +150,16 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
           disabled={isLoading}
         >
           {isLoading ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : isPlaying ? (
-            <Pause className="h-5 w-5 fill-current" />
+            <Pause className="h-4 w-4 fill-current" />
           ) : (
-            <Play className="h-5 w-5 fill-current ml-0.5" />
+            <Play className="h-4 w-4 fill-current ml-0.5" />
           )}
         </Button>
         
-        <div className="flex-grow flex flex-col gap-1 min-w-0 pt-0.5">
-          <div className="flex items-center gap-2.5">
+        <div className="flex-grow flex flex-col gap-1 min-w-0">
+          <div className="flex items-center gap-2">
             <Slider
               value={[currentTime]}
               max={duration || 1}
@@ -171,14 +167,10 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
               onValueChange={handleSliderChange}
               onValueCommit={handleSliderCommit}
               className={cn(
-                "flex-1 cursor-pointer py-1",
-                "[&>span:first-child]:h-1",
-                isOutgoing 
-                  ? "[&>span:first-child]:bg-black/20" 
-                  : "[&>span:first-child]:bg-muted-foreground/20",
-                "[&>span:first-child>span]:bg-current",
+                "flex-1 cursor-pointer",
                 isOutgoing ? "text-white" : "text-primary",
-                "[&>span[role=slider]]:h-3 [&>span[role=slider]]:w-3 [&>span[role=slider]]:border-0 [&>span[role=slider]]:shadow-sm"
+                "[&>span:first-child]:h-1",
+                "[&>span[role=slider]]:h-3 [&>span[role=slider]]:w-3 [&>span[role=slider]]:border-0"
               )}
               disabled={isLoading || duration === 0}
             />
@@ -187,12 +179,9 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
                 variant="ghost"
                 size="sm"
                 onClick={toggleSpeed}
-                disabled={isLoading}
                 className={cn(
-                    "h-6 px-1.5 text-[10px] font-bold rounded-md flex-shrink-0 min-w-[2.2rem]",
-                    isOutgoing
-                        ? "bg-black/20 text-white hover:bg-black/30" 
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    "h-6 px-1.5 text-[10px] font-bold rounded-md flex-shrink-0",
+                    isOutgoing ? "bg-black/20 text-white" : "bg-muted text-muted-foreground"
                 )}
             >
                 {playbackRate.toFixed(1)}x
@@ -200,11 +189,11 @@ export function AudioPlayer({ audioUrl, variant = 'incoming' }: AudioPlayerProps
           </div>
 
           <div className={cn(
-            "flex justify-between items-center text-[10px] px-0.5 font-medium",
+            "flex justify-between items-center text-[9px] px-0.5 font-medium",
             isOutgoing ? "text-white/80" : "text-muted-foreground"
           )}>
-            <span className="font-mono tabular-nums">{formatTime(currentTime)}</span>
-            <span className="font-mono tabular-nums">{formatTime(duration)}</span>
+            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(duration)}</span>
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AudioPlayer } from './AudioPlayer';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, RefreshCw, Mic } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -23,8 +23,8 @@ export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessagePro
       return;
     }
 
-    // Suporte imediato para Blobs locais (UI Otimista) ou URLs completas
-    if (filePath.startsWith('blob:') || filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    // Se já for uma URL (Blob local ou Link direto), usa imediatamente
+    if (filePath.startsWith('blob:') || filePath.startsWith('http')) {
       setAudioUrl(filePath);
       setIsLoading(false);
       setError(null);
@@ -35,26 +35,25 @@ export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessagePro
     setError(null);
 
     try {
-      // Tenta buscar URL assinada via Edge Function centralizada
+      // Busca URL assinada via Edge Function centralizada
       const { data, error: functionError } = await supabase.functions.invoke('get-media-url', {
         body: { mediaPath: filePath },
       });
 
       if (functionError || !data?.signedUrl) {
-        // Fallback resiliente para buscar no bucket principal
+        // Fallback para buscar no bucket principal caso a função falhe
         const { data: fallbackData } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
         if (fallbackData?.publicUrl) {
             setAudioUrl(fallbackData.publicUrl);
-            setError(null);
         } else {
-            setError("Áudio não localizado");
+            throw new Error("Não foi possível gerar a URL do áudio");
         }
       } else {
         setAudioUrl(data.signedUrl);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erro ao carregar áudio:", err);
-      setError("Erro de rede");
+      setError("Indisponível");
     } finally {
       setIsLoading(false);
     }
@@ -85,7 +84,7 @@ export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessagePro
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs font-medium">
             <AlertCircle className="h-4 w-4" />
-            <span>{error || "Áudio indisponível"}</span>
+            <span>{error || "Áudio não encontrado"}</span>
           </div>
           <Button 
             variant="ghost" 
