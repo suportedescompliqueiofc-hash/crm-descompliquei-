@@ -47,6 +47,24 @@ export function useInactivityAlerts() {
     onError: (err: any) => toast.error('Erro ao criar regra: ' + err.message),
   });
 
+  const updateRule = useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<InactivityRule> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('inactivity_alerts_config')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inactivity_rules', orgId] });
+      toast.success('Regra atualizada com sucesso!');
+    },
+    onError: (err: any) => toast.error('Erro ao atualizar regra: ' + err.message),
+  });
+
   const deleteRule = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -74,5 +92,5 @@ export function useInactivityAlerts() {
     },
   });
 
-  return { rules, isLoading, createRule, deleteRule, toggleRule };
+  return { rules, isLoading, createRule, updateRule, deleteRule, toggleRule };
 }

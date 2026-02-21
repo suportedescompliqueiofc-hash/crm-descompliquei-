@@ -3,14 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Filter, Bell, CheckCircle, User, Phone, Trash2, Clock, Plus, Settings2, ShieldAlert, Activity, Info } from "lucide-react";
+import { Filter, Bell, CheckCircle, User, Phone, Trash2, Clock, Plus, Settings2, ShieldAlert, Activity, Info, Pencil } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { startOfMonth, endOfMonth, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { LeadSelector } from "@/components/notifications/LeadSelector";
 import { useAllNotifications, NotificationWithLead } from "@/hooks/useAllNotifications";
-import { useInactivityAlerts } from "@/hooks/useInactivityAlerts";
+import { useInactivityAlerts, InactivityRule } from "@/hooks/useInactivityAlerts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,9 +73,10 @@ export default function Notifications() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   
   // Alertas de Inatividade
-  const { rules, isLoading: loadingRules, createRule, deleteRule, toggleRule } = useInactivityAlerts();
+  const { rules, isLoading: loadingRules, createRule, updateRule, deleteRule, toggleRule } = useInactivityAlerts();
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
-  const [newRule, setNewRule] = useState({ name: "", minutes: 30 });
+  const [editingRule, setEditingRule] = useState<InactivityRule | null>(null);
+  const [ruleFormData, setRuleFormData] = useState({ name: "", minutes: 30 });
 
   const { notifications, isLoading, updateStatus, deleteResolved, isDeletingResolved } = useAllNotifications({ dateRange, leadId: selectedLeadId });
 
@@ -85,14 +86,29 @@ export default function Notifications() {
     return { pending, resolved };
   }, [notifications]);
 
-  const handleCreateRule = (e: React.FormEvent) => {
+  const handleOpenCreateRule = () => {
+    setEditingRule(null);
+    setRuleFormData({ name: "", minutes: 30 });
+    setIsRuleModalOpen(true);
+  };
+
+  const handleOpenEditRule = (rule: InactivityRule) => {
+    setEditingRule(rule);
+    setRuleFormData({ name: rule.name, minutes: rule.minutes });
+    setIsRuleModalOpen(true);
+  };
+
+  const handleSaveRule = (e: React.FormEvent) => {
     e.preventDefault();
-    createRule.mutate(newRule, {
-      onSuccess: () => {
-        setIsRuleModalOpen(false);
-        setNewRule({ name: "", minutes: 30 });
-      }
-    });
+    if (editingRule) {
+      updateRule.mutate({ id: editingRule.id, ...ruleFormData }, {
+        onSuccess: () => setIsRuleModalOpen(false)
+      });
+    } else {
+      createRule.mutate(ruleFormData, {
+        onSuccess: () => setIsRuleModalOpen(false)
+      });
+    }
   };
 
   return (
@@ -116,33 +132,9 @@ export default function Notifications() {
             </Button>
           )}
           {activeTab === 'config' && (
-            <Dialog open={isRuleModalOpen} onOpenChange={setIsRuleModalOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="h-9 gap-2">
-                  <Plus className="h-4 w-4" /> Nova Regra
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="w-[95vw] max-w-md rounded-xl">
-                <DialogHeader>
-                  <DialogTitle>Novo Alerta de Inatividade</DialogTitle>
-                  <DialogDescription>O sistema notificará se o lead não responder após este tempo.</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleCreateRule} className="space-y-4 py-2">
-                  <div className="space-y-1.5">
-                    <Label>Nome da Regra</Label>
-                    <Input placeholder="Ex: Lead Parado 1 hora" value={newRule.name} onChange={e => setNewRule({...newRule, name: e.target.value})} required />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Tempo de Inatividade (Minutos)</Label>
-                    <Input type="number" min="1" value={newRule.minutes} onChange={e => setNewRule({...newRule, minutes: parseInt(e.target.value) || 0})} required />
-                    <p className="text-[10px] text-muted-foreground">Ex: 60 para 1 hora, 1440 para 1 dia.</p>
-                  </div>
-                  <DialogFooter>
-                    <Button type="submit" className="w-full">Criar Alerta</Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+            <Button size="sm" className="h-9 gap-2" onClick={handleOpenCreateRule}>
+              <Plus className="h-4 w-4" /> Nova Regra
+            </Button>
           )}
         </div>
       </div>
@@ -243,7 +235,7 @@ export default function Notifications() {
             ) : rules.length === 0 ? (
               <div className="text-center py-10 border-2 border-dashed rounded-xl bg-muted/10">
                 <p className="text-muted-foreground text-sm">Nenhuma regra configurada.</p>
-                <Button variant="link" onClick={() => setIsRuleModalOpen(true)}>Criar meu primeiro alerta</Button>
+                <Button variant="link" onClick={handleOpenCreateRule}>Criar meu primeiro alerta</Button>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -264,9 +256,14 @@ export default function Notifications() {
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t border-dashed mt-auto">
                         <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Inatividade</span>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => deleteRule.mutate(rule.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary transition-colors" onClick={() => handleOpenEditRule(rule)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => deleteRule.mutate(rule.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -276,6 +273,34 @@ export default function Notifications() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Modal Criar/Editar Regra */}
+      <Dialog open={isRuleModalOpen} onOpenChange={setIsRuleModalOpen}>
+        <DialogContent className="w-[95vw] max-w-md rounded-xl">
+          <DialogHeader>
+            <DialogTitle>{editingRule ? "Editar Alerta" : "Novo Alerta de Inatividade"}</DialogTitle>
+            <DialogDescription>
+              {editingRule ? "Ajuste os parâmetros deste alerta." : "O sistema notificará se o lead não responder após este tempo."}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveRule} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Nome da Regra</Label>
+              <Input placeholder="Ex: Lead Parado 1 hora" value={ruleFormData.name} onChange={e => setRuleFormData({...ruleFormData, name: e.target.value})} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tempo de Inatividade (Minutos)</Label>
+              <Input type="number" min="1" value={ruleFormData.minutes} onChange={e => setRuleFormData({...ruleFormData, minutes: parseInt(e.target.value) || 0})} required />
+              <p className="text-[10px] text-muted-foreground">Ex: 60 para 1 hora, 1440 para 1 dia.</p>
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="w-full">
+                {editingRule ? "Salvar Alterações" : "Criar Alerta"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <AlertDialogContent className="w-[90vw] max-w-md rounded-2xl">
