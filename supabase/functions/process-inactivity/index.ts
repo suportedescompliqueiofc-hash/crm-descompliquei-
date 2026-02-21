@@ -7,6 +7,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper para formatar o horário para o fuso de Brasília
+const formatToBrasilia = (date: Date) => {
+  return date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Sao_Paulo'
+  });
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -16,13 +25,14 @@ serve(async (req) => {
   );
 
   try {
-    console.log("[process-inactivity] Iniciando verificação de inatividade...");
+    console.log("[process-inactivity] Iniciando verificação rigorosa...");
 
     // 1. Buscar todas as regras ativas
     const { data: activeRules, error: rulesError } = await supabaseAdmin
       .from('inactivity_alerts_config')
       .select('*')
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .order('minutes', { ascending: true }); // Processa as regras mais curtas primeiro
 
     if (rulesError) throw rulesError;
     
@@ -36,7 +46,7 @@ serve(async (req) => {
       const now = new Date();
       const thresholdDate = subMinutes(now, rule.minutes);
       
-      // 2. Buscar leads da organização que estão "Ativos"
+      // 2. Buscar leads ativos da organização
       const { data: leads, error: leadsError } = await supabaseAdmin
         .from('leads')
         .select('id, nome, organization_id, usuario_id')
@@ -46,7 +56,7 @@ serve(async (req) => {
       if (leadsError) continue;
 
       for (const lead of (leads || [])) {
-        // 3. Verificar a ÚLTIMA mensagem absoluta deste lead
+        // 3. Buscar a ÚLTIMA mensagem do lead para ver se o silêncio é do cliente
         const { data: lastMessage, error: msgError } = await supabaseAdmin
           .from('mensagens')
           .select('direcao, criado_em')
@@ -60,23 +70,28 @@ serve(async (req) => {
         const msgDate = new Date(lastMessage.criado_em);
         const isExpired = msgDate <= thresholdDate;
 
-        // CONDIÇÃO: Última mensagem foi NOSSA (saída) e passou do tempo limite
+        // Se a última mensagem foi NOSSA (saída) e passou do tempo limite
         if (lastMessage.direcao === 'saida' && isExpired) {
           
-          const alertMsg = `Alerta de Inatividade: ${rule.name}`;
+          const timeStr = formatToBrasilia(msgDate);
+          const alertMsg = `Alerta de Inatividade: ${rule.name} (Última mensagem enviada às ${timeStr})`;
 
-          // 4. REGRA DE OURO: Verificar se já notificamos este silêncio específico.
-          // Procuramos por QUALQUER notificação (pendente ou resolvida) criada APÓS a nossa última mensagem.
-          const { data: existingNotif } = await supabaseAdmin
+          // 4. VERIFICAÇÃO DE OURO (Envio Único):
+          // Verifica se já existe QUALQUER notificação criada para este lead 
+          // que seja mais recente que a última mensagem que enviamos.
+          // Se houver, significa que já avisamos sobre este período de silêncio.
+          const { data: existingNotif, error: checkError } = await supabaseAdmin
             .from('notificacoes')
             .select('id')
             .eq('lead_id', lead.id)
-            .eq('mensagem', alertMsg)
-            .gt('criado_em', lastMessage.criado_em) // Verifica se o alerta é mais novo que a msg
-            .maybeSingle();
+            .gt('criado_em', lastMessage.criado_em)
+            .limit(1);
 
-          if (!existingNotif) {
-            console.log(`[process-inactivity] Disparando alerta único para ${lead.nome} (Regra: ${rule.name})`);
+          if (checkError) continue;
+
+          // Se não encontrou nenhuma notificação após a última mensagem, cria o alerta
+          if (!existingNotif || existingNotif.length === 0) {
+            console.log(`[process-inactivity] Disparando alerta inédito para ${lead.nome} às ${timeStr}`);
             
             const { error: insertError } = await supabaseAdmin
               .from('notificacoes')
@@ -102,6 +117,7 @@ serve(async (req) => {
     });
 
   } catch (error: any) {
+    console.error("[process-inactivity] Erro:", error.message);
     return new Response(JSON.stringify({ error: error.message }), { 
       status: 500, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
