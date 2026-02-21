@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Filter, Bell, CheckCircle, User, Phone, Trash2, Clock, Plus, Settings2, ShieldAlert } from "lucide-react";
+import { Filter, Bell, CheckCircle, User, Phone, Trash2, Clock, Plus, Settings2, ShieldAlert, Activity, Info } from "lucide-react";
 import { DateRange } from "react-day-picker";
 import { startOfMonth, endOfMonth, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -206,17 +206,37 @@ export default function Notifications() {
 
         <TabsContent value="config" className="mt-6 space-y-4">
           <div className="grid grid-cols-1 gap-4">
-            <Card className="border-primary/20 bg-primary/5">
-              <CardHeader className="p-4 sm:p-6">
-                <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                  <ShieldAlert className="h-5 w-5 text-primary" /> Como funcionam os alertas?
-                </CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  As regras abaixo definem quando o sistema deve avisar sua equipe que um cliente não respondeu. 
-                  O sistema verifica o tempo desde a <strong>última mensagem enviada por você</strong> que ainda não teve resposta do lead.
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card className="border-primary/20 bg-primary/5">
+                    <CardHeader className="p-4 sm:p-6">
+                        <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                        <ShieldAlert className="h-5 w-5 text-primary" /> Como funcionam os alertas?
+                        </CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">
+                        As regras abaixo definem quando o sistema deve avisar sua equipe que um cliente não respondeu. 
+                        O sistema verifica o tempo desde a <strong>última mensagem enviada por você</strong> que ainda não teve resposta do lead.
+                        </CardDescription>
+                    </CardHeader>
+                </Card>
+
+                <Card className="border-emerald-200 bg-emerald-50/30">
+                    <CardHeader className="p-4 sm:p-6">
+                        <CardTitle className="text-base sm:text-lg flex items-center gap-2 text-emerald-700">
+                        <Activity className="h-5 w-5" /> Status do Sistema
+                        </CardTitle>
+                        <CardDescription className="text-xs sm:text-sm text-emerald-600/80">
+                            <div className="flex items-center gap-2 mt-1">
+                                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>Monitoramento Ativo</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-2">
+                                <Info className="h-3.5 w-3.5" />
+                                <span>Verificação automática a cada 5 minutos.</span>
+                            </div>
+                        </CardDescription>
+                    </CardHeader>
+                </Card>
+            </div>
 
             {loadingRules ? (
               <Skeleton className="h-32 w-full" />
