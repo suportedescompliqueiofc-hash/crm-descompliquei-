@@ -77,7 +77,7 @@ serve(async (req) => {
       }
     }
 
-    // Insere a mensagem
+    // Insere a mensagem (O trigger do banco de dados handle_cadence_interruption cuidará de parar a cadência agora)
     const { data: message, error: messageError } = await supabaseAdmin
       .from('mensagens')
       .insert({
@@ -102,52 +102,6 @@ serve(async (req) => {
           file_path: uploadedFilePath,
           file_type: finalFileType as any,
         });
-    }
-
-    // --- LÓGICA DE INTERRUPÇÃO DE CADÊNCIA ---
-    if (direction === 'entrada') {
-        const { data: activeCadence } = await supabaseAdmin
-            .from('lead_cadencias')
-            .select(`
-                id, 
-                cadencia_id, 
-                cadencias (
-                    nome
-                )
-            `)
-            .eq('lead_id', lead.id)
-            .eq('status', 'ativo')
-            .maybeSingle();
-
-        if (activeCadence) {
-            // 1. Interrompe a cadência
-            await supabaseAdmin
-                .from('lead_cadencias')
-                .update({ 
-                    status: 'respondido', 
-                    proxima_execucao: null 
-                })
-                .eq('id', activeCadence.id);
-
-            // 2. Gera notificação
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit',
-                timeZone: 'America/Sao_Paulo'
-            });
-            
-            const cadenceName = (activeCadence.cadencias as any)?.nome || 'Fluxo';
-
-            await supabaseAdmin
-                .from('notificacoes')
-                .insert({
-                    lead_id: lead.id,
-                    user_id: lead.usuario_id,
-                    mensagem: `Resposta em Cadência: O cliente respondeu ao fluxo "${cadenceName}" às ${timeStr}. A cadência foi interrompida automaticamente.`,
-                    status: 'pendente'
-                });
-        }
     }
 
     return new Response(JSON.stringify({ success: true }), { status: 200, headers: corsHeaders });
