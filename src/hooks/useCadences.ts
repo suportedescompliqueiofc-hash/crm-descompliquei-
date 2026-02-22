@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 import { addMinutes, addHours, addDays } from 'date-fns';
+import { useEffect } from 'react';
 
 export interface CadenceStep {
   id?: string;
@@ -112,6 +113,26 @@ export function useLeadCadence(leadId: string | undefined) {
     const orgId = profile?.organization_id;
     const queryClient = useQueryClient();
 
+    // Sincronização em tempo real para o status da cadência do lead
+    useEffect(() => {
+        if (!leadId) return;
+
+        const channel = supabase
+            .channel(`cadence_sync_${leadId}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'lead_cadencias', filter: `lead_id=eq.${leadId}` },
+                () => {
+                    queryClient.invalidateQueries({ queryKey: ['lead_cadence_active', leadId] });
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [leadId, queryClient]);
+
     const { data: activeCadence, isLoading } = useQuery({
         queryKey: ['lead_cadence_active', leadId],
         queryFn: async () => {
@@ -132,7 +153,6 @@ export function useLeadCadence(leadId: string | undefined) {
         mutationFn: async ({ cadenceId }: { cadenceId: string }) => {
             if (!leadId || !orgId) throw new Error("Dados insuficientes");
             
-            // 1. Busca o primeiro passo para calcular a execução
             const { data: firstStep } = await supabase
                 .from('cadencia_passos')
                 .select('*')
@@ -156,7 +176,7 @@ export function useLeadCadence(leadId: string | undefined) {
                     organization_id: orgId,
                     lead_id: leadId,
                     cadencia_id: cadenceId,
-                    passo_atual_ordem: 0, // Vai executar o passo 1
+                    passo_atual_ordem: 0,
                     status: 'ativo',
                     proxima_execucao: executionDate.toISOString(),
                     status_ultima_execucao: null,
