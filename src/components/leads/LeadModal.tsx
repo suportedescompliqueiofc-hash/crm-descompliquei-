@@ -105,10 +105,21 @@ const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[
           {creativeName && <div className="flex items-center gap-2 col-span-2 md:col-span-1"><Tag className="h-4 w-4 text-muted-foreground" /><span className="truncate" title={creativeName}>{creativeName}</span></div>}
         </CardContent>
       </Card>
-      <Card className="shadow-md border-l-4 border-l-accent">
-        <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2 text-accent"><Clock className="h-4 w-4" /> Resumo do Atendimento (IA)</CardTitle></CardHeader>
-        <CardContent><p className="text-sm whitespace-pre-wrap">{lead.resumo || <span className="text-muted-foreground italic">Nenhum resumo gerado.</span>}</p></CardContent>
+      
+      {/* Resumo da IA com visibilidade aprimorada */}
+      <Card className="shadow-md border-l-4 border-l-primary bg-primary/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2 text-primary font-bold">
+            <Clock className="h-4 w-4" /> Resumo do Atendimento (IA)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm whitespace-pre-wrap text-foreground leading-relaxed">
+            {lead.resumo || <span className="text-muted-foreground italic">Nenhum resumo gerado.</span>}
+          </p>
+        </CardContent>
       </Card>
+
       <Card className="shadow-sm">
         <CardHeader className="pb-3"><CardTitle className="text-base text-muted-foreground">Dados Adicionais</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-4 text-sm">
