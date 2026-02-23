@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { Search, Mic, Image as ImageIcon, Video, FileText, MoreVertical, Trash2, Tag as TagIcon, X, ChevronRight, Hash, Filter, Globe, User, Clock, Calendar as CalendarIcon } from "lucide-react";
+import { Search, Mic, Image as ImageIcon, Video, FileText, MoreVertical, Trash2, Tag as TagIcon, X, ChevronRight, Hash, Filter, Globe, User, Clock, Calendar as CalendarIcon, CheckCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
