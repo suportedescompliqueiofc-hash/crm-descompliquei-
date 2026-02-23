@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft, Paperclip, Loader2, ImageIcon, FileText } from "lucide-react";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft, Paperclip, Loader2, ImageIcon, FileText, Globe, Sparkles, Info } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { useLead, useLeads } from "@/hooks/useLeads";
 import { useMessages, useSendMessage, Message, Attachment, useDeleteMessage, useSendAudioMessage, useSendMediaMessage } from "@/hooks/useConversations";
 import { useNotifications, useUpdateNotificationStatus } from "@/hooks/useNotifications";
 import { useStages } from "@/hooks/useStages";
+import { useMarketing } from "@/hooks/useMarketing";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import EmojiPicker from 'emoji-picker-react';
@@ -118,6 +119,7 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const { data: messages = [], isLoading: messagesLoading } = useMessages(leadId);
   const { data: notifications } = useNotifications(leadId);
   const { stages, isLoading: stagesLoading } = useStages();
+  const { criativos } = useMarketing();
   const { mutate: sendMessage } = useSendMessage();
   const { mutate: sendAudio, isPending: isSendingAudio } = useSendAudioMessage();
   const { mutate: sendMedia, isPending: isSendingMedia } = useSendMediaMessage();
@@ -141,10 +143,16 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
 
   const groupedMessages = useMemo(() => groupMessagesByDay(messages), [messages]);
   
+  // Busca o nome do criativo associado
+  const creativeName = useMemo(() => {
+    if (!lead?.criativo_id || !criativos) return null;
+    const creative = criativos.find((c: any) => c.id === lead.criativo_id);
+    return creative?.nome || creative?.titulo || "Criativo Desconhecido";
+  }, [lead?.criativo_id, criativos]);
+
   useEffect(() => { if (lead) setIsAiActive(lead.ia_ativa ?? true); }, [lead]);
   
   useLayoutEffect(() => { 
-    // Alterado de "smooth" para "auto" para que o scroll seja instantâneo ao abrir a conversa
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" }); 
   }, [messages]);
 
@@ -208,36 +216,86 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
     <div className="flex flex-col h-full bg-background overflow-hidden relative">
       <header className="flex flex-col border-b bg-card shadow-sm z-10 flex-shrink-0">
         <div className="flex items-center justify-between p-2 sm:p-3 gap-2">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
                 <Button variant="ghost" size="icon" className="md:hidden h-8 w-8" onClick={() => navigate('/conversas')}><ChevronLeft className="h-5 w-5" /></Button>
-                <Avatar className="h-9 w-9 sm:h-10 sm:w-10 border bg-muted flex-shrink-0">
+                <Avatar className="h-10 w-10 sm:h-11 sm:w-11 border bg-muted flex-shrink-0">
                     <AvatarFallback className="bg-accent text-accent-foreground text-xs sm:text-sm font-medium">{getInitials(lead?.nome)}</AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col min-w-0">
-                    <p className="font-semibold truncate text-sm sm:text-base leading-tight">{lead?.nome || 'Lead'}</p>
-                    <span className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1"><Phone className="h-2.5 w-2.5" />{lead?.telefone}</span>
+                    <p className="font-bold truncate text-base leading-tight">{lead?.nome || 'Lead'}</p>
+                    <div className="flex items-center gap-2 mt-1 overflow-hidden">
+                        <span className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+                            <Phone className="h-2.5 w-2.5" />
+                            {lead?.telefone}
+                        </span>
+                        
+                        {/* Badge de Origem */}
+                        <div className="flex items-center gap-1 bg-muted/50 px-1.5 py-0.5 rounded-md border border-border/40 shrink-0">
+                            <Globe className="h-2.5 w-2.5 text-muted-foreground" />
+                            <span className="text-[9px] font-bold uppercase text-muted-foreground">
+                                {lead?.origem === 'marketing' ? 'Marketing' : 'Orgânico'}
+                            </span>
+                        </div>
+
+                        {/* Badge de Criativo */}
+                        {creativeName && (
+                            <div className="flex items-center gap-1 bg-primary/5 px-1.5 py-0.5 rounded-md border border-primary/10 shrink-0 max-w-[120px] sm:max-w-[200px]">
+                                <Sparkles className="h-2.5 w-2.5 text-primary" />
+                                <span className="text-[9px] font-medium text-primary truncate">
+                                    {creativeName}
+                                </span>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                {/* Botão Resumo IA (Apenas se houver resumo) */}
+                {lead?.resumo && (
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="h-9 gap-2 bg-[#FDF8F3] border-[#E9D5C3] text-[#A67C52] hover:bg-[#F9F1E8] hover:text-[#8B6441] rounded-full px-3"
+                            >
+                                <Sparkles className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline text-xs font-semibold">Resumo IA</span>
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80 p-4 shadow-xl border-primary/20 bg-background" align="end">
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 border-b pb-2">
+                                    <Sparkles className="h-4 w-4 text-primary" />
+                                    <h4 className="font-bold text-sm text-foreground">Resumo do Atendimento</h4>
+                                </div>
+                                <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                                    {lead.resumo}
+                                </p>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                )}
+
                 <div className="hidden lg:block">
                     {leadId && <CadenceLeadSelector leadId={leadId} />}
                 </div>
-                <div className="hidden xs:block">{lead && <AiLockControl lead={lead} />}</div>
-                <div className="flex items-center gap-2 px-1 py-1 bg-muted/20 rounded-lg border border-border/40">
-                    <Switch id="ai-toggle" checked={isAiActive} onCheckedChange={handleAiToggle} disabled={!lead} className="scale-75 sm:scale-90" />
-                    {onToggleQuickMessages && (
-                        <Button variant={showQuickMessages ? "default" : "ghost"} size="icon" className={cn("h-7 w-7 sm:h-8 sm:w-8 transition-all rounded-full", showQuickMessages ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted")} onClick={onToggleQuickMessages}>
-                            <Zap className="h-3.5 w-3.5 sm:h-4 w-4" />
-                        </Button>
-                    )}
+                
+                <div className="flex items-center gap-2 pl-2 border-l ml-1">
+                    <div className="flex items-center gap-2">
+                        <Switch id="ai-toggle" checked={isAiActive} onCheckedChange={handleAiToggle} disabled={!lead} className="scale-75 sm:scale-90" />
+                        <Zap className={cn("h-4 w-4 transition-colors", isAiActive ? "text-primary fill-primary/20" : "text-muted-foreground")} />
+                    </div>
                 </div>
             </div>
         </div>
-        <div className="flex items-center justify-between px-3 pb-2 gap-3 overflow-x-auto scrollbar-none">
+
+        <div className="flex items-center justify-between px-3 pb-2 gap-3 overflow-x-auto scrollbar-none bg-muted/5">
             <div className="flex items-center gap-2 flex-shrink-0">
                 {lead && stages.length > 0 && (
                     <Select value={lead.posicao_pipeline?.toString() || "1"} onValueChange={(v) => updateLead({ id: lead.id, posicao_pipeline: parseInt(v) })}>
-                    <SelectTrigger className="w-[120px] sm:w-[160px] h-7 text-[10px] sm:text-xs bg-background/50">
+                    <SelectTrigger className="w-[120px] sm:w-[160px] h-7 text-[10px] sm:text-xs bg-background/50 border-none shadow-none hover:bg-muted/40 transition-colors">
                         <SelectValue>
                         {currentStage ? <div className="flex items-center gap-1.5 truncate"><span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: currentStage.cor }} />{currentStage.nome}</div> : "Etapa"}
                         </SelectValue>
@@ -246,12 +304,32 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                     </Select>
                 )}
             </div>
-            <div className="flex-1 flex justify-end min-w-0 overflow-hidden">{lead && <div className="scale-90 origin-right"><TagManager leadId={lead.id} /></div>}</div>
-            <div className="flex items-center gap-1">
+            <div className="flex-1 flex justify-end min-w-0 overflow-hidden">
+                {lead && (
+                    <div className="flex items-center gap-2 scale-90 origin-right">
+                        <TagManager leadId={lead.id} />
+                        {onToggleQuickMessages && (
+                            <Button 
+                                variant={showQuickMessages ? "default" : "ghost"} 
+                                size="sm" 
+                                className={cn(
+                                    "h-7 px-2 rounded-full text-[10px] gap-1", 
+                                    showQuickMessages ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                                )} 
+                                onClick={onToggleQuickMessages}
+                            >
+                                <Zap className="h-3 w-3" />
+                                Mensagens Rápidas
+                            </Button>
+                        )}
+                    </div>
+                )}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
                 <div className="lg:hidden">
                     {leadId && <CadenceLeadSelector leadId={leadId} />}
                 </div>
-                <div className="xs:hidden">{lead && <AiLockControl lead={lead} />}</div>
+                <div className="xs:block">{lead && <AiLockControl lead={lead} />}</div>
             </div>
         </div>
       </header>
