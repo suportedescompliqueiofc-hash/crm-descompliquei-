@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft, Paperclip, Loader2, ImageIcon, FileText, Globe, Sparkles, Info } from "lucide-react";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft, Paperclip, Loader2, ImageIcon, FileText, Globe, Sparkles, Info, Pencil } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ import { AudioRecorder } from "./AudioRecorder";
 import { MediaPreviewModal } from "./MediaPreviewModal";
 import { FullscreenMediaViewer } from "./FullscreenMediaViewer";
 import { useNavigate } from "react-router-dom";
+import { LeadModal } from "@/components/leads/LeadModal";
 
 const DateSeparator = ({ dateString }: { dateString: string }) => {
   const date = parseISO(dateString);
@@ -131,6 +132,7 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const [isAiActive, setIsAiActive] = useState(true);
   const [deletingMessage, setDeletingMessage] = useState<Message | null>(null);
   const [isRecordingMode, setIsRecordingMode] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   // Media Preview States (Send)
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -222,7 +224,18 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                     <AvatarFallback className="bg-accent text-accent-foreground text-xs sm:text-sm font-medium">{getInitials(lead?.nome)}</AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col min-w-0">
-                    <p className="font-bold truncate text-base leading-tight">{lead?.nome || 'Lead'}</p>
+                    <div className="flex items-center gap-2">
+                        <p className="font-bold truncate text-base leading-tight">{lead?.nome || 'Lead'}</p>
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6 text-muted-foreground hover:text-primary rounded-full transition-colors"
+                            onClick={() => setIsEditModalOpen(true)}
+                            title="Editar Lead"
+                        >
+                            <Pencil className="h-3 w-3" />
+                        </Button>
+                    </div>
                     <div className="flex items-center gap-2 mt-1 overflow-hidden">
                         <span className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 shrink-0">
                             <Phone className="h-2.5 w-2.5" />
@@ -516,6 +529,13 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <LeadModal
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        lead={lead}
+        mode="edit"
+      />
     </div>
   );
 }
