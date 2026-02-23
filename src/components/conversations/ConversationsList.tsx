@@ -2,13 +2,13 @@
 
 import { useState, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { Search, Mic, Image as ImageIcon, Video, FileText, MoreVertical, Trash2, Tag as TagIcon, X, ChevronRight, Hash } from "lucide-react";
+import { Search, Mic, Image as ImageIcon, Video, FileText, MoreVertical, Trash2, Tag as TagIcon, X, ChevronRight, Hash, Filter, Globe, User, Clock, Calendar as CalendarIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConversationsList, Conversation, useDeleteChat } from "@/hooks/useConversations";
-import { format, isToday, isYesterday, isValid, parseISO } from "date-fns";
+import { format, isToday, isYesterday, isValid, parseISO, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { TAG_COLORS, useTags, Tag } from "@/hooks/useTags";
@@ -30,6 +30,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { DateRangePicker } from "@/components/reports/DateRangePicker";
+import { DateRange } from "react-day-picker";
 
 const formatLastMessageTime = (timestamp?: string | null) => {
   if (!timestamp) return '';
@@ -98,6 +103,9 @@ const ConversationItem = ({ conversation, onDelete }: { conversation: Conversati
                 {conversation.nome || conversation.telefone}
               </span>
               
+              {/* Ícone de Origem (Opcional, seguindo print) */}
+              {conversation.origem === 'marketing' && <Globe className="h-3 w-3 text-muted-foreground/60" />}
+              
               <div className="flex gap-0.5 shrink-0">
                 {conversation.tags?.slice(0, 2).map(tag => {
                   const isHex = tag.color?.startsWith('#');
@@ -165,40 +173,55 @@ export function ConversationsList() {
   
   const [searchTerm, setSearchTerm] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<Conversation | null>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'tags'>('list');
-  const [filterTagId, setFilterTagId] = useState<string | null>(null);
-
-  // Calcula a contagem de chats por etiqueta
-  const tagCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    conversations?.forEach(conv => {
-      conv.tags?.forEach(tag => {
-        counts[tag.id] = (counts[tag.id] || 0) + 1;
-      });
-    });
-    return counts;
-  }, [conversations]);
+  
+  // Estados de Filtro
+  const [filters, setFilters] = useState({
+    origin: "all",
+    tagId: "all",
+    status: "all",
+    dateRange: undefined as DateRange | undefined,
+  });
 
   const filteredConversations = useMemo(() => {
     return conversations?.filter(c => {
+      // Filtro de Busca
       const searchLower = searchTerm.toLowerCase();
       const nameMatch = (c.nome && c.nome.toLowerCase().includes(searchLower)) || c.telefone.includes(searchLower);
-      const tagMatch = !filterTagId || c.tags?.some(tag => tag.id === filterTagId);
-      return nameMatch && tagMatch;
-    });
-  }, [conversations, searchTerm, filterTagId]);
+      
+      // Filtro de Origem
+      const originMatch = filters.origin === "all" || c.origem === filters.origin;
+      
+      // Filtro de Etiquetas
+      const tagMatch = filters.tagId === "all" || c.tags?.some(tag => tag.id === filters.tagId);
+      
+      // Filtro de Status
+      const statusMatch = filters.status === "all" || c.status === filters.status;
+      
+      // Filtro de Data
+      let dateMatch = true;
+      if (filters.dateRange?.from) {
+        const leadDate = parseISO(c.criado_em);
+        const start = startOfDay(filters.dateRange.from);
+        const end = filters.dateRange.to ? endOfDay(filters.dateRange.to) : endOfDay(filters.dateRange.from);
+        dateMatch = (isAfter(leadDate, start) || leadDate.getTime() === start.getTime()) && 
+                    (isBefore(leadDate, end) || leadDate.getTime() === end.getTime());
+      }
 
-  const selectedTag = useMemo(() => 
-    availableTags.find(t => t.id === filterTagId), 
-  [availableTags, filterTagId]);
+      return nameMatch && originMatch && tagMatch && statusMatch && dateMatch;
+    });
+  }, [conversations, searchTerm, filters]);
+
+  const hasActiveFilters = filters.origin !== "all" || filters.tagId !== "all" || filters.status !== "all" || !!filters.dateRange;
+
+  const resetFilters = () => {
+    setFilters({ origin: "all", tagId: "all", status: "all", dateRange: undefined });
+  };
 
   const handleDeleteChat = () => {
     if (confirmDelete) {
       deleteChat(confirmDelete.id, {
         onSuccess: () => {
-          if (activeLeadId === confirmDelete.id) {
-            navigate('/conversas');
-          }
+          if (activeLeadId === confirmDelete.id) navigate('/conversas');
           setConfirmDelete(null);
         }
       });
@@ -207,55 +230,122 @@ export function ConversationsList() {
 
   return (
     <div className="flex flex-col h-full bg-card border-r w-full overflow-hidden">
-      {/* Cabeçalho Condicional */}
+      {/* Cabeçalho com Busca e Filtros */}
       <div className="p-4 border-b bg-card/50 backdrop-blur-sm shrink-0">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">
-            {viewMode === 'tags' ? 'Etiquetas' : 'Conversas'}
-          </h2>
-          <div className="flex gap-1">
-            {viewMode === 'list' ? (
-              <Button variant="ghost" size="icon" onClick={() => setViewMode('tags')} title="Gerenciar Etiquetas">
-                <TagIcon className="h-5 w-5" />
-              </Button>
-            ) : (
-              <Button variant="ghost" size="icon" onClick={() => setViewMode('list')}>
-                <X className="h-5 w-5" />
-              </Button>
-            )}
-          </div>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-xl font-bold text-foreground">Conversas</h2>
+          {filteredConversations && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-bold bg-muted/80 text-muted-foreground rounded-full shadow-xs">
+              {filteredConversations.length}
+            </Badge>
+          )}
         </div>
 
-        {viewMode === 'list' && (
-          <div className="space-y-3">
-            <div className="relative">
+        <div className="flex items-center gap-2">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar conversas..."
-                className="pl-10 h-10 bg-muted/30 border-muted-foreground/20 focus-visible:ring-primary"
+                placeholder="Buscar..."
+                className="pl-10 h-10 bg-muted/30 border-muted-foreground/10 focus-visible:ring-primary rounded-lg shadow-xs"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             
-            {/* Indicador de Filtro Ativo */}
-            {filterTagId && selectedTag && (
-              <div className="flex items-center justify-between bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg animate-in fade-in slide-in-from-top-1">
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <div 
-                    className="h-2 w-2 rounded-full shrink-0" 
-                    style={{ backgroundColor: selectedTag.color.startsWith('#') ? selectedTag.color : undefined }}
-                    className={cn(!selectedTag.color.startsWith('#') && TAG_COLORS.find(c => c.name === selectedTag.color)?.selector)}
-                  />
-                  <span className="text-xs font-semibold text-primary truncate">Filtrando por: {selectedTag.name}</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className={cn(
+                    "h-10 w-10 shrink-0 border-muted-foreground/10 shadow-xs rounded-lg transition-colors",
+                    hasActiveFilters && "border-primary bg-primary/5 text-primary"
+                  )}
+                >
+                  <Filter className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-4 shadow-xl border-border/40" align="end">
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <h4 className="font-bold text-sm">Filtrar Conversas</h4>
+                    {hasActiveFilters && (
+                      <Button variant="ghost" className="h-auto p-0 text-[10px] uppercase font-bold text-primary" onClick={resetFilters}>
+                        Limpar tudo
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Origem */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase text-muted-foreground flex items-center gap-2">
+                      <Globe className="h-3 w-3" /> Origem
+                    </Label>
+                    <Select value={filters.origin} onValueChange={(v) => setFilters(f => ({ ...f, origin: v }))}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Todas as origens" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as origens</SelectItem>
+                        <SelectItem value="marketing">Marketing (Ads)</SelectItem>
+                        <SelectItem value="organico">Orgânico</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Etiquetas */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase text-muted-foreground flex items-center gap-2">
+                      <TagIcon className="h-3 w-3" /> Etiquetas
+                    </Label>
+                    <Select value={filters.tagId} onValueChange={(v) => setFilters(f => ({ ...f, tagId: v }))}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Todas as etiquetas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as etiquetas</SelectItem>
+                        {availableTags.map(tag => (
+                          <SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Status */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase text-muted-foreground flex items-center gap-2">
+                      <CheckCircle className="h-3 w-3" /> Status
+                    </Label>
+                    <Select value={filters.status} onValueChange={(v) => setFilters(f => ({ ...f, status: v }))}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Todos os status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os status</SelectItem>
+                        <SelectItem value="Ativo">Ativo</SelectItem>
+                        <SelectItem value="Inativo">Inativo</SelectItem>
+                        <SelectItem value="Convertido">Convertido</SelectItem>
+                        <SelectItem value="Perdido">Perdido</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Período */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase text-muted-foreground flex items-center gap-2">
+                      <CalendarIcon className="h-3 w-3" /> Data de Cadastro
+                    </Label>
+                    <DateRangePicker 
+                      date={filters.dateRange} 
+                      setDate={(d) => setFilters(f => ({ ...f, dateRange: d }))} 
+                      hideQuickSelect
+                      className="w-full"
+                    />
+                  </div>
                 </div>
-                <button onClick={() => setFilterTagId(null)} className="text-primary hover:bg-primary/20 p-0.5 rounded transition-colors">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+              </PopoverContent>
+            </Popover>
+        </div>
       </div>
 
       <ScrollArea className="flex-1 w-full">
@@ -273,47 +363,7 @@ export function ConversationsList() {
                 </div>
               </div>
             ))
-          ) : viewMode === 'tags' ? (
-            /* Visão de Gerenciamento de Etiquetas */
-            <div className="p-2 space-y-1">
-              {availableTags.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground text-sm">Nenhuma etiqueta criada.</div>
-              ) : (
-                availableTags.map(tag => {
-                  const isHex = tag.color.startsWith('#');
-                  const preset = TAG_COLORS.find(c => c.name === tag.color);
-                  const count = tagCounts[tag.id] || 0;
-
-                  return (
-                    <button
-                      key={tag.id}
-                      onClick={() => {
-                        setFilterTagId(tag.id);
-                        setViewMode('list');
-                      }}
-                      className="w-full flex items-center gap-4 p-3 hover:bg-muted/50 rounded-xl transition-colors text-left group"
-                    >
-                      <div 
-                        className={cn(
-                          "h-12 w-12 rounded-full flex items-center justify-center border shadow-sm shrink-0",
-                          !isHex && preset?.selector
-                        )}
-                        style={isHex ? { backgroundColor: tag.color } : undefined}
-                      >
-                        <TagIcon className="h-5 w-5 text-white/90 fill-current opacity-60" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm text-foreground truncate">{tag.name}</p>
-                        <p className="text-xs text-muted-foreground">Itens: {count}</p>
-                      </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-all" />
-                    </button>
-                  );
-                })
-              )}
-            </div>
           ) : filteredConversations && filteredConversations.length > 0 ? (
-            /* Lista Normal de Conversas (Filtrada ou não) */
             filteredConversations.map(conversation => (
               <ConversationItem 
                 key={conversation.id} 
@@ -322,8 +372,12 @@ export function ConversationsList() {
               />
             ))
           ) : (
-            <div className="p-8 text-center text-muted-foreground text-sm">
-              {searchTerm || filterTagId ? "Nenhuma conversa encontrada para os filtros." : "Nenhuma conversa disponível."}
+            <div className="p-12 text-center text-muted-foreground flex flex-col items-center gap-4">
+              <div className="bg-muted p-4 rounded-full">
+                <Search className="h-8 w-8 opacity-20" />
+              </div>
+              <p className="text-sm px-4">Nenhum cliente encontrado para os filtros selecionados.</p>
+              {hasActiveFilters && <Button variant="link" size="sm" onClick={resetFilters}>Limpar filtros</Button>}
             </div>
           )}
         </div>
@@ -339,7 +393,7 @@ export function ConversationsList() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteChat} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleDeleteChat}>
               Excluir Tudo
             </AlertDialogAction>
           </AlertDialogFooter>
