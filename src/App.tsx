@@ -14,7 +14,6 @@ import Pipeline from "./pages/Pipeline";
 import Reports from "./pages/Reports";
 import Marketing from "./pages/Marketing";
 import Campaigns from "./pages/Campaigns";
-import Templates from "./pages/Templates";
 import Settings from "./pages/Settings";
 import AiSettings from "./pages/AiSettings";
 import Login from "./pages/Login";
@@ -86,7 +85,6 @@ const App = () => (
             <Route path="/reports" element={<ProtectedRoute><AppLayout><Reports /></AppLayout></ProtectedRoute>} />
             <Route path="/marketing" element={<ProtectedRoute><AppLayout><Marketing /></AppLayout></ProtectedRoute>} />
             <Route path="/campaigns" element={<ProtectedRoute><AppLayout><Campaigns /></AppLayout></ProtectedRoute>} />
-            <Route path="/templates" element={<ProtectedRoute><AppLayout><Templates /></AppLayout></ProtectedRoute>} />
             <Route path="/quick-messages" element={<ProtectedRoute><AppLayout><QuickMessagesPage /></AppLayout></ProtectedRoute>} />
             <Route path="/cadences" element={<ProtectedRoute><AppLayout><Cadences /></AppLayout></ProtectedRoute>} />
             <Route path="/ia" element={<ProtectedRoute><AppLayout><AiSettings /></AppLayout></ProtectedRoute>} />
