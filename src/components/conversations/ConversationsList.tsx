@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { Search, Mic, Image as ImageIcon, Video, FileText, MoreVertical, Trash2, Tag as TagIcon, X, ChevronRight, Hash, Filter, Globe, User, Clock, Calendar as CalendarIcon, CheckCircle } from "lucide-react";
+import { Search, Mic, Image as ImageIcon, Video, FileText, MoreVertical, Trash2, Tag as TagIcon, X, ChevronRight, Hash, Filter, Globe, User, Clock, Calendar as CalendarIcon, CheckCircle, Megaphone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -103,8 +103,12 @@ const ConversationItem = ({ conversation, onDelete }: { conversation: Conversati
                 {conversation.nome || conversation.telefone}
               </span>
               
-              {/* Ícone de Origem (Opcional, seguindo print) */}
-              {conversation.origem === 'marketing' && <Globe className="h-3 w-3 text-muted-foreground/60" />}
+              {/* Ícone de Origem conforme solicitado: Megafone para Marketing e Globo para Orgânico */}
+              {conversation.origem === 'marketing' ? (
+                <Megaphone className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+              ) : (
+                <Globe className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+              )}
               
               <div className="flex gap-0.5 shrink-0">
                 {conversation.tags?.slice(0, 2).map(tag => {
