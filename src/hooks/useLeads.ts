@@ -68,7 +68,6 @@ export function useLeads(dateRange?: DateRange) {
             queryClient.setQueryData<Lead[]>(queryKey, (old) => {
               return (old || []).map(lead => lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead);
             });
-            // Atualiza também o cache individual do lead se ele estiver sendo visualizado
             queryClient.setQueryData(['lead', updatedLead.id, orgId], updatedLead);
           }
           else if (payload.eventType === 'DELETE') {
@@ -114,7 +113,7 @@ export function useLeads(dateRange?: DateRange) {
       return data as Lead[];
     },
     enabled: !!user && !!orgId,
-    staleTime: 1000 * 60 * 5, // 5 minutos de cache "fresco"
+    staleTime: 1000 * 60 * 5,
   });
 
   const createLead = useMutation({
@@ -129,7 +128,6 @@ export function useLeads(dateRange?: DateRange) {
       return data;
     },
     onSuccess: (data) => {
-      // Injeta imediatamente para o usuário que criou
       queryClient.setQueryData<Lead[]>(['leads', orgId, dateRange], (old) => [data, ...(old || [])]);
       toast.success('Lead criado com sucesso!');
     },
@@ -154,7 +152,6 @@ export function useLeads(dateRange?: DateRange) {
       await queryClient.cancelQueries({ queryKey });
       const previousLeads = queryClient.getQueryData<Lead[]>(queryKey);
       
-      // Atualização Otimista
       queryClient.setQueryData<Lead[]>(queryKey, (old) => {
         return (old || []).map(lead => lead.id === variables.id ? { ...lead, ...variables } : lead);
       });
@@ -171,8 +168,34 @@ export function useLeads(dateRange?: DateRange) {
 
   const deleteLead = useMutation({
     mutationFn: async (id: string) => {
+      // 1. Identificar as mensagens para limpar os anexos primeiro
+      const { data: msgs } = await supabase.from('mensagens').select('id').eq('lead_id', id);
+      const msgIds = msgs?.map(m => m.id) || [];
+
+      if (msgIds.length > 0) {
+        // Limpa anexos de mensagens
+        await supabase.from('message_attachments').delete().in('message_id', msgIds);
+      }
+
+      // 2. Limpar todas as tabelas dependentes (que causam o erro 409)
+      // Executamos em paralelo para performance, mas antes da exclusão do Lead
+      await Promise.all([
+        supabase.from('mensagens').delete().eq('lead_id', id),
+        supabase.from('leads_tags').delete().eq('lead_id', id),
+        supabase.from('lead_stage_history').delete().eq('lead_id', id),
+        supabase.from('notificacoes').delete().eq('lead_id', id),
+        supabase.from('vendas').delete().eq('lead_id', id),
+        supabase.from('atividades').delete().eq('lead_id', id),
+        supabase.from('scheduled_quick_messages').delete().eq('lead_id', id),
+        supabase.from('lead_cadencias').delete().eq('lead_id', id),
+        supabase.from('cadencia_logs').delete().eq('lead_id', id),
+      ]);
+
+      // 3. Agora que o caminho está limpo, excluímos o Lead
       const { error } = await supabase.from('leads').delete().eq('id', id);
       if (error) throw error;
+      
+      return id;
     },
     onMutate: async (id) => {
       const queryKey = ['leads', orgId, dateRange];
@@ -181,6 +204,13 @@ export function useLeads(dateRange?: DateRange) {
       queryClient.setQueryData<Lead[]>(queryKey, (old) => (old || []).filter(lead => lead.id !== id));
       return { previousLeads };
     },
+    onError: (err: any, id, context) => {
+      if (context?.previousLeads) {
+        const queryKey = ['leads', orgId, dateRange];
+        queryClient.setQueryData(queryKey, context.previousLeads);
+      }
+      toast.error(`Falha ao excluir lead: ${err.message}`);
+    }
   });
 
   return {
@@ -188,7 +218,7 @@ export function useLeads(dateRange?: DateRange) {
     isLoading,
     createLead: createLead.mutate,
     updateLead: updateLead.mutate,
-    deleteLead: deleteLead.mutate,
+    deleteLead: deleteLead.mutateAsync, // Alterado para mutateAsync para suportar await em ações em massa
   };
 }
 
