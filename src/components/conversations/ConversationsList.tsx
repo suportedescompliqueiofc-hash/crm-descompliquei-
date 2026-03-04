@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { Search, Mic, Image as ImageIcon, Video, FileText, MoreVertical, Trash2, Tag as TagIcon, X, ChevronRight, Hash, Filter, Globe, User, Clock, Calendar as CalendarIcon, CheckCircle, Megaphone } from "lucide-react";
+import { Search, Mic, Image as ImageIcon, Video, FileText, MoreVertical, Trash2, Tag as TagIcon, X, ChevronRight, Hash, Filter, Globe, User, Clock, Calendar as CalendarIcon, CheckCircle, Megaphone, GitBranch } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,6 +12,7 @@ import { format, isToday, isYesterday, isValid, parseISO, isAfter, isBefore, sta
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { TAG_COLORS, useTags, Tag } from "@/hooks/useTags";
+import { useStages } from "@/hooks/useStages";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -103,7 +104,6 @@ const ConversationItem = ({ conversation, onDelete }: { conversation: Conversati
                 {conversation.nome || conversation.telefone}
               </span>
               
-              {/* Ícone de Origem conforme solicitado: Megafone para Marketing e Globo para Orgânico */}
               {conversation.origem === 'marketing' ? (
                 <Megaphone className="h-3 w-3 text-muted-foreground/60 shrink-0" />
               ) : (
@@ -173,6 +173,7 @@ export function ConversationsList() {
   const { leadId: activeLeadId } = useParams();
   const { data: conversations, isLoading } = useConversationsList();
   const { availableTags, isLoadingTags } = useTags();
+  const { stages, isLoading: isLoadingStages } = useStages();
   const { mutate: deleteChat } = useDeleteChat();
   
   const [searchTerm, setSearchTerm] = useState("");
@@ -183,6 +184,7 @@ export function ConversationsList() {
     origin: "all",
     tagId: "all",
     status: "all",
+    stageId: "all",
     dateRange: undefined as DateRange | undefined,
   });
 
@@ -200,6 +202,9 @@ export function ConversationsList() {
       
       // Filtro de Status
       const statusMatch = filters.status === "all" || c.status === filters.status;
+
+      // Filtro de Etapa do Pipeline
+      const stageMatch = filters.stageId === "all" || c.posicao_pipeline?.toString() === filters.stageId;
       
       // Filtro de Data
       let dateMatch = true;
@@ -211,14 +216,14 @@ export function ConversationsList() {
                     (isBefore(leadDate, end) || leadDate.getTime() === end.getTime());
       }
 
-      return nameMatch && originMatch && tagMatch && statusMatch && dateMatch;
+      return nameMatch && originMatch && tagMatch && statusMatch && stageMatch && dateMatch;
     });
   }, [conversations, searchTerm, filters]);
 
-  const hasActiveFilters = filters.origin !== "all" || filters.tagId !== "all" || filters.status !== "all" || !!filters.dateRange;
+  const hasActiveFilters = filters.origin !== "all" || filters.tagId !== "all" || filters.status !== "all" || filters.stageId !== "all" || !!filters.dateRange;
 
   const resetFilters = () => {
-    setFilters({ origin: "all", tagId: "all", status: "all", dateRange: undefined });
+    setFilters({ origin: "all", tagId: "all", status: "all", stageId: "all", dateRange: undefined });
   };
 
   const handleDeleteChat = () => {
@@ -234,7 +239,6 @@ export function ConversationsList() {
 
   return (
     <div className="flex flex-col h-full bg-card border-r w-full overflow-hidden">
-      {/* Cabeçalho com Busca e Filtros */}
       <div className="p-4 border-b bg-card/50 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2 mb-4">
           <h2 className="text-xl font-bold text-foreground">Conversas</h2>
@@ -297,6 +301,29 @@ export function ConversationsList() {
                     </Select>
                   </div>
 
+                  {/* Etapa do Pipeline */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase text-muted-foreground flex items-center gap-2">
+                      <GitBranch className="h-3 w-3" /> Etapa do Pipeline
+                    </Label>
+                    <Select value={filters.stageId} onValueChange={(v) => setFilters(f => ({ ...f, stageId: v }))}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Todas as etapas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as etapas</SelectItem>
+                        {stages.map(stage => (
+                          <SelectItem key={stage.id} value={stage.posicao_ordem.toString()}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.cor }} />
+                              {stage.nome}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Etiquetas */}
                   <div className="space-y-1.5">
                     <Label className="text-[11px] font-bold uppercase text-muted-foreground flex items-center gap-2">
@@ -354,7 +381,7 @@ export function ConversationsList() {
 
       <ScrollArea className="flex-1 w-full">
         <div className="flex flex-col">
-          {isLoading || isLoadingTags ? (
+          {isLoading || isLoadingTags || isLoadingStages ? (
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 p-3 border-b border-border/40">
                 <Skeleton className="h-12 w-12 rounded-full shrink-0" />
