@@ -3,8 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { DateRange } from 'react-day-picker';
-import { format, startOfDay, eachDayOfInterval, parseISO, endOfDay } from 'date-fns';
+import { format, startOfDay, eachDayOfInterval, parseISO, endOfDay, isAfter, isBefore } from 'date-fns';
 import { useEffect } from 'react';
+
+// Constantes de conversão para manter paridade com useReports e useFunnelMetrics
+const CONVERTED_STAGE_NAME = "Contrato Fechado";
+const ALTERNATIVE_CONVERTED_STAGE_NAME = "Procedimento Fechado";
+const LOST_STAGE_NAME = "Perdido";
 
 export function useDashboard(dateRange: DateRange | undefined) {
   const { user } = useAuth();
@@ -40,8 +45,8 @@ export function useDashboard(dateRange: DateRange | undefined) {
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from || !dateRange?.to) return null;
 
-      const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
-      const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
+      const startDate = startOfDay(dateRange.from).toISOString();
+      const endDate = endOfDay(dateRange.to).toISOString();
       const startDayStr = format(startOfDay(dateRange.from), 'yyyy-MM-dd');
       const endDayStr = format(endOfDay(dateRange.to), 'yyyy-MM-dd');
 
@@ -56,26 +61,38 @@ export function useDashboard(dateRange: DateRange | undefined) {
         supabase.from('leads').select('*').eq('organization_id', orgId).gte('criado_em', startDate).lte('criado_em', endDate),
         supabase.from('etapas').select('id, nome, posicao_ordem'),
         supabase.from('atividades').select('*').eq('organization_id', orgId).gte('criado_em', startDate).lte('criado_em', endDate).limit(10),
-        supabase.from('vendas').select('valor_fechado').eq('organization_id', orgId).gte('data_fechamento', startDayStr).lte('data_fechamento', endDayStr),
+        supabase.from('vendas').select('valor_fechado, data_fechamento').eq('organization_id', orgId).gte('data_fechamento', startDayStr).lte('data_fechamento', endDayStr),
         supabase.from('marketing_expenses').select('amount').eq('organization_id', orgId).gte('expense_date', startDayStr).lte('expense_date', endDayStr),
-        supabase.from('criativos').select('platform_metrics').eq('organization_id', orgId).gte('criado_em', startDate).lte('criado_em', endDate)
+        supabase.from('criativos').select('platform_metrics').eq('organization_id', orgId)
       ]);
 
       const leads = leadsData || [];
       const stages = stagesData || [];
-      const convertedStagePosition = stages.find(s => s.nome.toLowerCase().includes('fechado'))?.posicao_ordem;
+      
+      // Localiza as posições de referência
+      const convertedStage = stages.find(s => 
+        s.nome.toLowerCase() === CONVERTED_STAGE_NAME.toLowerCase() || 
+        s.nome.toLowerCase() === ALTERNATIVE_CONVERTED_STAGE_NAME.toLowerCase()
+      );
+      const convertedPos = convertedStage?.posicao_ordem || 6;
+
+      const lostStage = stages.find(s => s.nome.toLowerCase() === LOST_STAGE_NAME.toLowerCase());
+      const lostPos = lostStage?.posicao_ordem || 999;
+
+      // Função de validação de conversão idêntica ao useReports
+      const isLeadConverted = (lead: any) => {
+        return lead.posicao_pipeline >= convertedPos && lead.posicao_pipeline < lostPos;
+      };
 
       const totalContatos = leads.length;
-      
-      // Separação Marketing vs Orgânico
       const marketingLeads = leads.filter(l => l.origem === 'marketing').length;
       const organicLeads = leads.filter(l => l.origem === 'organico').length;
 
-      const convertedLeads = leads.filter(l => l.posicao_pipeline === convertedStagePosition);
+      const convertedLeads = leads.filter(isLeadConverted);
       const conversionRate = totalContatos > 0 ? (convertedLeads.length / totalContatos) * 100 : 0;
       
       // Financeiro e CAC
-      const faturamentoTotal = (vendasData || []).reduce((sum, v) => sum + v.valor_fechado, 0);
+      const faturamentoTotal = (vendasData || []).reduce((sum, v) => sum + Number(v.valor_fechado), 0);
       const totalVendasCount = vendasData?.length || 0;
 
       const manualSpend = expensesData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
@@ -96,7 +113,8 @@ export function useDashboard(dateRange: DateRange | undefined) {
         return {
           day: format(day, 'dd/MM'),
           captados: leads.filter(l => format(parseISO(l.criado_em), 'yyyy-MM-dd') === dayString).length,
-          convertidos: leads.filter(l => l.posicao_pipeline === convertedStagePosition && l.atualizado_em && format(parseISO(l.atualizado_em), 'yyyy-MM-dd') === dayString).length
+          // Conta convertidos pela data de atualização na etapa de sucesso
+          convertidos: leads.filter(l => isLeadConverted(l) && l.atualizado_em && format(parseISO(l.atualizado_em), 'yyyy-MM-dd') === dayString).length
         };
       });
 
