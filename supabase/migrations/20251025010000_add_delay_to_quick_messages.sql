@@ -1,0 +1,1 @@
+ALTER TABLE public.mensagens_rapidas ADD COLUMN IF NOT EXISTS delay_seconds INTEGER DEFAULT 5;

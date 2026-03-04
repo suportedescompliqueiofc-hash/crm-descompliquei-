@@ -16,15 +16,7 @@ export interface QuickMessage {
   criado_em: string;
   folder_id?: string | null;
   position: number;
-}
-
-export interface ScheduledMessage {
-  id: string;
-  lead_id: string;
-  quick_message_id: string;
-  scheduled_for: string;
-  status: 'pending' | 'sent' | 'error';
-  created_at: string;
+  delay_seconds: number; // Novo campo
 }
 
 export interface SequenceLog {
@@ -72,13 +64,15 @@ export function useQuickMessages() {
       conteudo, 
       tipo, 
       file,
-      folder_id
+      folder_id,
+      delay_seconds
     }: { 
       titulo: string; 
       conteudo: string; 
       tipo: string; 
       file?: File | null;
       folder_id?: string | null;
+      delay_seconds: number;
     }) => {
       if (!user || !orgId) throw new Error("Usuário não autenticado");
 
@@ -104,7 +98,7 @@ export function useQuickMessages() {
         .order('position', { ascending: false })
         .limit(1);
         
-      if (folder_id) {
+      if (folder_id && folder_id !== "none") {
         query = query.eq('folder_id', folder_id);
       } else {
         query = query.is('folder_id', null);
@@ -121,8 +115,9 @@ export function useQuickMessages() {
           tipo, 
           arquivo_path, 
           organization_id: orgId,
-          folder_id: folder_id || null,
-          position: nextPos
+          folder_id: folder_id === "none" ? null : folder_id,
+          position: nextPos,
+          delay_seconds
         }])
         .select()
         .single();
@@ -134,9 +129,6 @@ export function useQuickMessages() {
       queryClient.invalidateQueries({ queryKey: ['quick_messages', orgId] });
       toast.success('Mensagem rápida criada com sucesso!');
     },
-    onError: (error: any) => {
-      toast.error(`Erro ao criar mensagem: ${error.message}`);
-    },
   });
 
   const updateQuickMessage = useMutation({
@@ -146,7 +138,8 @@ export function useQuickMessages() {
       conteudo, 
       tipo, 
       file,
-      folder_id
+      folder_id,
+      delay_seconds
     }: { 
       id: string;
       titulo: string; 
@@ -154,6 +147,7 @@ export function useQuickMessages() {
       tipo: string; 
       file?: File | null;
       folder_id?: string | null;
+      delay_seconds: number;
     }) => {
       if (!user || !orgId) throw new Error("Usuário não autenticado");
 
@@ -161,7 +155,8 @@ export function useQuickMessages() {
         titulo, 
         conteudo: conteudo || '', 
         tipo, 
-        folder_id: folder_id || null 
+        folder_id: folder_id === "none" ? null : folder_id,
+        delay_seconds
       };
 
       if (file) {
@@ -189,28 +184,19 @@ export function useQuickMessages() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quick_messages', orgId] });
-      toast.success('Mensagem atualizada com sucesso!');
-    },
-    onError: (error: any) => {
-      toast.error(`Erro ao atualizar mensagem: ${error.message}`);
+      toast.success('Mensagem atualizada!');
     },
   });
 
   const deleteQuickMessage = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('mensagens_rapidas')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('mensagens_rapidas').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['quick_messages', orgId] });
       toast.success('Mensagem excluída.');
-    },
-    onError: (error: any) => {
-      toast.error(`Erro ao excluir: ${error.message}`);
-    },
+    }
   });
 
   const sendQuickMessage = useMutation({
@@ -218,12 +204,8 @@ export function useQuickMessages() {
       if (!user) throw new Error("Usuário não autenticado");
 
       let url_midia = null;
-
       if (message.arquivo_path) {
-        const { data } = supabase.storage
-          .from('media-mensagens')
-          .getPublicUrl(message.arquivo_path);
-        
+        const { data } = supabase.storage.from('media-mensagens').getPublicUrl(message.arquivo_path);
         url_midia = data.publicUrl;
       }
 
@@ -244,58 +226,10 @@ export function useQuickMessages() {
         body: JSON.stringify(payload)
       });
 
-      if (!response.ok) {
-        throw new Error('Falha ao enviar para o webhook.');
-      }
-
+      if (!response.ok) throw new Error('Falha ao enviar.');
       return true;
     },
-    onMutate: async ({ message, leadId }) => {
-      if (!user) return;
-      const queryKey = ['messages_v6', leadId];
-      await queryClient.cancelQueries({ queryKey });
-      const previousMessages = queryClient.getQueryData<Message[]>(queryKey);
-      const tempId = `temp-qm-${Date.now()}`;
-      const optimisticMessage: Message = {
-        id: tempId,
-        lead_id: leadId,
-        user_id: user.id,
-        conteudo: message.conteudo || '',
-        direcao: 'saida',
-        remetente: 'bot',
-        tipo_conteudo: message.tipo,
-        criado_em: new Date().toISOString(),
-        media_path: message.arquivo_path,
-        id_mensagem: null,
-        message_attachments: []
-      };
-      if (message.arquivo_path) {
-        let fileType: 'imagem' | 'video' | 'audio' | 'arquivo' = 'arquivo';
-        if (message.tipo === 'imagem') fileType = 'imagem';
-        else if (message.tipo === 'video') fileType = 'video';
-        else if (message.tipo === 'audio') fileType = 'audio';
-        const finalType = message.tipo === 'pdf' ? 'pdf' : fileType;
-        optimisticMessage.message_attachments = [{
-          id: `att-${tempId}`,
-          message_id: tempId,
-          file_path: message.arquivo_path,
-          file_type: finalType as any
-        }];
-      }
-      queryClient.setQueryData<Message[]>(queryKey, (old) => 
-        old ? [...old, optimisticMessage] : [optimisticMessage]
-      );
-      return { previousMessages };
-    },
-    onError: (err: any, variables, context: any) => {
-      if (context?.previousMessages) {
-        queryClient.setQueryData(['messages_v6', variables.leadId], context.previousMessages);
-      }
-      toast.error('Erro no envio.', { description: err.message });
-    },
-    onSuccess: () => {
-      toast.success('Mensagem enviada!');
-    },
+    onSuccess: () => toast.success('Mensagem enviada!'),
   });
 
   const scheduleQuickMessage = useMutation({
@@ -308,7 +242,7 @@ export function useQuickMessages() {
       leadId: string; 
       scheduledFor: string;
     }) => {
-      if (!user || !orgId) throw new Error("Usuário não autenticado");
+      if (!user || !orgId) throw new Error("Sessão inválida");
 
       const { error } = await supabase
         .from('scheduled_quick_messages')
@@ -324,40 +258,33 @@ export function useQuickMessages() {
       if (error) throw error;
       return true;
     },
-    onSuccess: () => {
-      toast.success('Mensagem agendada com sucesso!');
-      queryClient.invalidateQueries({ queryKey: ['scheduled_messages_log', orgId] });
-    },
-    onError: (error: any) => {
-      toast.error(`Erro ao agendar: ${error.message}`);
-    }
+    onSuccess: () => toast.success('Mensagem agendada!'),
   });
 
-  // ENVIO EM SEQUÊNCIA (PASTAS INTEIRAS)
+  // ENVIO EM SEQUÊNCIA (COM DELAYS INDIVIDUAIS)
   const sendFolderSequence = useMutation({
     mutationFn: async ({ 
       folderId, 
       leadId, 
-      messages, 
-      intervalSeconds 
+      messages 
     }: { 
       folderId: string; 
       leadId: string; 
       messages: QuickMessage[]; 
-      intervalSeconds: number 
     }) => {
-      if (!user || !orgId) throw new Error("Usuário não autenticado");
+      if (!user || !orgId) throw new Error("Não autenticado");
 
       const batchId = crypto.randomUUID();
-      let currentDelay = 0;
+      let accumulatedDelay = 0;
 
-      // Garante a ordem correta baseada no position
+      // Ordena as mensagens pela posição definida no CRM
       const sortedMessages = [...messages].sort((a, b) => a.position - b.position);
 
       const inserts = sortedMessages.map(msg => {
-        // Incrementa o tempo em segundos
-        const scheduledFor = new Date(Date.now() + currentDelay * 1000).toISOString();
-        currentDelay += intervalSeconds;
+        // O scheduled_for é a hora atual + o delay acumulado desta mensagem e das anteriores
+        const delay = msg.delay_seconds || 5;
+        accumulatedDelay += delay;
+        const scheduledFor = new Date(Date.now() + accumulatedDelay * 1000).toISOString();
         
         return {
           organization_id: orgId,
@@ -374,36 +301,18 @@ export function useQuickMessages() {
       const { error } = await supabase.from('scheduled_quick_messages').insert(inserts);
       if (error) throw error;
 
-      // Dispara a Edge Function imediatamente para lidar com os segundos precisos em plano de fundo
-      await supabase.functions.invoke('process-folder-sequence', {
-        body: { batchId }
-      });
-
+      await supabase.functions.invoke('process-folder-sequence', { body: { batchId } });
       return true;
     },
-    onSuccess: () => {
-      toast.success('Envio em sequência iniciado!');
-    },
-    onError: (err: any) => {
-      toast.error(`Erro ao iniciar sequência: ${err.message}`);
-    }
+    onSuccess: () => toast.success('Sequência de mensagens iniciada!'),
   });
 
   const updateMessagesOrder = useMutation({
     mutationFn: async (updates: { id: string; position: number; folder_id: string | null }[]) => {
-      if (!user || !orgId) return;
       const promises = updates.map(update => 
-        supabase
-          .from('mensagens_rapidas')
-          .update({ position: update.position, folder_id: update.folder_id })
-          .eq('id', update.id)
+        supabase.from('mensagens_rapidas').update({ position: update.position, folder_id: update.folder_id }).eq('id', update.id)
       );
       await Promise.all(promises);
-    },
-    onSuccess: () => {},
-    onError: (err: any) => {
-      toast.error(`Erro ao salvar ordem das mensagens: ${err.message}`);
-      queryClient.invalidateQueries({ queryKey: ['quick_messages', orgId] });
     }
   });
 
@@ -417,8 +326,6 @@ export function useQuickMessages() {
     sendQuickMessage: sendQuickMessage.mutate,
     scheduleQuickMessage: scheduleQuickMessage.mutate,
     sendFolderSequence: sendFolderSequence.mutate,
-    isScheduling: scheduleQuickMessage.isPending,
-    isSending: sendQuickMessage.isPending,
     isSendingSequence: sendFolderSequence.isPending,
     updateMessagesOrder
   };
@@ -427,41 +334,20 @@ export function useQuickMessages() {
 export function useLeadSequenceLogs(leadId: string | undefined) {
   const queryClient = useQueryClient();
 
-  // Ouve atualizações em tempo real dos envios da sequência para o lead atual
   useEffect(() => {
     if (!leadId) return;
-
-    const channel = supabase
-      .channel(`seq_logs_${leadId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'scheduled_quick_messages', filter: `lead_id=eq.${leadId}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['sequence_logs', leadId] });
-        }
-      )
+    const channel = supabase.channel(`seq_logs_${leadId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scheduled_quick_messages', filter: `lead_id=eq.${leadId}` }, 
+        () => { queryClient.invalidateQueries({ queryKey: ['sequence_logs', leadId] }); })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [leadId, queryClient]);
 
-  const { data: logs = [], isLoading } = useQuery({
+  const { data: logs = [] } = useQuery({
     queryKey: ['sequence_logs', leadId],
     queryFn: async () => {
       if (!leadId) return [];
-      
-      const { data, error } = await supabase
-        .from('scheduled_quick_messages')
-        .select(`
-          id, status, scheduled_for, batch_id, folder_id, quick_message_id,
-          mensagens_rapidas (titulo, tipo)
-        `)
-        .eq('lead_id', leadId)
-        .not('batch_id', 'is', null) // Traz apenas as que fazem parte de um lote/sequência
-        .order('scheduled_for', { ascending: true });
-
+      const { data, error } = await supabase.from('scheduled_quick_messages').select(`id, status, scheduled_for, batch_id, folder_id, quick_message_id, mensagens_rapidas (titulo, tipo)`).eq('lead_id', leadId).not('batch_id', 'is', null).order('scheduled_for', { ascending: true });
       if (error) throw error;
       return data as SequenceLog[];
     },
@@ -470,34 +356,17 @@ export function useLeadSequenceLogs(leadId: string | undefined) {
 
   const cancelSequence = useMutation({
     mutationFn: async (batchId: string) => {
-      const { error } = await supabase
-        .from('scheduled_quick_messages')
-        .delete()
-        .eq('batch_id', batchId)
-        .eq('status', 'pending');
-      if (error) throw error;
+      await supabase.from('scheduled_quick_messages').delete().eq('batch_id', batchId).eq('status', 'pending');
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sequence_logs', leadId] });
-      toast.success('Envios pendentes cancelados.');
-    },
-    onError: (err: any) => toast.error(`Erro ao cancelar: ${err.message}`)
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sequence_logs', leadId] }); toast.success('Cancelado.'); }
   });
 
   const clearCompletedLogs = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from('scheduled_quick_messages')
-        .delete()
-        .eq('lead_id', leadId)
-        .not('batch_id', 'is', null)
-        .in('status', ['sent', 'error']);
-      if (error) throw error;
+      await supabase.from('scheduled_quick_messages').delete().eq('lead_id', leadId).not('batch_id', 'is', null).in('status', ['sent', 'error']);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sequence_logs', leadId] });
-    }
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['sequence_logs', leadId] }); }
   });
 
-  return { logs, isLoading, cancelSequence: cancelSequence.mutate, clearCompletedLogs: clearCompletedLogs.mutate };
+  return { logs, cancelSequence: cancelSequence.mutate, clearCompletedLogs: clearCompletedLogs.mutate };
 }
