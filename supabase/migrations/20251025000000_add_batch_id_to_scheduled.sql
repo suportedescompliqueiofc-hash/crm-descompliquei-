@@ -1,0 +1,2 @@
+ALTER TABLE public.scheduled_quick_messages ADD COLUMN IF NOT EXISTS batch_id UUID;
+ALTER TABLE public.scheduled_quick_messages ADD COLUMN IF NOT EXISTS folder_id UUID REFERENCES public.quick_message_folders(id);

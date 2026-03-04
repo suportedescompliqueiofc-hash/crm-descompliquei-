@@ -1,11 +1,11 @@
 "use client";
 
-import { useQuickMessages, QuickMessage } from "@/hooks/useQuickMessages";
+import { useQuickMessages, QuickMessage, useLeadSequenceLogs } from "@/hooks/useQuickMessages";
 import { useQuickMessageFolders, QuickMessageFolder } from "@/hooks/useQuickMessageFolders";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { Search, Zap, Mic, Image as ImageIcon, Video, FileText, MessageSquare, Send, Folder, GripVertical, Clock, Calendar as CalendarIcon } from "lucide-react";
+import { Search, Zap, Mic, Image as ImageIcon, Video, FileText, MessageSquare, Send, Folder, GripVertical, Clock, Calendar as CalendarIcon, Play, StopCircle, CheckCircle2, AlertCircle, Loader2, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Lead } from "@/hooks/useLeads";
@@ -54,6 +54,8 @@ import {
   useSortable
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { toast } from "sonner";
+import { Label } from "@/components/ui/label";
 
 interface QuickMessagesSidebarProps {
   lead: Lead | null;
@@ -141,15 +143,22 @@ function SortableMessageItem({
 }
 
 export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
-  const { quickMessages, sendQuickMessage, scheduleQuickMessage, isLoading: isLoadingMsgs, updateMessagesOrder } = useQuickMessages();
+  const { quickMessages, sendQuickMessage, scheduleQuickMessage, sendFolderSequence, isSendingSequence, isLoading: isLoadingMsgs, updateMessagesOrder } = useQuickMessages();
   const { folders, isLoading: isLoadingFolders } = useQuickMessageFolders();
+  const { logs, cancelSequence, clearCompletedLogs } = useLeadSequenceLogs(lead?.id);
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [messageToConfirm, setMessageToConfirm] = useState<QuickMessage | null>(null);
   const [messageToSchedule, setMessageToSchedule] = useState<QuickMessage | null>(null);
   
-  // Agendamento
+  // Agendamento Único
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedTime, setSelectedTime] = useState("09:00");
+
+  // Envio de Sequência de Pasta
+  const [sequenceFolder, setSequenceFolder] = useState<QuickMessageFolder | null>(null);
+  const [sequenceConfigOpen, setSequenceConfigOpen] = useState(false);
+  const [intervalSeconds, setIntervalSeconds] = useState(5);
 
   const [localMessages, setLocalMessages] = useState<QuickMessage[]>([]);
   const [localFolders, setLocalFolders] = useState<QuickMessageFolder[]>([]);
@@ -216,6 +225,34 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
     setMessageToSchedule(null);
   };
 
+  const handleOpenSequenceConfig = (folder: QuickMessageFolder) => {
+    setSequenceFolder(folder);
+    setIntervalSeconds(5);
+    setSequenceConfigOpen(true);
+  };
+
+  const handleStartSequence = async () => {
+    if (!lead || !sequenceFolder) return;
+    const messagesToSend = getMessagesByFolder(sequenceFolder.id);
+    if (messagesToSend.length === 0) {
+       toast.warning("A pasta está vazia.");
+       return;
+    }
+    
+    try {
+       await sendFolderSequence({
+          folderId: sequenceFolder.id,
+          leadId: lead.id,
+          messages: messagesToSend,
+          intervalSeconds
+       });
+       setSequenceConfigOpen(false);
+       setSequenceFolder(null);
+    } catch (error) {
+       console.error(error);
+    }
+  };
+
   const getIcon = (tipo: string) => {
     switch (tipo) {
       case 'audio': return <Mic className="h-3.5 w-3.5 text-blue-500" />;
@@ -261,6 +298,37 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
         </div>
       </div>
 
+      {logs && logs.length > 0 && (
+        <div className="p-3 bg-muted/20 border-b space-y-3 shrink-0 animate-in fade-in">
+           <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5">
+                 <Zap className="h-3 w-3" /> Sequência Ativa
+              </h4>
+              {logs.some(l => l.status === 'pending') ? (
+                 <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-destructive hover:bg-destructive/10" onClick={() => cancelSequence(logs[0].batch_id)}>
+                    <StopCircle className="h-3 w-3 mr-1" /> Parar
+                 </Button>
+              ) : (
+                 <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-muted-foreground hover:bg-muted" onClick={() => clearCompletedLogs()}>
+                    <X className="h-3 w-3 mr-1" /> Limpar
+                 </Button>
+              )}
+           </div>
+           <div className="space-y-1.5 max-h-[140px] overflow-y-auto scrollbar-thin pr-1">
+              {logs.map(log => (
+                 <div key={log.id} className="flex items-center justify-between text-xs bg-background p-2 rounded border shadow-sm">
+                    <span className="truncate max-w-[140px] font-medium text-foreground/80">{log.mensagens_rapidas?.titulo}</span>
+                    <div className="shrink-0 flex items-center">
+                       {log.status === 'pending' && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                       {log.status === 'sent' && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
+                       {log.status === 'error' && <AlertCircle className="h-3.5 w-3.5 text-destructive" />}
+                    </div>
+                 </div>
+              ))}
+           </div>
+        </div>
+      )}
+
       <ScrollArea className="flex-1">
         {isLoadingMsgs || isLoadingFolders ? (
           <div className="text-center py-8 text-xs text-muted-foreground">Carregando...</div>
@@ -272,13 +340,33 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
                   const msgs = getMessagesByFolder(folder.id);
                   if (msgs.length === 0) return null;
                   return (
-                    <AccordionItem key={folder.id} value={folder.id} className="border-b-0">
-                      <AccordionTrigger className="hover:no-underline py-1.5 px-2 rounded hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: folder.color }} />
-                          {folder.name}
+                    <AccordionItem key={folder.id} value={folder.id} className="border-b-0 relative">
+                      <div className="flex items-center group">
+                        <AccordionTrigger className="flex-1 hover:no-underline py-1.5 px-2 rounded hover:bg-muted/50 transition-colors [&>svg]:mr-1">
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground w-full">
+                            <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: folder.color }} />
+                            <span className="truncate text-left">{folder.name}</span>
+                          </div>
+                        </AccordionTrigger>
+                        
+                        {/* Play Button outside of AccordionTrigger HTML structure */}
+                        <div className="absolute right-8 top-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-primary hover:bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity bg-background/50 shadow-sm border border-primary/10"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleOpenSequenceConfig(folder);
+                            }}
+                            title="Enviar todas em sequência"
+                          >
+                            <Play className="h-3 w-3 fill-current" />
+                          </Button>
                         </div>
-                      </AccordionTrigger>
+                      </div>
+                      
                       <AccordionContent className="pt-1 pb-0 px-1">
                         <SortableContext items={msgs.map(m => m.id)} strategy={verticalListSortingStrategy}>
                           {msgs.map(msg => (
@@ -295,6 +383,7 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
                     </AccordionItem>
                   );
                 })}
+                
                 {getMessagesByFolder(null).length > 0 && (
                   <AccordionItem value="uncategorized" className="border-b-0">
                     <AccordionTrigger className="hover:no-underline py-1.5 px-2 rounded hover:bg-muted/50 transition-colors">
@@ -323,6 +412,49 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
           </div>
         )}
       </ScrollArea>
+
+      {/* Modal de Configuração de Envio em Sequência */}
+      <Dialog open={sequenceConfigOpen} onOpenChange={(open) => !open && setSequenceConfigOpen(false)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Play className="h-5 w-5 text-primary fill-current" />
+              Enviar Sequência
+            </DialogTitle>
+            <DialogDescription>
+              As mensagens da pasta <strong>{sequenceFolder?.name}</strong> serão enviadas em ordem para este cliente.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label>Intervalo entre os envios</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={intervalSeconds}
+                  onChange={(e) => setIntervalSeconds(parseInt(e.target.value) || 1)}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">Segundos</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground pt-1">
+                (Serão enviadas {sequenceFolder ? getMessagesByFolder(sequenceFolder.id).length : 0} mensagens)
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSequenceConfigOpen(false)}>Cancelar</Button>
+            <Button onClick={handleStartSequence} disabled={isSendingSequence} className="bg-primary hover:bg-primary/90">
+              {isSendingSequence ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2 fill-current" />}
+              Iniciar Envios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de Confirmação Envio Imediato */}
       <AlertDialog open={!!messageToConfirm} onOpenChange={(open) => !open && setMessageToConfirm(null)}>

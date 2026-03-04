@@ -42,6 +42,7 @@ export function useScheduledMessages() {
           mensagens_rapidas (titulo)
         `)
         .eq('organization_id', orgId)
+        .is('batch_id', null) // Esconde as mensagens das sequências rápidas
         .order('scheduled_for', { ascending: false });
 
       if (error) throw error;

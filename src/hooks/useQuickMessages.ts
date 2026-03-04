@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 import { Message } from './useConversations';
+import { useEffect } from 'react';
 
 export interface QuickMessage {
   id: string;
@@ -24,6 +25,19 @@ export interface ScheduledMessage {
   scheduled_for: string;
   status: 'pending' | 'sent' | 'error';
   created_at: string;
+}
+
+export interface SequenceLog {
+  id: string;
+  quick_message_id: string;
+  status: 'pending' | 'sent' | 'error';
+  scheduled_for: string;
+  batch_id: string;
+  folder_id: string;
+  mensagens_rapidas: {
+    titulo: string;
+    tipo: string;
+  } | null;
 }
 
 const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/botoes-crm-gleyce';
@@ -83,7 +97,6 @@ export function useQuickMessages() {
         arquivo_path = filePath;
       }
 
-      // Get max position in folder
       let query = supabase
         .from('mensagens_rapidas')
         .select('position')
@@ -313,10 +326,66 @@ export function useQuickMessages() {
     },
     onSuccess: () => {
       toast.success('Mensagem agendada com sucesso!');
-      queryClient.invalidateQueries({ queryKey: ['scheduled_messages', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['scheduled_messages_log', orgId] });
     },
     onError: (error: any) => {
       toast.error(`Erro ao agendar: ${error.message}`);
+    }
+  });
+
+  // ENVIO EM SEQUÊNCIA (PASTAS INTEIRAS)
+  const sendFolderSequence = useMutation({
+    mutationFn: async ({ 
+      folderId, 
+      leadId, 
+      messages, 
+      intervalSeconds 
+    }: { 
+      folderId: string; 
+      leadId: string; 
+      messages: QuickMessage[]; 
+      intervalSeconds: number 
+    }) => {
+      if (!user || !orgId) throw new Error("Usuário não autenticado");
+
+      const batchId = crypto.randomUUID();
+      let currentDelay = 0;
+
+      // Garante a ordem correta baseada no position
+      const sortedMessages = [...messages].sort((a, b) => a.position - b.position);
+
+      const inserts = sortedMessages.map(msg => {
+        // Incrementa o tempo em segundos
+        const scheduledFor = new Date(Date.now() + currentDelay * 1000).toISOString();
+        currentDelay += intervalSeconds;
+        
+        return {
+          organization_id: orgId,
+          lead_id: leadId,
+          quick_message_id: msg.id,
+          scheduled_for: scheduledFor,
+          user_id: user.id,
+          status: 'pending',
+          batch_id: batchId,
+          folder_id: folderId
+        };
+      });
+
+      const { error } = await supabase.from('scheduled_quick_messages').insert(inserts);
+      if (error) throw error;
+
+      // Dispara a Edge Function imediatamente para lidar com os segundos precisos em plano de fundo
+      await supabase.functions.invoke('process-folder-sequence', {
+        body: { batchId }
+      });
+
+      return true;
+    },
+    onSuccess: () => {
+      toast.success('Envio em sequência iniciado!');
+    },
+    onError: (err: any) => {
+      toast.error(`Erro ao iniciar sequência: ${err.message}`);
     }
   });
 
@@ -347,8 +416,88 @@ export function useQuickMessages() {
     deleteQuickMessage: deleteQuickMessage.mutate,
     sendQuickMessage: sendQuickMessage.mutate,
     scheduleQuickMessage: scheduleQuickMessage.mutate,
+    sendFolderSequence: sendFolderSequence.mutate,
     isScheduling: scheduleQuickMessage.isPending,
     isSending: sendQuickMessage.isPending,
+    isSendingSequence: sendFolderSequence.isPending,
     updateMessagesOrder
   };
+}
+
+export function useLeadSequenceLogs(leadId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  // Ouve atualizações em tempo real dos envios da sequência para o lead atual
+  useEffect(() => {
+    if (!leadId) return;
+
+    const channel = supabase
+      .channel(`seq_logs_${leadId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'scheduled_quick_messages', filter: `lead_id=eq.${leadId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['sequence_logs', leadId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [leadId, queryClient]);
+
+  const { data: logs = [], isLoading } = useQuery({
+    queryKey: ['sequence_logs', leadId],
+    queryFn: async () => {
+      if (!leadId) return [];
+      
+      const { data, error } = await supabase
+        .from('scheduled_quick_messages')
+        .select(`
+          id, status, scheduled_for, batch_id, folder_id, quick_message_id,
+          mensagens_rapidas (titulo, tipo)
+        `)
+        .eq('lead_id', leadId)
+        .not('batch_id', 'is', null) // Traz apenas as que fazem parte de um lote/sequência
+        .order('scheduled_for', { ascending: true });
+
+      if (error) throw error;
+      return data as SequenceLog[];
+    },
+    enabled: !!leadId,
+  });
+
+  const cancelSequence = useMutation({
+    mutationFn: async (batchId: string) => {
+      const { error } = await supabase
+        .from('scheduled_quick_messages')
+        .delete()
+        .eq('batch_id', batchId)
+        .eq('status', 'pending');
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sequence_logs', leadId] });
+      toast.success('Envios pendentes cancelados.');
+    },
+    onError: (err: any) => toast.error(`Erro ao cancelar: ${err.message}`)
+  });
+
+  const clearCompletedLogs = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('scheduled_quick_messages')
+        .delete()
+        .eq('lead_id', leadId)
+        .not('batch_id', 'is', null)
+        .in('status', ['sent', 'error']);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sequence_logs', leadId] });
+    }
+  });
+
+  return { logs, isLoading, cancelSequence: cancelSequence.mutate, clearCompletedLogs: clearCompletedLogs.mutate };
 }
