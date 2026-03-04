@@ -46,6 +46,13 @@ export default function QuickMessagesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [folderFormData, setFolderFormData] = useState({ name: "", color: "#3b82f6" });
 
+  const handleOpenCreateMsg = () => {
+    setEditingMessage(null);
+    setMsgFormData({ titulo: "", conteudo: "", tipo: "texto", folder_id: "none", delay_seconds: 5 });
+    setFile(null);
+    setIsMsgModalOpen(true);
+  };
+
   const handleEditMessage = (message: QuickMessage) => {
     setEditingMessage(message);
     setMsgFormData({ titulo: message.titulo, conteudo: message.conteudo || "", tipo: message.tipo, folder_id: message.folder_id || "none", delay_seconds: message.delay_seconds || 5 });
@@ -68,7 +75,6 @@ export default function QuickMessagesPage() {
     createFolder.mutate(folderFormData, { onSuccess: () => setIsFolderModalOpen(false) });
   };
 
-  // DnD Handlers simplificados para manter a performance
   const handleDragStart = (e: DragStartEvent) => {
     setActiveId(e.active.id as string);
     setActiveItem(e.active.data.current?.type === "Folder" ? e.active.data.current.folder : e.active.data.current?.message);
@@ -143,7 +149,7 @@ export default function QuickMessagesPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setIsFolderModalOpen(true)} className="gap-2"><FolderPlus className="h-4 w-4" /> Nova Pasta</Button>
-          <Button onClick={() => setIsMsgModalOpen(true)} className="gap-2"><Plus className="h-4 w-4" /> Nova Mensagem</Button>
+          <Button onClick={handleOpenCreateMsg} className="gap-2"><Plus className="h-4 w-4" /> Nova Mensagem</Button>
         </div>
       </div>
 
@@ -154,20 +160,20 @@ export default function QuickMessagesPage() {
             <DialogDescription>Ajuste o título, conteúdo e o tempo de espera na sequência.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleMsgSubmit} className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label>Título do Botão</Label>
-                    <Input value={msgFormData.titulo} onChange={e => setMsgFormData({...msgFormData, titulo: e.target.value})} required />
+                    <Input value={msgFormData.titulo} onChange={e => setMsgFormData({...msgFormData, titulo: e.target.value})} required placeholder="Ex: Boas-vindas" />
                 </div>
                 <div className="space-y-2">
                     <Label className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-primary" /> Intervalo (segundos)</Label>
-                    <Input type="number" min="1" value={msgFormData.delay_seconds} onChange={e => setMsgFormData({...msgFormData, delay_seconds: parseInt(e.target.value) || 1})} />
+                    <Input type="number" min="1" max="600" value={msgFormData.delay_seconds} onChange={e => setMsgFormData({...msgFormData, delay_seconds: parseInt(e.target.value) || 1})} />
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label>Tipo</Label>
+                    <Label>Tipo de Conteúdo</Label>
                     <Select value={msgFormData.tipo} onValueChange={v => setMsgFormData({...msgFormData, tipo: v as any})}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent><SelectItem value="texto">Texto</SelectItem><SelectItem value="imagem">Imagem</SelectItem><SelectItem value="audio">Áudio</SelectItem><SelectItem value="video">Vídeo</SelectItem><SelectItem value="pdf">PDF</SelectItem></SelectContent>
@@ -183,17 +189,17 @@ export default function QuickMessagesPage() {
             </div>
 
             {msgFormData.tipo === 'texto' ? (
-                <div className="space-y-2"><Label>Conteúdo</Label><Textarea value={msgFormData.conteudo} onChange={e => setMsgFormData({...msgFormData, conteudo: e.target.value})} className="h-28" required /></div>
+                <div className="space-y-2"><Label>Mensagem</Label><Textarea value={msgFormData.conteudo} onChange={e => setMsgFormData({...msgFormData, conteudo: e.target.value})} className="h-32" required placeholder="Digite o conteúdo da mensagem..." /></div>
             ) : (
                 <div className="space-y-4">
-                    <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50" onClick={() => fileInputRef.current?.click()}>
-                        <Upload className="h-8 w-8 text-muted-foreground mb-2" /><span className="text-sm">{file ? file.name : "Clique para anexar arquivo"}</span>
+                    <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => fileInputRef.current?.click()}>
+                        <Upload className="h-8 w-8 text-muted-foreground mb-2" /><span className="text-sm font-medium">{file ? file.name : "Clique para anexar arquivo"}</span>
                     </div>
                     <input type="file" ref={fileInputRef} className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
-                    <div className="space-y-2"><Label>Legenda (Opcional)</Label><Input value={msgFormData.conteudo} onChange={e => setMsgFormData({...msgFormData, conteudo: e.target.value})} /></div>
+                    <div className="space-y-2"><Label>Legenda (Opcional)</Label><Input value={msgFormData.conteudo} onChange={e => setMsgFormData({...msgFormData, conteudo: e.target.value})} placeholder="Legenda da mídia..." /></div>
                 </div>
             )}
-            <DialogFooter><Button type="submit" disabled={isCreatingMsg}>{isCreatingMsg ? 'Salvando...' : 'Salvar Mensagem'}</Button></DialogFooter>
+            <DialogFooter><Button type="submit" disabled={isCreatingMsg} className="w-full sm:w-auto">{isCreatingMsg ? 'Salvando...' : 'Salvar Alterações'}</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
@@ -206,7 +212,7 @@ export default function QuickMessagesPage() {
               {localFolders.map(f => (<SortableFolder key={f.id} folder={f} messages={getMessagesByFolder(f.id)} onDeleteFolder={setFolderToDelete} onEditMessage={handleEditMessage} onDeleteMessage={setMsgToDelete} />))}
             </SortableContext>
             {getMessagesByFolder(null).length > 0 && (
-                <div className="mt-8"><div className="flex items-center gap-2 mb-3"><Folder className="h-5 w-5" /><h3 className="text-lg font-semibold">Sem Pasta</h3></div>
+                <div className="mt-8"><div className="flex items-center gap-2 mb-3"><Folder className="h-5 w-5 text-muted-foreground" /><h3 className="text-lg font-semibold">Sem Pasta</h3></div>
                 <SortableContext id="uncategorized" items={getMessagesByFolder(null).map(m => m.id)} strategy={verticalListSortingStrategy}><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 border border-dashed rounded-xl bg-muted/5">{getMessagesByFolder(null).map(m => (<SortableMessageCard key={m.id} message={m} onEdit={handleEditMessage} onDelete={setMsgToDelete} />))}</div></SortableContext></div>
             )}
             {createPortal(<DragOverlay dropAnimation={defaultDropAnimationSideEffects as any}>{activeId && activeItem ? (activeItem.name ? <div className="bg-background border p-4 rounded shadow-xl"><h3>{activeItem.name}</h3></div> : <div className="w-[280px]"><SortableMessageCard message={activeItem} onEdit={() => {}} onDelete={() => {}} /></div>) : null}</DragOverlay>, document.body)}
@@ -215,7 +221,7 @@ export default function QuickMessagesPage() {
         <TabsContent value="scheduled" className="mt-6"><ScheduledMessagesList /></TabsContent>
       </Tabs>
       
-      <AlertDialog open={!!msgToDelete} onOpenChange={() => setMsgToDelete(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Excluir?</AlertDialogTitle><AlertDialogDescription>A mensagem será removida permanentemente.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => { if (msgToDelete) { deleteQuickMessage(msgToDelete); setMsgToDelete(null); } }} className="bg-destructive">Excluir</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <AlertDialog open={!!msgToDelete} onOpenChange={() => setMsgToDelete(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Excluir mensagem?</AlertDialogTitle><AlertDialogDescription>A mensagem será removida permanentemente da sua biblioteca.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => { if (msgToDelete) { deleteQuickMessage(msgToDelete); setMsgToDelete(null); } }} className="bg-destructive">Excluir</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>
   );
 }
