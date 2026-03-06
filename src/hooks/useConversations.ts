@@ -44,7 +44,7 @@ export function useConversationsList() {
   useEffect(() => {
     if (!orgId) return;
     
-    // Otimização Extrema: Injeta a nova mensagem diretamente no cache da lista em vez de forçar um refetch pesado
+    // Otimização Extrema: Injeta a nova mensagem diretamente no cache da lista
     const channel = supabase.channel('conversations-list-sync')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens' }, (payload) => {
         const newMessage = payload.new as Message;
@@ -75,35 +75,54 @@ export function useConversationsList() {
     queryKey: ['conversations', orgId],
     queryFn: async () => {
       if (!orgId) return [];
+      
+      // OTIMIZAÇÃO MASSA: Busca os leads e a última mensagem de cada um numa tacada só
       const { data: leads, error: leadsError } = await supabase
         .from('leads')
-        .select(`*, leads_tags(tags(*))`)
-        .eq('organization_id', orgId);
-      if (leadsError) throw leadsError;
+        .select(`
+          *,
+          leads_tags (
+            tags (*)
+          ),
+          mensagens (
+            conteudo,
+            criado_em,
+            tipo_conteudo,
+            remetente
+          )
+        `)
+        .eq('organization_id', orgId)
+        .order('criado_em', { foreignTable: 'mensagens', ascending: false })
+        .limit(1, { foreignTable: 'mensagens' });
 
-      const conversations = await Promise.all(
-        leads.map(async (lead: any) => {
-          const { data: lastMessage } = await supabase
-            .from('mensagens')
-            .select('conteudo, criado_em, tipo_conteudo, remetente')
-            .eq('lead_id', lead.id)
-            .order('criado_em', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          const tags = lead.leads_tags?.map((lt: any) => lt.tags).filter(Boolean) || [];
-          return {
-            ...lead,
-            last_message_content: lastMessage?.conteudo || 'Nenhuma mensagem ainda',
-            last_message_timestamp: lastMessage?.criado_em || lead.criado_em,
-            last_message_type: lastMessage?.tipo_conteudo || 'texto',
-            last_message_sender: lastMessage?.remetente,
-            tags: tags,
-          };
-        })
-      );
+      if (leadsError) {
+        console.error("Erro ao buscar conversas:", leadsError);
+        throw leadsError;
+      }
+
+      // Mapeia os dados recebidos para o formato que a interface precisa de forma instantânea
+      const conversations = leads.map((lead: any) => {
+        const lastMessage = lead.mensagens && lead.mensagens.length > 0 ? lead.mensagens[0] : null;
+        const tags = lead.leads_tags?.map((lt: any) => lt.tags).filter(Boolean) || [];
+        
+        // Remove os nós aninhados originais para manter a memória limpa
+        delete lead.mensagens;
+        delete lead.leads_tags;
+        
+        return {
+          ...lead,
+          last_message_content: lastMessage?.conteudo || 'Nenhuma mensagem ainda',
+          last_message_timestamp: lastMessage?.criado_em || lead.criado_em,
+          last_message_type: lastMessage?.tipo_conteudo || 'texto',
+          last_message_sender: lastMessage?.remetente,
+          tags: tags,
+        };
+      });
+
       return conversations.sort((a, b) => new Date(b.last_message_timestamp!).getTime() - new Date(a.last_message_timestamp!).getTime());
     },
     enabled: !!orgId,
+    staleTime: 1000 * 60 * 5, // 5 minutos de cache - mudanças são inseridas em tempo real pelo WebSocket
   });
 }
 
@@ -161,7 +180,6 @@ export function useMessages(leadId: string | null) {
           );
         }
       )
-      // Adicionado listener para anexos chegarem em tempo real também
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'message_attachments' },
@@ -171,7 +189,6 @@ export function useMessages(leadId: string | null) {
             if (!old) return old;
             return old.map(m => {
               if (m.id === newAttachment.message_id) {
-                // Evita duplicação caso já exista
                 const exists = (m.message_attachments || []).some(a => a.id === newAttachment.id);
                 if (exists) return m;
                 return { ...m, message_attachments: [...(m.message_attachments || []), newAttachment] };
