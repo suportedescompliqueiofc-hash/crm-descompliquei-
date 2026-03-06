@@ -29,7 +29,7 @@ export function useFunnelMetrics(dateRange: DateRange | undefined, origin: 'mark
       const startDate = startOfDay(dateRange.from).toISOString();
       const endDate = dateRange.to ? endOfDay(dateRange.to).toISOString() : endOfDay(dateRange.from).toISOString();
 
-      // 1. Buscar etapas marcadas para o Funil
+      // 1. Buscar todas as etapas para referência de ordenação e flags
       const { data: allStages, error: stagesError } = await supabase
         .from('etapas')
         .select('*')
@@ -37,11 +37,12 @@ export function useFunnelMetrics(dateRange: DateRange | undefined, origin: 'mark
 
       if (stagesError) throw stagesError;
 
+      // Filtra apenas as etapas que DEVEM compor o funil
       const funnelStages = allStages.filter(s => s.incluir_no_funil === true);
       const lostStage = allStages.find(s => s.nome.toLowerCase() === 'perdido');
       const lostPosition = lostStage?.posicao_ordem || 999;
 
-      // 2. Buscar leads ativos no período (criados ou atualizados)
+      // 2. Buscar leads ativos no período
       const { data: leads, error: leadsError } = await supabase
         .from('leads')
         .select('posicao_pipeline, atualizado_em, criado_em')
@@ -51,12 +52,19 @@ export function useFunnelMetrics(dateRange: DateRange | undefined, origin: 'mark
 
       if (leadsError) throw leadsError;
 
-      // 3. Construir o Funil
+      // 3. Construir o Funil com lógica restritiva
       const funnelData: FunnelStep[] = funnelStages.map((stage) => {
-        const count = (leads || []).filter(l => 
-          l.posicao_pipeline >= stage.posicao_ordem && 
-          l.posicao_pipeline < lostPosition
-        ).length;
+        // MUDANÇA: Um lead só conta para esta etapa se:
+        // 1. Sua etapa ATUAL também for uma etapa marcada como "incluir_no_funil"
+        // 2. Sua posição de ordem for igual ou superior à etapa atual do loop
+        const count = (leads || []).filter(l => {
+          const leadStage = allStages.find(s => s.posicao_ordem === l.posicao_pipeline);
+          
+          // Se o lead está em uma etapa que NÃO é de funil, ele não conta para nada aqui
+          if (!leadStage?.incluir_no_funil) return false;
+
+          return l.posicao_pipeline >= stage.posicao_ordem && l.posicao_pipeline < lostPosition;
+        }).length;
 
         return {
           stageId: stage.id,

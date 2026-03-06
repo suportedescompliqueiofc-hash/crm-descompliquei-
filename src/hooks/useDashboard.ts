@@ -43,32 +43,36 @@ export function useDashboard(dateRange: DateRange | undefined) {
           supabase.from('criativos').select('platform_metrics').eq('organization_id', orgId)
         ]);
 
-        if (leadsRes.error?.status === 401) throw new Error("Sessão expirada. Por favor, recarregue a página.");
+        if (leadsRes.error?.status === 401) throw new Error("Sessão expirada.");
 
         const leads = leadsRes.data || [];
-        const stages = stagesRes.data || [];
+        const allStages = stagesRes.data || [];
         const vendas = vendasRes.data || [];
         const expenses = expensesRes.data || [];
         const criativos = criativosRes.data || [];
 
-        const funnelStages = stages.filter(s => s.incluir_no_funil);
+        const funnelStages = allStages.filter(s => s.incluir_no_funil);
+        const lostPos = allStages.find(s => s.nome.toLowerCase() === 'perdido')?.posicao_ordem || 999;
         const convertedStage = funnelStages[funnelStages.length - 1];
         const convertedPos = convertedStage?.posicao_ordem || 6;
-        const lostPos = stages.find(s => s.nome.toLowerCase() === 'perdido')?.posicao_ordem || 999;
+
+        const isLeadInFunnel = (lead: any) => {
+            const leadStage = allStages.find(s => s.posicao_ordem === lead.posicao_pipeline);
+            return !!leadStage?.incluir_no_funil;
+        };
 
         const isLeadConvertedInPeriod = (lead: any) => 
+          isLeadInFunnel(lead) &&
           lead.posicao_pipeline >= convertedPos && 
           lead.posicao_pipeline < lostPos &&
           lead.atualizado_em >= startDate && 
           lead.atualizado_em <= endDate;
 
-        // Variável corrigida para evitar o ReferenceError
         const faturamentoTotal = vendas.reduce((sum, v) => sum + Number(v.valor_fechado || 0), 0);
         
         const totalInvestment = expenses.reduce((a, c) => a + Number(c.amount || 0), 0) + criativos.reduce((a, c) => {
           const m = c.platform_metrics as any;
-          const spend = Number(m?.spend || 0);
-          return (m?.included_in_dashboard) ? a + spend : a;
+          return (m?.included_in_dashboard) ? a + Number(m.spend || 0) : a;
         }, 0);
 
         const conversionCount = leads.filter(isLeadConvertedInPeriod).length;
@@ -78,7 +82,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
           marketingLeads: leads.filter(l => l.origem === 'marketing' && l.criado_em >= startDate && l.criado_em <= endDate).length,
           organicLeads: leads.filter(l => l.origem === 'organico' && l.criado_em >= startDate && l.criado_em <= endDate).length,
           conversionRate: leads.length > 0 ? ((conversionCount / leads.length) * 100).toFixed(1) : "0",
-          faturamentoTotal, // Propriedade agora corretamente definida
+          faturamentoTotal,
           cac: vendas.length > 0 ? totalInvestment / vendas.length : 0,
           leadsByStage: leads.map(l => ({ etapa_id: l.posicao_pipeline })),
           leadsOverTime: eachDayOfInterval({ start: dateRange.from, end: dateRange.to }).map(d => {
@@ -87,6 +91,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
               day: format(d, 'dd/MM'),
               captados: leads.filter(l => l.criado_em.startsWith(dayStr)).length,
               convertidos: leads.filter(l => 
+                isLeadInFunnel(l) &&
                 l.posicao_pipeline >= convertedPos && 
                 l.posicao_pipeline < lostPos && 
                 l.atualizado_em?.startsWith(dayStr)
@@ -95,7 +100,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
           })
         };
       } catch (err: any) {
-        console.error("Erro crítico no processamento do painel:", err);
+        console.error("Erro no painel:", err);
         throw err;
       }
     },
