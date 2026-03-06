@@ -53,11 +53,11 @@ export function useLeads(dateRange?: DateRange) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads', filter: `organization_id=eq.${orgId}` },
         (payload) => {
-          const queryKey = ['leads', orgId, dateRange];
+          const listQueryKey = ['leads', orgId, dateRange];
           
           if (payload.eventType === 'INSERT') {
             const newLead = payload.new as Lead;
-            queryClient.setQueryData<Lead[]>(queryKey, (old) => {
+            queryClient.setQueryData<Lead[]>(listQueryKey, (old) => {
               const current = old || [];
               if (current.find(l => l.id === newLead.id)) return current;
               return [newLead, ...current];
@@ -65,13 +65,15 @@ export function useLeads(dateRange?: DateRange) {
           } 
           else if (payload.eventType === 'UPDATE') {
             const updatedLead = payload.new as Lead;
-            queryClient.setQueryData<Lead[]>(queryKey, (old) => {
+            // Atualiza na lista
+            queryClient.setQueryData<Lead[]>(listQueryKey, (old) => {
               return (old || []).map(lead => lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead);
             });
+            // Atualiza o cache do lead individual (singular)
             queryClient.setQueryData(['lead', updatedLead.id, orgId], updatedLead);
           }
           else if (payload.eventType === 'DELETE') {
-            queryClient.setQueryData<Lead[]>(queryKey, (old) => {
+            queryClient.setQueryData<Lead[]>(listQueryKey, (old) => {
               return (old || []).filter(lead => lead.id !== payload.old.id);
             });
           }
@@ -148,37 +150,54 @@ export function useLeads(dateRange?: DateRange) {
       return data;
     },
     onMutate: async (variables) => {
-      const queryKey = ['leads', orgId, dateRange];
-      await queryClient.cancelQueries({ queryKey });
-      const previousLeads = queryClient.getQueryData<Lead[]>(queryKey);
+      const listQueryKey = ['leads', orgId, dateRange];
+      const singleQueryKey = ['lead', variables.id, orgId];
+
+      // Cancela queries em andamento para não sobrescrever o estado otimista
+      await queryClient.cancelQueries({ queryKey: listQueryKey });
+      await queryClient.cancelQueries({ queryKey: singleQueryKey });
+
+      const previousLeads = queryClient.getQueryData<Lead[]>(listQueryKey);
+      const previousLead = queryClient.getQueryData<Lead>(singleQueryKey);
       
-      queryClient.setQueryData<Lead[]>(queryKey, (old) => {
+      // Atualização otimista na LISTA
+      queryClient.setQueryData<Lead[]>(listQueryKey, (old) => {
         return (old || []).map(lead => lead.id === variables.id ? { ...lead, ...variables } : lead);
       });
+
+      // Atualização otimista no LEAD INDIVIDUAL (Usado no Chat)
+      if (previousLead) {
+        queryClient.setQueryData<Lead>(singleQueryKey, { ...previousLead, ...variables });
+      }
       
-      return { previousLeads };
+      return { previousLeads, previousLead };
     },
     onError: (err, variables, context) => {
+      // Reverte o estado em caso de erro
       if (context?.previousLeads) {
         queryClient.setQueryData(['leads', orgId, dateRange], context.previousLeads);
       }
+      if (context?.previousLead) {
+        queryClient.setQueryData(['lead', variables.id, orgId], context.previousLead);
+      }
       toast.error('Erro ao atualizar lead.');
     },
+    onSettled: (data, error, variables) => {
+        // Invalida para garantir sincronia final com o banco
+        queryClient.invalidateQueries({ queryKey: ['leads', orgId] });
+        queryClient.invalidateQueries({ queryKey: ['lead', variables.id, orgId] });
+    }
   });
 
   const deleteLead = useMutation({
     mutationFn: async (id: string) => {
-      // 1. Identificar as mensagens para limpar os anexos primeiro
       const { data: msgs } = await supabase.from('mensagens').select('id').eq('lead_id', id);
       const msgIds = msgs?.map(m => m.id) || [];
 
       if (msgIds.length > 0) {
-        // Limpa anexos de mensagens
         await supabase.from('message_attachments').delete().in('message_id', msgIds);
       }
 
-      // 2. Limpar todas as tabelas dependentes (que causam o erro 409)
-      // Executamos em paralelo para performance, mas antes da exclusão do Lead
       await Promise.all([
         supabase.from('mensagens').delete().eq('lead_id', id),
         supabase.from('leads_tags').delete().eq('lead_id', id),
@@ -191,7 +210,6 @@ export function useLeads(dateRange?: DateRange) {
         supabase.from('cadencia_logs').delete().eq('lead_id', id),
       ]);
 
-      // 3. Agora que o caminho está limpo, excluímos o Lead
       const { error } = await supabase.from('leads').delete().eq('id', id);
       if (error) throw error;
       
@@ -218,7 +236,7 @@ export function useLeads(dateRange?: DateRange) {
     isLoading,
     createLead: createLead.mutate,
     updateLead: updateLead.mutate,
-    deleteLead: deleteLead.mutateAsync, // Alterado para mutateAsync para suportar await em ações em massa
+    deleteLead: deleteLead.mutateAsync,
   };
 }
 
