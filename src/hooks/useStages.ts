@@ -8,7 +8,7 @@ export interface Stage {
   cor: string;
   posicao_ordem: number;
   criado_em: string;
-  incluir_no_funil?: boolean; // Nova propriedade
+  incluir_no_funil?: boolean;
 }
 
 export function useStages() {
@@ -28,6 +28,7 @@ export function useStages() {
       return data as Stage[];
     },
     enabled: !!user,
+    staleTime: Infinity, // OTIMIZAÇÃO: Etapas não expiram sozinhas
   });
 
   return {

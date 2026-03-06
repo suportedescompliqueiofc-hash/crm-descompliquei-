@@ -25,9 +25,7 @@ export const TAG_COLORS = [
   { name: 'pink', label: 'Rosa', bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-200', selector: 'bg-pink-500', hex: '#ec4899' },
 ];
 
-// Helper para gerar estilos baseados no valor da cor (preset ou hex)
 export function getTagColorStyles(colorValue: string) {
-  // Verifica se é um preset
   const preset = TAG_COLORS.find(c => c.name === colorValue);
   if (preset) {
     return {
@@ -36,19 +34,17 @@ export function getTagColorStyles(colorValue: string) {
     };
   }
 
-  // Verifica se é um HEX válido
   if (colorValue && (colorValue.startsWith('#') || colorValue.startsWith('rgb'))) {
     return {
       className: "border",
       style: {
-        backgroundColor: `${colorValue}20`, // 12% de opacidade no fundo
+        backgroundColor: `${colorValue}20`,
         color: colorValue,
-        borderColor: `${colorValue}40`, // 25% de opacidade na borda
+        borderColor: `${colorValue}40`,
       } as React.CSSProperties
     };
   }
 
-  // Fallback padrão (Slate)
   const defaultPreset = TAG_COLORS[0];
   return {
     className: cn(defaultPreset.bg, defaultPreset.text, defaultPreset.border, "border"),
@@ -93,7 +89,8 @@ export function useTags() {
       if (error) throw error;
       return data as Tag[];
     },
-    enabled: !!orgId
+    enabled: !!orgId,
+    staleTime: Infinity, // OTIMIZAÇÃO
   });
 
   const createTag = useMutation({
@@ -211,26 +208,15 @@ export function useLeadTags(leadId: string | undefined) {
     mutationFn: async (tagId: string) => {
       if (!leadId) throw new Error("Lead não definido");
       
-      // 1. Vincula a etiqueta no banco de dados
       const { error } = await supabase
         .from('leads_tags')
         .insert({ lead_id: leadId, tag_id: tagId });
       
       if (error) throw error;
 
-      // 2. Dispara o Webhook com dados do Lead e da Tag
       try {
-        const { data: leadData } = await supabase
-          .from('leads')
-          .select('telefone')
-          .eq('id', leadId)
-          .single();
-
-        const { data: tagData } = await supabase
-          .from('tags')
-          .select('label_lid')
-          .eq('id', tagId)
-          .single();
+        const { data: leadData } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
+        const { data: tagData } = await supabase.from('tags').select('label_lid').eq('id', tagId).single();
 
         if (leadData?.telefone && tagData?.label_lid) {
           await fetch('https://webhook.orbevision.shop/webhook/adiciona-etiqueta-gleyce', {
@@ -243,34 +229,23 @@ export function useLeadTags(leadId: string | undefined) {
           });
         }
       } catch (err) {
-        console.error("Falha silenciosa ao enviar webhook de etiqueta:", err);
+        console.error("Falha ao enviar webhook de etiqueta:", err);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lead_tags', leadId] });
     },
-    onError: (err: any) => toast.error("Erro ao adicionar etiqueta.")
+    onError: () => toast.error("Erro ao adicionar etiqueta.")
   });
 
   const removeTagFromLead = useMutation({
     mutationFn: async (tagId: string) => {
       if (!leadId) throw new Error("Lead não definido");
       
-      // 1. Busca dados ANTES de remover
       try {
-        const { data: leadData } = await supabase
-          .from('leads')
-          .select('telefone')
-          .eq('id', leadId)
-          .single();
+        const { data: leadData } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
+        const { data: tagData } = await supabase.from('tags').select('label_lid').eq('id', tagId).single();
 
-        const { data: tagData } = await supabase
-          .from('tags')
-          .select('label_lid')
-          .eq('id', tagId)
-          .single();
-
-        // 2. Remove do banco de dados
         const { error } = await supabase
           .from('leads_tags')
           .delete()
@@ -279,7 +254,6 @@ export function useLeadTags(leadId: string | undefined) {
         
         if (error) throw error;
 
-        // 3. Dispara o Webhook de retirada
         if (leadData?.telefone && tagData?.label_lid) {
           await fetch('https://webhook.orbevision.shop/webhook/retira-etiqueta-gleyce', {
             method: 'POST',
@@ -290,22 +264,15 @@ export function useLeadTags(leadId: string | undefined) {
             })
           });
         }
-      } catch (err) {
-        console.error("Erro na operação de remoção ou webhook:", err);
-        // Se for erro de banco, relança para o onError tratar
-        if ((err as any).code) throw err;
+      } catch (err: any) {
+        if (err.code) throw err;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lead_tags', leadId] });
     },
-    onError: (err: any) => toast.error("Erro ao remover etiqueta.")
+    onError: () => toast.error("Erro ao remover etiqueta.")
   });
 
-  return {
-    leadTags,
-    isLoading,
-    addTagToLead,
-    removeTagFromLead
-  };
+  return { leadTags, isLoading, addTagToLead, removeTagFromLead };
 }

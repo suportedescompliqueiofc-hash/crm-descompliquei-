@@ -28,7 +28,16 @@ import { SidebarContent } from "@/components/layout/SidebarContent";
 import { useLocalStorage } from "./hooks/use-local-storage";
 import { cn } from "./lib/utils";
 
-const queryClient = new QueryClient();
+// OTIMIZAÇÃO: Cache global de 5 minutos e desativação de recarregamento em background
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutos de cache em memória
+      refetchOnWindowFocus: false, // Previne lentidão ao alternar abas do navegador
+      retry: 1, // Limita tentativas falhas para não travar a UI
+    },
+  },
+});
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

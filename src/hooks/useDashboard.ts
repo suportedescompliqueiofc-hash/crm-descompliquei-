@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { DateRange } from 'react-day-picker';
-import { format, startOfDay, eachDayOfInterval, parseISO, endOfDay } from 'date-fns';
+import { format, startOfDay, eachDayOfInterval, endOfDay } from 'date-fns';
 import { useEffect } from 'react';
 
 export function useDashboard(dateRange: DateRange | undefined) {
@@ -105,7 +105,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
       }
     },
     enabled: !!user && !!orgId && !!dateRange?.from,
-    staleTime: 1000 * 30,
+    staleTime: 1000 * 60 * 5, // OTIMIZAÇÃO: 5 Minutos de cache, o realtime lida com as mudanças
     retry: 1,
   });
 
