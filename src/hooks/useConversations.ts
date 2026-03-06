@@ -44,9 +44,27 @@ export function useConversationsList() {
   useEffect(() => {
     if (!orgId) return;
     
+    // Otimização Extrema: Injeta a nova mensagem diretamente no cache da lista em vez de forçar um refetch pesado
     const channel = supabase.channel('conversations-list-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['conversations', orgId] });
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens' }, (payload) => {
+        const newMessage = payload.new as Message;
+        
+        queryClient.setQueryData<Conversation[]>(['conversations', orgId], (old) => {
+          if (!old) return old;
+          
+          return old.map(conv => {
+            if (conv.id === newMessage.lead_id) {
+              return {
+                ...conv,
+                last_message_content: newMessage.conteudo || 'Mídia recebida',
+                last_message_timestamp: newMessage.criado_em,
+                last_message_type: newMessage.tipo_conteudo,
+                last_message_sender: newMessage.remetente,
+              };
+            }
+            return conv;
+          }).sort((a, b) => new Date(b.last_message_timestamp!).getTime() - new Date(a.last_message_timestamp!).getTime());
+        });
       })
       .subscribe();
 
@@ -143,6 +161,26 @@ export function useMessages(leadId: string | null) {
           );
         }
       )
+      // Adicionado listener para anexos chegarem em tempo real também
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'message_attachments' },
+        (payload) => {
+          const newAttachment = payload.new as Attachment;
+          queryClient.setQueryData<Message[]>(['messages', leadId], (old) => {
+            if (!old) return old;
+            return old.map(m => {
+              if (m.id === newAttachment.message_id) {
+                // Evita duplicação caso já exista
+                const exists = (m.message_attachments || []).some(a => a.id === newAttachment.id);
+                if (exists) return m;
+                return { ...m, message_attachments: [...(m.message_attachments || []), newAttachment] };
+              }
+              return m;
+            });
+          });
+        }
+      )
       .subscribe();
 
     return () => {
@@ -162,7 +200,12 @@ export function useMessages(leadId: string | null) {
       if (error) throw error;
       
       const messageIds = rawMessages.map(m => m.id);
-      const { data: attachments } = await supabase.from('message_attachments').select('*').in('message_id', messageIds);
+      
+      let attachments: any[] = [];
+      if (messageIds.length > 0) {
+        const { data } = await supabase.from('message_attachments').select('*').in('message_id', messageIds);
+        attachments = data || [];
+      }
       
       return rawMessages.map(msg => ({
         ...msg,
