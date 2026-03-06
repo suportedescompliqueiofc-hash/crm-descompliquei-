@@ -10,7 +10,7 @@ export function useReports(dateRange: DateRange | undefined, filters: any) {
   const { profile } = useProfile();
   const orgId = profile?.organization_id;
 
-  return useQuery({
+  const { data, isLoading, isPending, error } = useQuery({
     queryKey: ['reports', orgId, dateRange, filters],
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from) return null;
@@ -100,4 +100,11 @@ export function useReports(dateRange: DateRange | undefined, filters: any) {
     },
     enabled: !!orgId && !!dateRange?.from,
   });
+
+  // Mapeia corretamente as variáveis de retorno e garante que isLoading considere o estado isPending do React Query v5
+  return { 
+    reports: data, 
+    isLoading: isLoading || isPending, 
+    error 
+  };
 }

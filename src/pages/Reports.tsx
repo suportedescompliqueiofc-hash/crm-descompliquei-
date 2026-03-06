@@ -104,7 +104,15 @@ export default function Reports() {
     );
   }
   
-  if (!reports) return null;
+  if (!reports) {
+    return (
+        <div className="flex flex-col items-center justify-center h-96 space-y-4">
+            <BarChart2 className="h-16 w-16 text-muted-foreground opacity-20" />
+            <p className="text-muted-foreground text-lg">Aguardando dados para gerar o relatório.</p>
+            <p className="text-sm text-muted-foreground/60">Selecione um período válido acima.</p>
+        </div>
+    );
+  }
 
   const GRADIENTS = (
     <defs>
@@ -311,7 +319,7 @@ export default function Reports() {
             <Card className="p-3 sm:p-4 text-center sm:text-left"><p className="text-[10px] uppercase font-bold text-muted-foreground">Faturamento</p><div className="text-lg sm:text-xl font-bold mt-1 truncate">R$ {reports?.financial?.totalFaturado.toLocaleString('pt-BR')}</div></Card>
             <Card className="p-3 sm:p-4 text-center sm:text-left"><p className="text-[10px] uppercase font-bold text-muted-foreground">Vendas</p><div className="text-xl sm:text-2xl font-bold mt-1">{reports?.financial?.totalVendas}</div></Card>
             <Card className="p-3 sm:p-4 text-center sm:text-left"><p className="text-[10px] uppercase font-bold text-muted-foreground">Ticket Médio</p><div className="text-lg sm:text-xl font-bold mt-1 truncate">R$ {reports?.financial?.ticketMedio.toLocaleString('pt-BR')}</div></Card>
-            <Card className="p-3 sm:p-4 text-center sm:text-left"><p className="text-[10px] uppercase font-bold text-muted-foreground">Eficiência</p><div className="text-xl sm:text-2xl font-bold mt-1">{reports?.financial?.taxaEficiencia.toFixed(1)}%</div></Card>
+            <Card className="p-3 sm:p-4 text-center sm:text-left"><p className="text-[10px] uppercase font-bold text-muted-foreground">Eficiência</p><div className="text-xl sm:text-2xl font-bold mt-1">{reports?.financial?.taxaEficiencia?.toFixed(1) || '0'}%</div></Card>
           </div>
           
           <Card className="overflow-hidden">
