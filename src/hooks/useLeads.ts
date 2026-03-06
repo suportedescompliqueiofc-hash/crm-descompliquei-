@@ -107,7 +107,8 @@ export function useLeads(dateRange?: DateRange) {
       if (dateRange?.from && dateRange?.to) {
         const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
         const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
-        query = query.or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(agendamento.gte.${startDate},agendamento.lte.${endDate})`);
+        // Filtro aprimorado: Criado OU Agendado OU Atualizado (movimentado) no período
+        query = query.or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(agendamento.gte.${startDate},agendamento.lte.${endDate}),and(atualizado_em.gte.${startDate},atualizado_em.lte.${endDate})`);
       }
 
       const { data, error } = await query;
@@ -153,19 +154,16 @@ export function useLeads(dateRange?: DateRange) {
       const listQueryKey = ['leads', orgId, dateRange];
       const singleQueryKey = ['lead', variables.id, orgId];
 
-      // Cancela queries em andamento para não sobrescrever o estado otimista
       await queryClient.cancelQueries({ queryKey: listQueryKey });
       await queryClient.cancelQueries({ queryKey: singleQueryKey });
 
       const previousLeads = queryClient.getQueryData<Lead[]>(listQueryKey);
       const previousLead = queryClient.getQueryData<Lead>(singleQueryKey);
       
-      // Atualização otimista na LISTA
       queryClient.setQueryData<Lead[]>(listQueryKey, (old) => {
         return (old || []).map(lead => lead.id === variables.id ? { ...lead, ...variables } : lead);
       });
 
-      // Atualização otimista no LEAD INDIVIDUAL (Usado no Chat)
       if (previousLead) {
         queryClient.setQueryData<Lead>(singleQueryKey, { ...previousLead, ...variables });
       }
@@ -173,7 +171,6 @@ export function useLeads(dateRange?: DateRange) {
       return { previousLeads, previousLead };
     },
     onError: (err, variables, context) => {
-      // Reverte o estado em caso de erro
       if (context?.previousLeads) {
         queryClient.setQueryData(['leads', orgId, dateRange], context.previousLeads);
       }
@@ -183,7 +180,6 @@ export function useLeads(dateRange?: DateRange) {
       toast.error('Erro ao atualizar lead.');
     },
     onSettled: (data, error, variables) => {
-        // Invalida para garantir sincronia final com o banco
         queryClient.invalidateQueries({ queryKey: ['leads', orgId] });
         queryClient.invalidateQueries({ queryKey: ['lead', variables.id, orgId] });
     }

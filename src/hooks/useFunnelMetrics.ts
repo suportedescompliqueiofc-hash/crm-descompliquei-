@@ -41,25 +41,21 @@ export function useFunnelMetrics(dateRange: DateRange | undefined, origin: 'mark
       const lostStage = allStages.find(s => s.nome.toLowerCase() === 'perdido');
       const lostPosition = lostStage?.posicao_ordem || 999;
 
-      // 2. Buscar leads que tiveram atividade no período com a origem selecionada
+      // 2. Buscar leads ativos no período (criados ou atualizados)
       const { data: leads, error: leadsError } = await supabase
         .from('leads')
         .select('posicao_pipeline, atualizado_em, criado_em')
         .eq('organization_id', orgId)
         .eq('origem', origin) 
-        .or(`criado_em.gte.${startDate},atualizado_em.gte.${startDate}`)
-        .or(`criado_em.lte.${endDate},atualizado_em.lte.${endDate}`);
+        .or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(atualizado_em.gte.${startDate},atualizado_em.lte.${endDate})`);
 
       if (leadsError) throw leadsError;
 
-      // 3. Construir o Funil com base nas etapas marcadas e data de atividade
+      // 3. Construir o Funil
       const funnelData: FunnelStep[] = funnelStages.map((stage) => {
-        // Cálculo de Volume Acumulado considerando quem atingiu a etapa (ou passou dela) até agora
-        // e teve alguma atividade no período de filtro.
         const count = (leads || []).filter(l => 
           l.posicao_pipeline >= stage.posicao_ordem && 
-          l.posicao_pipeline < lostPosition &&
-          (l.atualizado_em >= startDate || l.criado_em >= startDate)
+          l.posicao_pipeline < lostPosition
         ).length;
 
         return {

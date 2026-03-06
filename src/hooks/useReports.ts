@@ -19,10 +19,14 @@ export function useReports(dateRange: DateRange | undefined, filters: any) {
       const endDate = dateRange.to ? endOfDay(dateRange.to).toISOString() : endOfDay(dateRange.from).toISOString();
       const daysInInterval = eachDayOfInterval({ start: dateRange.from, end: dateRange.to || dateRange.from });
 
-      // Busca ampla para captar leads que se moveram no período
+      // Busca leads que tiveram criação OU atualização no período
       const [ { data: allStages }, { data: leadsData }, { data: vendasData } ] = await Promise.all([
         supabase.from('etapas').select('*').order('posicao_ordem'),
-        supabase.from('leads').select('*').eq('organization_id', orgId).or(`criado_em.gte.${startDate},atualizado_em.gte.${startDate}`).or(`criado_em.lte.${endDate},atualizado_em.lte.${endDate}`),
+        supabase
+          .from('leads')
+          .select('*')
+          .eq('organization_id', orgId)
+          .or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(atualizado_em.gte.${startDate},atualizado_em.lte.${endDate})`),
         supabase.from('vendas').select('*, leads(*)').eq('organization_id', orgId).gte('data_fechamento', format(dateRange.from, 'yyyy-MM-dd')).lte('data_fechamento', format(dateRange.to || dateRange.from, 'yyyy-MM-dd'))
       ]);
 
@@ -42,12 +46,11 @@ export function useReports(dateRange: DateRange | undefined, filters: any) {
         lead.atualizado_em >= startDate && 
         lead.atualizado_em <= endDate;
 
-      // 2. Funil Dinâmico baseado em ocupação atual dos leads atualizados no período
+      // Funil Dinâmico baseado em leads com atividade no período
       const funnelData = funnelStages.map((stage, index) => {
         const volume = leads.filter(l => 
           l.posicao_pipeline >= stage.posicao_ordem && 
-          l.posicao_pipeline < lostPosition &&
-          (l.atualizado_em >= startDate || l.criado_em >= startDate)
+          l.posicao_pipeline < lostPosition
         ).length;
         
         let prevVolume = index > 0 ? leads.filter(l => l.posicao_pipeline >= funnelStages[index-1].posicao_ordem && l.posicao_pipeline < lostPosition).length : volume;
@@ -67,8 +70,8 @@ export function useReports(dateRange: DateRange | undefined, filters: any) {
       return {
         kpis: {
           totalLeads: leads.filter(l => l.criado_em >= startDate && l.criado_em <= endDate).length,
-          totalContatos: leads.filter(l => l.criado_em >= startDate && l.criado_em <= endDate).length,
-          conversionRate: leads.length > 0 ? ((leads.filter(isLeadConvertedInPeriod).length / leads.length) * 100).toFixed(1) : "0",
+          totalContatos: leads.length,
+          conversionRate: leads.length > 0 ? ((leads.filter(isLeadConvertedInPeriod).length / (leads.length || 1)) * 100).toFixed(1) : "0",
           ticketMedio: vendasData && vendasData.length > 0 ? totalFaturado / vendasData.length : 0,
         },
         charts: { 
