@@ -8,6 +8,7 @@ export interface Stage {
   cor: string;
   posicao_ordem: number;
   criado_em: string;
+  incluir_no_funil?: boolean; // Nova propriedade
 }
 
 export function useStages() {
@@ -23,7 +24,6 @@ export function useStages() {
         .select('*')
         .order('posicao_ordem', { ascending: true });
 
-      // As etapas são globais, mas vamos garantir que só usuários autenticados possam acessá-las
       if (error) throw error;
       return data as Stage[];
     },

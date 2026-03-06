@@ -16,33 +16,32 @@ export interface FunnelStep {
   conversionFromStart: number;
 }
 
-// Lista ESTRITA de etapas padrão para o funil
-const SALES_FUNNEL_STAGES = [
-  { name: "Novo Lead", color: "#94a3b8", order: 1 },
-  { name: "Qualificação", color: "#64748b", order: 2 },
-  { name: "Coletando Informações", color: "#a8a29e", order: 3 },
-  { name: "Agendamento Solicitado", color: "#C5A47E", order: 4 },
-  { name: "Reunião Agendada", color: "#4ade80", order: 5 },
-  { name: "Contrato Fechado", color: "#15803d", order: 6 }
-];
-
 export function useFunnelMetrics(dateRange: DateRange | undefined, origin: 'marketing' | 'organico' = 'marketing') {
   const { user } = useAuth();
   const { profile } = useProfile();
   const orgId = profile?.organization_id;
 
   return useQuery({
-    queryKey: ['funnel-metrics', orgId, dateRange, origin], // Adicionado origin à chave para refetch automático
+    queryKey: ['funnel-metrics', orgId, dateRange, origin],
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from) return [];
 
       const startDate = startOfDay(dateRange.from).toISOString();
-      const endDate = dateRange.to 
-        ? endOfDay(dateRange.to).toISOString() 
-        : endOfDay(dateRange.from).toISOString();
+      const endDate = dateRange.to ? endOfDay(dateRange.to).toISOString() : endOfDay(dateRange.from).toISOString();
 
-      // 1. Buscar leads criados no período
-      // FILTRO APLICADO: origem dinâmica baseada no parâmetro
+      // 1. Buscar etapas marcadas para o Funil
+      const { data: allStages, error: stagesError } = await supabase
+        .from('etapas')
+        .select('*')
+        .order('posicao_ordem', { ascending: true });
+
+      if (stagesError) throw stagesError;
+
+      const funnelStages = allStages.filter(s => s.incluir_no_funil === true);
+      const lostStage = allStages.find(s => s.nome.toLowerCase() === 'perdido');
+      const lostPosition = lostStage?.posicao_ordem || 999;
+
+      // 2. Buscar leads criados no período com a origem selecionada
       const { data: leads, error: leadsError } = await supabase
         .from('leads')
         .select('posicao_pipeline')
@@ -53,36 +52,18 @@ export function useFunnelMetrics(dateRange: DateRange | undefined, origin: 'mark
 
       if (leadsError) throw leadsError;
 
-      // 2. Buscar etapas para mapear nomes e posições reais
-      const { data: allStages, error: stagesError } = await supabase
-        .from('etapas')
-        .select('*');
-
-      if (stagesError) throw stagesError;
-
-      // Identifica a posição da etapa "Perdido" para excluí-la da contagem acumulada
-      const lostStage = allStages.find(s => s.nome.toLowerCase() === 'perdido');
-      const lostPosition = lostStage?.posicao_ordem || 999;
-
-      // 3. Construir o Funil com as 6 etapas fixas
-      const funnelData: FunnelStep[] = SALES_FUNNEL_STAGES.map((stdStage) => {
-        // Encontra a etapa correspondente no banco pelo nome
-        const dbStage = allStages.find(s => s.nome.toLowerCase() === stdStage.name.toLowerCase());
-        
-        // Define a posição real (se existir no banco) ou usa a ordem padrão
-        const position = dbStage ? dbStage.posicao_ordem : stdStage.order;
-        const color = dbStage ? dbStage.cor : stdStage.color;
-
-        // Cálculo de Volume Acumulado (considerando apenas leads da origem selecionada)
-        const count = leads.filter(l => 
-          l.posicao_pipeline >= position && l.posicao_pipeline < lostPosition
+      // 3. Construir o Funil com base nas etapas marcadas no banco
+      const funnelData: FunnelStep[] = funnelStages.map((stage) => {
+        // Cálculo de Volume Acumulado
+        const count = (leads || []).filter(l => 
+          l.posicao_pipeline >= stage.posicao_ordem && l.posicao_pipeline < lostPosition
         ).length;
 
         return {
-          stageId: dbStage?.id || null,
-          stageName: stdStage.name,
-          stageOrder: stdStage.order,
-          color: color,
+          stageId: stage.id,
+          stageName: stage.nome,
+          stageOrder: stage.posicao_ordem,
+          color: stage.cor,
           count: count,
           dropoffCount: 0,
           conversionToNext: 0,
@@ -90,29 +71,18 @@ export function useFunnelMetrics(dateRange: DateRange | undefined, origin: 'mark
         };
       });
 
-      // 4. Calcular Taxas de Conversão e Perda
+      // 4. Calcular Taxas
       const totalLeads = funnelData[0]?.count || 0;
 
       for (let i = 0; i < funnelData.length; i++) {
         const current = funnelData[i];
         const next = funnelData[i + 1];
 
-        // Conversão Geral (do início até esta etapa)
-        current.conversionFromStart = totalLeads > 0 
-          ? (current.count / totalLeads) * 100 
-          : 0;
+        current.conversionFromStart = totalLeads > 0 ? (current.count / totalLeads) * 100 : 0;
 
         if (next) {
-          // Conversão para a próxima etapa
-          current.conversionToNext = current.count > 0 
-            ? (next.count / current.count) * 100 
-            : 0;
-          
-          // Dropoff (quantos pararam nesta etapa)
+          current.conversionToNext = current.count > 0 ? (next.count / current.count) * 100 : 0;
           current.dropoffCount = current.count - next.count;
-        } else {
-          current.conversionToNext = 0;
-          current.dropoffCount = 0;
         }
       }
 

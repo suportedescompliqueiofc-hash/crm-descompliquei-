@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Shield, GripVertical, Sparkles } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Plus, Edit, Trash2, Shield, GripVertical, Sparkles, Target } from "lucide-react";
 import { useStagesManager } from "@/hooks/useStagesManager";
 import { Stage } from "@/hooks/useStages";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -17,8 +17,19 @@ import { CSS } from '@dnd-kit/utilities';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 
-const SortableStageRow = ({ stage, onEdit, onDelete }: { stage: Stage; onEdit: (stage: Stage) => void; onDelete: (stage: Stage) => void; }) => {
+const SortableStageRow = ({ 
+  stage, 
+  onEdit, 
+  onDelete, 
+  onToggleFunnel 
+}: { 
+  stage: Stage; 
+  onEdit: (stage: Stage) => void; 
+  onDelete: (stage: Stage) => void;
+  onToggleFunnel: (id: number, current: boolean) => void;
+}) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: stage.id });
 
   const style = {
@@ -42,6 +53,20 @@ const SortableStageRow = ({ stage, onEdit, onDelete }: { stage: Stage; onEdit: (
           {stage.nome}
         </Badge>
       </TableCell>
+      <TableCell className="text-center">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => onToggleFunnel(stage.id, !!stage.incluir_no_funil)}
+          className={cn(
+            "h-9 w-9 rounded-full transition-all",
+            stage.incluir_no_funil ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100" : "text-muted-foreground/40"
+          )}
+          title={stage.incluir_no_funil ? "Etapa faz parte do funil" : "Definir como etapa do funil"}
+        >
+          <Target className={cn("h-5 w-5", stage.incluir_no_funil && "animate-pulse")} />
+        </Button>
+      </TableCell>
       <TableCell className="text-right">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(stage)}>
           <Edit className="h-4 w-4" />
@@ -55,7 +80,7 @@ const SortableStageRow = ({ stage, onEdit, onDelete }: { stage: Stage; onEdit: (
 };
 
 export function PipelineSettings() {
-  const { stages, isLoading, createStage, updateStage, deleteStage, updateStagesOrder } = useStagesManager();
+  const { stages, isLoading, createStage, updateStage, deleteStage, updateStagesOrder, toggleFunnelStage } = useStagesManager();
   const { role } = useProfile();
   const [localStages, setLocalStages] = useState<Stage[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -72,9 +97,7 @@ export function PipelineSettings() {
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
+      activationConstraint: { distance: 8 },
     })
   );
 
@@ -109,16 +132,9 @@ export function PipelineSettings() {
       updateStage.mutate({ id: editingStage.id, nome: stageName, cor: stageColor });
     } else {
       const maxOrder = stages.reduce((max, s) => Math.max(max, s.posicao_ordem), 0);
-      createStage.mutate({ nome: stageName, cor: stageColor, posicao_ordem: maxOrder + 1 } as Omit<Stage, 'id' | 'criado_em'>);
+      createStage.mutate({ nome: stageName, cor: stageColor, posicao_ordem: maxOrder + 1, incluir_no_funil: false } as any);
     }
     setIsModalOpen(false);
-  };
-
-  const handleDelete = () => {
-    if (isDeleting) {
-      deleteStage.mutate(isDeleting.id);
-      setIsDeleting(null);
-    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -135,25 +151,20 @@ export function PipelineSettings() {
         }));
         
         updateStagesOrder.mutate(updates);
-
         return newOrder;
       });
     }
   };
 
   const handleSeedStages = async () => {
-    if (!confirm("Isso irá redefinir os nomes e cores das suas etapas para o padrão do Escritório. Seus leads serão mantidos, mas as etapas podem mudar de nome. Deseja continuar?")) return;
-
+    if (!confirm("Isso irá redefinir as etapas para o padrão jurídico. Continuar?")) return;
     setIsResetting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('seed-stages');
-      if (error) throw error;
-      
-      toast.success("Etapas padronizadas com sucesso!");
+      await supabase.functions.invoke('seed-stages');
+      toast.success("Etapas padronizadas!");
       queryClient.invalidateQueries({ queryKey: ['stages'] });
     } catch (err: any) {
-      console.error(err);
-      toast.error("Erro ao padronizar etapas: " + err.message);
+      toast.error("Erro: " + err.message);
     } finally {
       setIsResetting(false);
     }
@@ -164,12 +175,12 @@ export function PipelineSettings() {
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Etapas do Pipeline</CardTitle>
-          <CardDescription>Gerencie as etapas do seu funil de vendas. Arraste para reordenar.</CardDescription>
+          <CardDescription>Gerencie as etapas do seu funil. Clique no alvo para definir quais etapas entram nas métricas de conversão real.</CardDescription>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2" onClick={handleSeedStages} disabled={isResetting}>
             <Sparkles className="h-4 w-4 text-primary" />
-            {isResetting ? "Aplicando..." : "Padrão Escritório"}
+            Padrão Escritório
           </Button>
           <Button className="gap-2" onClick={() => openModal()}>
             <Plus className="h-4 w-4" />
@@ -184,15 +195,16 @@ export function PipelineSettings() {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Visualização</TableHead>
+                <TableHead className="text-center">No Funil</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <SortableContext items={localStages.map(s => s.id)} strategy={verticalListSortingStrategy}>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={3} className="text-center">Carregando...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={4} className="text-center">Carregando...</TableCell></TableRow>
                 ) : localStages.length === 0 ? (
-                  <TableRow><TableCell colSpan={3} className="text-center">Nenhuma etapa criada.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={4} className="text-center">Nenhuma etapa criada.</TableCell></TableRow>
                 ) : (
                   localStages.map((stage) => (
                     <SortableStageRow 
@@ -200,6 +212,7 @@ export function PipelineSettings() {
                       stage={stage} 
                       onEdit={openModal}
                       onDelete={setIsDeleting}
+                      onToggleFunnel={(id, curr) => toggleFunnelStage({ id, incluir: !curr })}
                     />
                   ))
                 )}
@@ -211,41 +224,19 @@ export function PipelineSettings() {
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingStage ? "Editar Etapa" : "Nova Etapa"}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{editingStage ? "Editar Etapa" : "Nova Etapa"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="stage-name">Nome da Etapa</Label>
-              <Input id="stage-name" value={stageName} onChange={(e) => setStageName(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="stage-color">Cor</Label>
-              <div className="flex items-center gap-2 mt-2">
-                <Input id="stage-color" type="color" value={stageColor} onChange={(e) => setStageColor(e.target.value)} className="w-12 h-10 p-1" />
-                <Input value={stageColor} onChange={(e) => setStageColor(e.target.value)} />
-              </div>
-            </div>
+            <div><Label>Nome</Label><Input value={stageName} onChange={(e) => setStageName(e.target.value)} /></div>
+            <div><Label>Cor</Label><div className="flex items-center gap-2 mt-2"><Input type="color" value={stageColor} onChange={(e) => setStageColor(e.target.value)} className="w-12 h-10 p-1" /><Input value={stageColor} onChange={(e) => setStageColor(e.target.value)} /></div></div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave}>Salvar</Button>
-          </DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button><Button onClick={handleSave}>Salvar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={!!isDeleting} onOpenChange={() => setIsDeleting(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir a etapa "{isDeleting?.nome}"? Esta ação pode falhar se houver leads associados a ela.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
-          </AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>Confirmar exclusão</AlertDialogTitle><AlertDialogDescription>Tem certeza que deseja excluir esta etapa?</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => { if (isDeleting) deleteStage.mutate(isDeleting.id); setIsDeleting(null); }} className="bg-destructive">Excluir</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </Card>
