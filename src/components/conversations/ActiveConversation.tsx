@@ -39,6 +39,7 @@ import { MediaPreviewModal } from "./MediaPreviewModal";
 import { FullscreenMediaViewer } from "./FullscreenMediaViewer";
 import { useNavigate } from "react-router-dom";
 import { LeadModal } from "@/components/leads/LeadModal";
+import { FormattedText } from "@/components/FormattedText";
 
 const DateSeparator = ({ dateString }: { dateString: string }) => {
   const date = parseISO(dateString);
@@ -264,7 +265,7 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             </div>
             
             <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-                {/* Botão Resumo IA (Apenas se houver resumo) */}
+                {/* Botão Resumo IA com texto formatado */}
                 {lead?.resumo && (
                     <Popover>
                         <PopoverTrigger asChild>
@@ -283,9 +284,9 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                                     <Sparkles className="h-4 w-4 text-primary" />
                                     <h4 className="font-bold text-sm text-foreground">Resumo do Atendimento</h4>
                                 </div>
-                                <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                                    {lead.resumo}
-                                </p>
+                                <div className="max-h-[300px] overflow-y-auto pr-1">
+                                    <FormattedText content={lead.resumo} className="text-xs" />
+                                </div>
                             </div>
                         </PopoverContent>
                     </Popover>

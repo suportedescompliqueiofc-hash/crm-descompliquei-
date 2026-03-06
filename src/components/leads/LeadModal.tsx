@@ -17,6 +17,7 @@ import { CreatableSelect } from "@/components/ui/CreatableSelect";
 import { useLeadSources } from "@/hooks/useLeadSources";
 import { useMarketing } from "@/hooks/useMarketing"; 
 import { VendaModal } from "@/components/vendas/VendaModal";
+import { FormattedText } from "@/components/FormattedText";
 
 // --- Funções Auxiliares (mantidas) ---
 const calculateAge = (dobString: string | undefined): number | '' => {
@@ -106,7 +107,7 @@ const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[
         </CardContent>
       </Card>
       
-      {/* Resumo da IA com visibilidade aprimorada */}
+      {/* Resumo da IA com formatação aprimorada */}
       <Card className="shadow-md border-l-4 border-l-primary bg-primary/5">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2 text-primary font-bold">
@@ -114,9 +115,11 @@ const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm whitespace-pre-wrap text-foreground leading-relaxed">
-            {lead.resumo || <span className="text-muted-foreground italic">Nenhum resumo gerado.</span>}
-          </p>
+          {lead.resumo ? (
+            <FormattedText content={lead.resumo} />
+          ) : (
+            <span className="text-muted-foreground text-sm italic">Nenhum resumo gerado.</span>
+          )}
         </CardContent>
       </Card>
 
