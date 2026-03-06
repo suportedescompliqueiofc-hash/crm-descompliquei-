@@ -23,7 +23,6 @@ export function useDashboard(dateRange: DateRange | undefined) {
   const { data: metrics, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard-metrics', orgId, dateRange],
     queryFn: async () => {
-      // Garantia absoluta de que só faremos a query se tivermos os dados necessários
       if (!user || !orgId || !dateRange?.from || !dateRange?.to) return null;
 
       const startDate = startOfDay(dateRange.from).toISOString();
@@ -31,7 +30,6 @@ export function useDashboard(dateRange: DateRange | undefined) {
       const startDayStr = format(startOfDay(dateRange.from), 'yyyy-MM-dd');
       const endDayStr = format(endOfDay(dateRange.to), 'yyyy-MM-dd');
 
-      // Executa as buscas com tratamento de erro individual para não quebrar o Promise.all
       try {
         const [ leadsRes, stagesRes, vendasRes, expensesRes, criativosRes ] = await Promise.all([
           supabase
@@ -45,7 +43,6 @@ export function useDashboard(dateRange: DateRange | undefined) {
           supabase.from('criativos').select('platform_metrics').eq('organization_id', orgId)
         ]);
 
-        // Se houver um erro de autenticação em qualquer uma, lança para o React Query tratar
         if (leadsRes.error?.status === 401) throw new Error("Sessão expirada. Por favor, recarregue a página.");
 
         const leads = leadsRes.data || [];
@@ -65,7 +62,8 @@ export function useDashboard(dateRange: DateRange | undefined) {
           lead.atualizado_em >= startDate && 
           lead.atualizado_em <= endDate;
 
-        const totalFaturado = vendas.reduce((sum, v) => sum + Number(v.valor_fechado || 0), 0);
+        // Variável corrigida para evitar o ReferenceError
+        const faturamentoTotal = vendas.reduce((sum, v) => sum + Number(v.valor_fechado || 0), 0);
         
         const totalInvestment = expenses.reduce((a, c) => a + Number(c.amount || 0), 0) + criativos.reduce((a, c) => {
           const m = c.platform_metrics as any;
@@ -80,7 +78,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
           marketingLeads: leads.filter(l => l.origem === 'marketing' && l.criado_em >= startDate && l.criado_em <= endDate).length,
           organicLeads: leads.filter(l => l.origem === 'organico' && l.criado_em >= startDate && l.criado_em <= endDate).length,
           conversionRate: leads.length > 0 ? ((conversionCount / leads.length) * 100).toFixed(1) : "0",
-          faturamentoTotal,
+          faturamentoTotal, // Propriedade agora corretamente definida
           cac: vendas.length > 0 ? totalInvestment / vendas.length : 0,
           leadsByStage: leads.map(l => ({ etapa_id: l.posicao_pipeline })),
           leadsOverTime: eachDayOfInterval({ start: dateRange.from, end: dateRange.to }).map(d => {
@@ -102,7 +100,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
       }
     },
     enabled: !!user && !!orgId && !!dateRange?.from,
-    staleTime: 1000 * 30, // Evita requisições excessivas (30 segundos)
+    staleTime: 1000 * 30,
     retry: 1,
   });
 
