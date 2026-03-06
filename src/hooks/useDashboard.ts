@@ -23,6 +23,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
   const { data: metrics, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard-metrics', orgId, dateRange],
     queryFn: async () => {
+      // Garantia absoluta de que só faremos a query se tivermos os dados necessários
       if (!user || !orgId || !dateRange?.from || !dateRange?.to) return null;
 
       const startDate = startOfDay(dateRange.from).toISOString();
@@ -30,66 +31,78 @@ export function useDashboard(dateRange: DateRange | undefined) {
       const startDayStr = format(startOfDay(dateRange.from), 'yyyy-MM-dd');
       const endDayStr = format(endOfDay(dateRange.to), 'yyyy-MM-dd');
 
-      // Busca leads que tiveram QUALQUER atividade (criação ou atualização) no período
-      const [ { data: leads }, { data: stages }, { data: vendas }, { data: expenses }, { data: criativos } ] = await Promise.all([
-        supabase
-          .from('leads')
-          .select('*')
-          .eq('organization_id', orgId)
-          .or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(atualizado_em.gte.${startDate},atualizado_em.lte.${endDate})`),
-        supabase.from('etapas').select('*').order('posicao_ordem'),
-        supabase.from('vendas').select('*').eq('organization_id', orgId).gte('data_fechamento', startDayStr).lte('data_fechamento', endDayStr),
-        supabase.from('marketing_expenses').select('amount').eq('organization_id', orgId).gte('expense_date', startDayStr).lte('expense_date', endDayStr),
-        supabase.from('criativos').select('platform_metrics').eq('organization_id', orgId)
-      ]);
+      // Executa as buscas com tratamento de erro individual para não quebrar o Promise.all
+      try {
+        const [ leadsRes, stagesRes, vendasRes, expensesRes, criativosRes ] = await Promise.all([
+          supabase
+            .from('leads')
+            .select('*')
+            .eq('organization_id', orgId)
+            .or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(atualizado_em.gte.${startDate},atualizado_em.lte.${endDate})`),
+          supabase.from('etapas').select('*').order('posicao_ordem'),
+          supabase.from('vendas').select('*').eq('organization_id', orgId).gte('data_fechamento', startDayStr).lte('data_fechamento', endDayStr),
+          supabase.from('marketing_expenses').select('amount').eq('organization_id', orgId).gte('expense_date', startDayStr).lte('expense_date', endDayStr),
+          supabase.from('criativos').select('platform_metrics').eq('organization_id', orgId)
+        ]);
 
-      const funnelStages = (stages || []).filter(s => s.incluir_no_funil);
-      const convertedStage = funnelStages[funnelStages.length - 1];
-      const convertedPos = convertedStage?.posicao_ordem || 6;
-      const lostPos = (stages || []).find(s => s.nome.toLowerCase() === 'perdido')?.posicao_ordem || 999;
+        // Se houver um erro de autenticação em qualquer uma, lança para o React Query tratar
+        if (leadsRes.error?.status === 401) throw new Error("Sessão expirada. Por favor, recarregue a página.");
 
-      // Conversão baseada na data de atualização (movimentação no período)
-      const isLeadConvertedInPeriod = (lead: any) => 
-        lead.posicao_pipeline >= convertedPos && 
-        lead.posicao_pipeline < lostPos &&
-        lead.atualizado_em >= startDate && 
-        lead.atualizado_em <= endDate;
+        const leads = leadsRes.data || [];
+        const stages = stagesRes.data || [];
+        const vendas = vendasRes.data || [];
+        const expenses = expensesRes.data || [];
+        const criativos = criativosRes.data || [];
 
-      const totalFaturado = (vendas || []).reduce((sum, v) => sum + Number(v.valor_fechado || 0), 0);
-      
-      // Cálculo de investimento robusto para evitar NaN
-      const totalInvestment = (expenses || []).reduce((a, c) => a + Number(c.amount || 0), 0) + (criativos || []).reduce((a, c) => {
-        const m = c.platform_metrics as any;
-        const spend = Number(m?.spend || 0);
-        return (m?.included_in_dashboard) ? a + spend : a;
-      }, 0);
+        const funnelStages = stages.filter(s => s.incluir_no_funil);
+        const convertedStage = funnelStages[funnelStages.length - 1];
+        const convertedPos = convertedStage?.posicao_ordem || 6;
+        const lostPos = stages.find(s => s.nome.toLowerCase() === 'perdido')?.posicao_ordem || 999;
 
-      const leadsList = leads || [];
-      const conversionCount = leadsList.filter(isLeadConvertedInPeriod).length;
+        const isLeadConvertedInPeriod = (lead: any) => 
+          lead.posicao_pipeline >= convertedPos && 
+          lead.posicao_pipeline < lostPos &&
+          lead.atualizado_em >= startDate && 
+          lead.atualizado_em <= endDate;
 
-      return {
-        totalContatos: leadsList.filter(l => l.criado_em >= startDate && l.criado_em <= endDate).length,
-        marketingLeads: leadsList.filter(l => l.origem === 'marketing' && l.criado_em >= startDate && l.criado_em <= endDate).length,
-        organicLeads: leadsList.filter(l => l.origem === 'organico' && l.criado_em >= startDate && l.criado_em <= endDate).length,
-        conversionRate: leadsList.length > 0 ? ((conversionCount / leadsList.length) * 100).toFixed(1) : "0",
-        faturamentoTotal,
-        cac: (vendas || []).length > 0 ? totalInvestment / (vendas || []).length : 0,
-        leadsByStage: leadsList.map(l => ({ etapa_id: l.posicao_pipeline })),
-        leadsOverTime: eachDayOfInterval({ start: dateRange.from, end: dateRange.to }).map(d => {
-          const dayStr = format(d, 'yyyy-MM-dd');
-          return {
-            day: format(d, 'dd/MM'),
-            captados: leadsList.filter(l => l.criado_em.startsWith(dayStr)).length,
-            convertidos: leadsList.filter(l => 
-              l.posicao_pipeline >= convertedPos && 
-              l.posicao_pipeline < lostPos && 
-              l.atualizado_em?.startsWith(dayStr)
-            ).length
-          };
-        })
-      };
+        const totalFaturado = vendas.reduce((sum, v) => sum + Number(v.valor_fechado || 0), 0);
+        
+        const totalInvestment = expenses.reduce((a, c) => a + Number(c.amount || 0), 0) + criativos.reduce((a, c) => {
+          const m = c.platform_metrics as any;
+          const spend = Number(m?.spend || 0);
+          return (m?.included_in_dashboard) ? a + spend : a;
+        }, 0);
+
+        const conversionCount = leads.filter(isLeadConvertedInPeriod).length;
+
+        return {
+          totalContatos: leads.filter(l => l.criado_em >= startDate && l.criado_em <= endDate).length,
+          marketingLeads: leads.filter(l => l.origem === 'marketing' && l.criado_em >= startDate && l.criado_em <= endDate).length,
+          organicLeads: leads.filter(l => l.origem === 'organico' && l.criado_em >= startDate && l.criado_em <= endDate).length,
+          conversionRate: leads.length > 0 ? ((conversionCount / leads.length) * 100).toFixed(1) : "0",
+          faturamentoTotal,
+          cac: vendas.length > 0 ? totalInvestment / vendas.length : 0,
+          leadsByStage: leads.map(l => ({ etapa_id: l.posicao_pipeline })),
+          leadsOverTime: eachDayOfInterval({ start: dateRange.from, end: dateRange.to }).map(d => {
+            const dayStr = format(d, 'yyyy-MM-dd');
+            return {
+              day: format(d, 'dd/MM'),
+              captados: leads.filter(l => l.criado_em.startsWith(dayStr)).length,
+              convertidos: leads.filter(l => 
+                l.posicao_pipeline >= convertedPos && 
+                l.posicao_pipeline < lostPos && 
+                l.atualizado_em?.startsWith(dayStr)
+              ).length
+            };
+          })
+        };
+      } catch (err: any) {
+        console.error("Erro crítico no processamento do painel:", err);
+        throw err;
+      }
     },
-    enabled: !!orgId && !!dateRange?.from,
+    enabled: !!user && !!orgId && !!dateRange?.from,
+    staleTime: 1000 * 30, // Evita requisições excessivas (30 segundos)
     retry: 1,
   });
 

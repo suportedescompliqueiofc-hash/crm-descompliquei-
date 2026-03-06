@@ -21,24 +21,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+    // 1. Verificar sessão inicial imediatamente
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+      } catch (error) {
+        console.error("Erro ao recuperar sessão inicial:", error);
+      } finally {
         setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    // 2. Ouvir mudanças de estado (Login, Logout, Token Refreshed)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, currentSession) => {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        setLoading(false);
+
+        if (event === 'SIGNED_OUT') {
+          localStorage.removeItem('supabase.auth.token'); // Limpeza extra preventiva
+          navigate('/login');
+        }
       }
     );
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -65,9 +78,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       });
-      
-      // Se o cadastro for bem-sucedido e o Supabase estiver configurado para auto-login, 
-      // o onAuthStateChange acima cuidará da navegação.
       return { error };
     } catch (error) {
       return { error };
@@ -76,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    navigate('/login');
+    // O onAuthStateChange cuidará do redirecionamento
   };
 
   return (
