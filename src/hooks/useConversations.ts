@@ -44,7 +44,6 @@ export function useConversationsList() {
   useEffect(() => {
     if (!orgId) return;
     
-    // Otimização Extrema: Injeta a nova mensagem diretamente no cache da lista
     const channel = supabase.channel('conversations-list-sync')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens' }, (payload) => {
         const newMessage = payload.new as Message;
@@ -99,12 +98,10 @@ export function useConversationsList() {
         throw leadsError;
       }
 
-      // Mapeia os dados recebidos para o formato que a interface precisa
       const conversations = leads.map((lead: any) => {
         const lastMessage = lead.mensagens && lead.mensagens.length > 0 ? lead.mensagens[0] : null;
         const tags = lead.leads_tags?.map((lt: any) => lt.tags).filter(Boolean) || [];
         
-        // Remove os nós aninhados originais para manter a memória limpa
         delete lead.mensagens;
         delete lead.leads_tags;
         
@@ -118,30 +115,10 @@ export function useConversationsList() {
         };
       });
 
-      // DESDUPLICAÇÃO INTELIGENTE POR TELEFONE
-      // Caso automações tenham criado o mesmo lead várias vezes em milissegundos
-      const uniqueMap = new Map<string, Conversation>();
-      
-      for (const conv of conversations) {
-        // Limpa o telefone para garantir que a comparação seja exata
-        const phone = (conv.telefone || '').replace(/\D/g, '');
-        const existing = uniqueMap.get(phone);
-        
-        const convTime = new Date(conv.last_message_timestamp || conv.criado_em).getTime();
-        const existingTime = existing ? new Date(existing.last_message_timestamp || existing.criado_em).getTime() : 0;
-        
-        // Se não existir ou se esta conversa for mais RECENTE, substitui a antiga no mapa
-        if (!existing || convTime > existingTime) {
-          uniqueMap.set(phone, conv);
-        }
-      }
-
-      const uniqueConversations = Array.from(uniqueMap.values());
-
-      return uniqueConversations.sort((a, b) => new Date(b.last_message_timestamp!).getTime() - new Date(a.last_message_timestamp!).getTime());
+      return conversations.sort((a: any, b: any) => new Date(b.last_message_timestamp!).getTime() - new Date(a.last_message_timestamp!).getTime());
     },
     enabled: !!orgId,
-    staleTime: 1000 * 60 * 5, // 5 minutos de cache
+    staleTime: 1000 * 60 * 5, 
   });
 }
 
@@ -459,11 +436,9 @@ export function useSendMediaMessage() {
       const fileExt = file.name.split('.').pop();
       const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.${fileExt}`;
       
-      // 1. Upload do Arquivo para o Storage
       const { error: uploadError } = await supabase.storage.from('media-mensagens').upload(filePath, file);
       if (uploadError) throw uploadError;
       
-      // 2. Criar registro na tabela mensagens
       const { data: insertedMsg, error: insertError } = await supabase
         .from('mensagens')
         .insert({
@@ -480,14 +455,12 @@ export function useSendMediaMessage() {
 
       if (insertError) throw insertError;
 
-      // 3. Criar registro na tabela message_attachments
       await supabase.from('message_attachments').insert({
         message_id: insertedMsg.id,
         file_path: filePath,
         file_type: type === 'pdf' ? 'pdf' : type as any
       });
       
-      // 4. Disparar Webhook para envio real
       const { data: { publicUrl } } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
       

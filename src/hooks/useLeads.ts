@@ -114,25 +114,7 @@ export function useLeads(dateRange?: DateRange) {
       const { data, error } = await query;
       if (error) throw error;
       
-      // DESDUPLICAÇÃO INTELIGENTE POR TELEFONE
-      // Previne que a mesma pessoa apareça 5 vezes na lista de leads se a automação falhar
-      const uniqueMap = new Map<string, Lead>();
-      
-      for (const lead of (data as Lead[])) {
-        // Limpa o telefone
-        const phone = (lead.telefone || '').replace(/\D/g, '');
-        const existing = uniqueMap.get(phone);
-        
-        const leadTime = new Date(lead.criado_em).getTime();
-        const existingTime = existing ? new Date(existing.criado_em).getTime() : 0;
-        
-        // Mantém apenas o registro mais novo recebido
-        if (!existing || leadTime > existingTime) {
-          uniqueMap.set(phone, lead);
-        }
-      }
-      
-      return Array.from(uniqueMap.values());
+      return data as Lead[];
     },
     enabled: !!user && !!orgId,
     staleTime: 1000 * 60 * 5,
