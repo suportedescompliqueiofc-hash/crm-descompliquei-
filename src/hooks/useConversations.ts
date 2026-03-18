@@ -76,7 +76,6 @@ export function useConversationsList() {
     queryFn: async () => {
       if (!orgId) return [];
       
-      // OTIMIZAÇÃO MASSA: Busca os leads e a última mensagem de cada um numa tacada só
       const { data: leads, error: leadsError } = await supabase
         .from('leads')
         .select(`
@@ -100,7 +99,7 @@ export function useConversationsList() {
         throw leadsError;
       }
 
-      // Mapeia os dados recebidos para o formato que a interface precisa de forma instantânea
+      // Mapeia os dados recebidos para o formato que a interface precisa
       const conversations = leads.map((lead: any) => {
         const lastMessage = lead.mensagens && lead.mensagens.length > 0 ? lead.mensagens[0] : null;
         const tags = lead.leads_tags?.map((lt: any) => lt.tags).filter(Boolean) || [];
@@ -119,10 +118,30 @@ export function useConversationsList() {
         };
       });
 
-      return conversations.sort((a, b) => new Date(b.last_message_timestamp!).getTime() - new Date(a.last_message_timestamp!).getTime());
+      // DESDUPLICAÇÃO INTELIGENTE POR TELEFONE
+      // Caso automações tenham criado o mesmo lead várias vezes em milissegundos
+      const uniqueMap = new Map<string, Conversation>();
+      
+      for (const conv of conversations) {
+        // Limpa o telefone para garantir que a comparação seja exata
+        const phone = (conv.telefone || '').replace(/\D/g, '');
+        const existing = uniqueMap.get(phone);
+        
+        const convTime = new Date(conv.last_message_timestamp || conv.criado_em).getTime();
+        const existingTime = existing ? new Date(existing.last_message_timestamp || existing.criado_em).getTime() : 0;
+        
+        // Se não existir ou se esta conversa for mais RECENTE, substitui a antiga no mapa
+        if (!existing || convTime > existingTime) {
+          uniqueMap.set(phone, conv);
+        }
+      }
+
+      const uniqueConversations = Array.from(uniqueMap.values());
+
+      return uniqueConversations.sort((a, b) => new Date(b.last_message_timestamp!).getTime() - new Date(a.last_message_timestamp!).getTime());
     },
     enabled: !!orgId,
-    staleTime: 1000 * 60 * 5, // 5 minutos de cache - mudanças são inseridas em tempo real pelo WebSocket
+    staleTime: 1000 * 60 * 5, // 5 minutos de cache
   });
 }
 
