@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useBranding } from "@/contexts/BrandingContext";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { supabase } from "@/integrations/supabase/client";
 
 const menuItems = [
   { title: "Painel", icon: LayoutDashboard, path: "/" },
