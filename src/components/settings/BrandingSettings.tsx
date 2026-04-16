@@ -90,7 +90,7 @@ export function BrandingSettings() {
       img.crossOrigin = 'Anonymous';
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const ctx = canvas.canvas.getContext('2d');
+        const ctx = canvas.getContext('2d');
         if (!ctx) return resolve({ primary: '38 45% 55%', accent: '38 45% 94%', sidebar: '220 10% 10%' });
 
         canvas.width = img.width;
