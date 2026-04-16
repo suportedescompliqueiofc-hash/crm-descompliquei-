@@ -186,10 +186,11 @@ serve(async (req) => {
       const hasAdReply = findInObject(payload, 'externalAdReply');
       const hasMarketingContext = findInObject(payload, 'entryPointConversionSource', 'ctwa_ad');
 
-      if (hasFBAds || hasAdReply || hasMarketingContext) {
+      if (hasFBAds) {
         detectedOrigem = 'marketing';
-        console.log(`[receive-message] DETECTADO COMO MARKETING! (FBAds: ${!!hasFBAds}, AdReply: ${!!hasAdReply}, context: ${!!hasMarketingContext})`);
+        console.log(`[receive-message] DETECTADO COMO MARKETING VIA FB_Ads! (AdReply: ${!!hasAdReply}, context: ${!!hasMarketingContext})`);
       }
+
     } catch (e) {
       console.error('[receive-message] Erro na detecção de marketing:', e);
     }
