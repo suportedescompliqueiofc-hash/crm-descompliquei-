@@ -72,7 +72,7 @@ export function useProfile() {
       return createdProfile as Profile;
     },
     enabled: !!user,
-    staleTime: 1000 * 60 * 30, // OTIMIZAÇÃO: 30 minutos de cache para o perfil
+    staleTime: 1000 * 60 * 1, // 1 minuto de cache (mais reativo para trocas de org)
     retry: 1,
   });
 

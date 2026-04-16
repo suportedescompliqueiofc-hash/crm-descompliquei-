@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Plus, Edit, Trash2, Shield, GripVertical, Sparkles, Target } from "lucide-react";
 import { useStagesManager } from "@/hooks/useStagesManager";
 import { Stage } from "@/hooks/useStages";
+import { STAGES_QUERY_KEY } from "@/hooks/useStages";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useProfile } from "@/hooks/useProfile";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
@@ -81,7 +82,7 @@ const SortableStageRow = ({
 
 export function PipelineSettings() {
   const { stages, isLoading: isLoadingStages, createStage, updateStage, deleteStage, updateStagesOrder, toggleFunnelStage } = useStagesManager();
-  const { role, isLoading: isLoadingProfile } = useProfile();
+  const { profile, role, isLoading: isLoadingProfile } = useProfile();
   const [localStages, setLocalStages] = useState<Stage[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
@@ -157,14 +158,30 @@ export function PipelineSettings() {
   };
 
   const handleSeedStages = async () => {
-    if (!confirm("Isso irá apagar as etapas atuais e redefinir para o Padrão. Continuar?")) return;
+    if (!profile?.organization_id) {
+      toast.error("Organização não identificada. Por favor, recarregue a página.");
+      return;
+    }
+
+    if (!confirm("Isso irá padronizar as etapas para o modelo padrão. Continuar?")) return;
+    
     setIsResetting(true);
     try {
-      await supabase.functions.invoke('seed-stages');
+      const { error } = await supabase.functions.invoke('seed-stages', {
+        body: { orgId: profile.organization_id }
+      });
+
+      if (error) throw error;
+
+      // Remover cache existente e forçar recarregamento
+      await queryClient.removeQueries({ queryKey: STAGES_QUERY_KEY });
+      await queryClient.refetchQueries({ queryKey: STAGES_QUERY_KEY });
+
       toast.success("Etapas padronizadas!");
-      queryClient.invalidateQueries({ queryKey: ['stages'] });
+      
     } catch (err: any) {
-      toast.error("Erro: " + err.message);
+      console.error('Erro ao padronizar etapas:', err);
+      toast.error("Erro: " + (err.message || "Erro desconhecido"));
     } finally {
       setIsResetting(false);
     }

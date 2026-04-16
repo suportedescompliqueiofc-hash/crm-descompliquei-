@@ -27,9 +27,16 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    const { orgId } = await req.json();
+    
+    if (!orgId) {
+      throw new Error("ID da organização é obrigatório.");
+    }
+
     const { data: currentStages, error: fetchError } = await supabaseClient
       .from('etapas')
       .select('*')
+      .eq('organization_id', orgId)
       .order('posicao_ordem', { ascending: true });
 
     if (fetchError) throw fetchError;
@@ -44,18 +51,30 @@ serve(async (req) => {
         updates.push(
           supabaseClient
             .from('etapas')
-            .update({ nome: target.nome, cor: target.cor, posicao_ordem: target.posicao_ordem })
+            .update({ 
+              nome: target.nome, 
+              cor: target.cor, 
+              posicao_ordem: target.posicao_ordem,
+              em_funil: true // Forçar que as padrão apareçam no funil
+            })
             .eq('id', existing.id)
         );
       } else {
-        inserts.push(target);
+        inserts.push({
+          ...target,
+          organization_id: orgId,
+          em_funil: true
+        });
       }
     }
 
-    await Promise.all(updates);
+    if (updates.length > 0) {
+      await Promise.all(updates);
+    }
 
     if (inserts.length > 0) {
-      await supabaseClient.from('etapas').insert(inserts);
+      const { error: insertError } = await supabaseClient.from('etapas').insert(inserts);
+      if (insertError) throw insertError;
     }
 
     return new Response(JSON.stringify({ success: true, message: "Etapas padronizadas com sucesso!" }), {

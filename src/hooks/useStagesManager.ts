@@ -2,18 +2,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
-import { Stage } from './useStages';
+import { Stage, STAGES_QUERY_KEY } from './useStages';
 import { useEffect } from 'react';
 
 export function useStagesManager() {
-  useProfile();
+  const { profile } = useProfile();
+  const orgId = profile?.organization_id;
   const queryClient = useQueryClient();
 
   useEffect(() => {
     const channel = supabase
       .channel('etapas_manager_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'etapas' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['stages'] });
+        queryClient.invalidateQueries({ queryKey: STAGES_QUERY_KEY });
       })
       .subscribe();
 
@@ -21,26 +22,33 @@ export function useStagesManager() {
   }, [queryClient]);
 
   const { data: stages = [], isLoading } = useQuery<Stage[]>({
-    queryKey: ['stages'],
+    queryKey: STAGES_QUERY_KEY,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('etapas')
-        .select('*')
-        .order('posicao_ordem', { ascending: true });
+        .select('*');
+
+      if (orgId) {
+        query = query.eq('organization_id', orgId);
+      } else {
+        query = query.is('organization_id', null);
+      }
+
+      const { data, error } = await query.order('posicao_ordem', { ascending: true });
       if (error) throw error;
       return data;
     },
+    staleTime: 0, // Sempre busca dados frescos
   });
 
   const createStage = useMutation({
     mutationFn: async (newStage: Omit<Stage, 'id' | 'criado_em'>) => {
-      const { data: profile } = await supabase.from('perfis').select('organization_id').single();
-      const { data, error } = await supabase.from('etapas').insert({ ...newStage, organization_id: profile?.organization_id } as any).select().single();
+      const { data, error } = await supabase.from('etapas').insert({ ...newStage, organization_id: orgId } as any).select().single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stages'] });
+      queryClient.invalidateQueries({ queryKey: STAGES_QUERY_KEY });
       toast.success("Etapa criada com sucesso!");
     }
   });
@@ -57,7 +65,7 @@ export function useStagesManager() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stages'] });
+      queryClient.invalidateQueries({ queryKey: STAGES_QUERY_KEY });
       toast.success("Etapa atualizada!");
     }
   });
@@ -68,7 +76,7 @@ export function useStagesManager() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stages'] });
+      queryClient.invalidateQueries({ queryKey: STAGES_QUERY_KEY });
       toast.success("Definição de funil atualizada.");
     }
   });
@@ -79,7 +87,7 @@ export function useStagesManager() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stages'] });
+      queryClient.invalidateQueries({ queryKey: STAGES_QUERY_KEY });
       toast.success("Etapa excluída.");
     }
   });
@@ -89,7 +97,7 @@ export function useStagesManager() {
       const { error } = await supabase.rpc('update_stages_order', { stages_data: orderedStages as any });
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['stages'] })
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: STAGES_QUERY_KEY })
   });
 
   return { stages, isLoading, createStage, updateStage, deleteStage, updateStagesOrder, toggleFunnelStage: toggleFunnelStage.mutate };

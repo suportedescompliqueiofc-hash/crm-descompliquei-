@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from './useProfile';
 
 export interface Stage {
   id: number;
@@ -11,24 +12,36 @@ export interface Stage {
   em_funil?: boolean;
 }
 
+// QueryKey padrão - DEVE ser igual em todo o sistema para invalidação funcionar
+export const STAGES_QUERY_KEY = ['stages'];
+
 export function useStages() {
   const { user } = useAuth();
+  const { profile } = useProfile();
+  const orgId = profile?.organization_id;
 
   const { data: stages = [], isLoading } = useQuery({
-    queryKey: ['stages', user?.id],
+    queryKey: STAGES_QUERY_KEY,
     queryFn: async () => {
       if (!user) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('etapas')
-        .select('*')
-        .order('posicao_ordem', { ascending: true });
+        .select('*');
+
+      if (orgId) {
+        query = query.eq('organization_id', orgId);
+      } else {
+        query = query.is('organization_id', null);
+      }
+
+      const { data, error } = await query.order('posicao_ordem', { ascending: true });
 
       if (error) throw error;
       return data as Stage[];
     },
     enabled: !!user,
-    staleTime: Infinity, // OTIMIZAÇÃO: Etapas não expiram sozinhas
+    staleTime: 0, // Sem cache - sempre busca dados frescos
   });
 
   return {

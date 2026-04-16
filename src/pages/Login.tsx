@@ -64,7 +64,7 @@ export default function Login() {
             {/* Logo container */}
             <div className="w-64 h-64 flex items-center justify-center mb-6 shadow-2xl p-4">
               <img 
-                src="/img/Descompliquei logo real.jpeg" 
+                src="/img/logo.jpeg" 
                 alt="Logo Descompliquei" 
                 className="w-full h-full object-contain"
               />

@@ -53,19 +53,15 @@ function applyBrandingToDOM(branding: Partial<OrgBranding> | null) {
   root.style.removeProperty('--foreground');
   root.style.removeProperty('--secondary');
 
-  if (branding?.brand_name) {
-    document.title = branding.brand_name;
+  document.title = branding?.brand_name || 'Descompliquei CRM';
+ 
+  let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'icon';
+    document.head.appendChild(link);
   }
-
-  if (branding?.favicon_url) {
-    let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'icon';
-      document.head.appendChild(link);
-    }
-    link.href = branding.favicon_url;
-  }
+  link.href = branding?.favicon_url || branding?.logo_url || '/img/logo.jpeg';
 }
 
 export function BrandingProvider({ children }: { children: React.ReactNode }) {
