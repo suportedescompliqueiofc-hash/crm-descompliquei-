@@ -91,48 +91,72 @@ export function BrandingSettings() {
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        if (!ctx) return resolve({ primary: '38 45% 55%', accent: '38 45% 94%', sidebar: '220 10% 10%' });
+        if (!ctx) return resolve({ primary: '220 80% 50%', accent: '220 50% 98%', sidebar: '220 20% 10%' });
 
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
+        // Redimensionar para miniatura para processamento rápido
+        canvas.width = 50;
+        canvas.height = 50;
+        ctx.drawImage(img, 0, 0, 50, 50);
 
         try {
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-          let r = 0, g = 0, b = 0, count = 0;
+          const imageData = ctx.getImageData(0, 0, 50, 50).data;
+          let colors: { h: number, s: number, l: number, weight: number }[] = [];
 
-          // Amostra simplificada (pula pixels para performance)
-          for (let i = 0; i < imageData.length; i += 40) {
-            // Ignorar pixels muito claros (fundo branco) ou muito escuros (preto puro)
-            const luminance = (0.299 * imageData[i] + 0.587 * imageData[i+1] + 0.114 * imageData[i+2]);
-            if (luminance > 20 && luminance < 230) {
-              r += imageData[i];
-              g += imageData[i + 1];
-              b += imageData[i + 2];
-              count++;
+          for (let i = 0; i < imageData.length; i += 4) {
+            const r = imageData[i], g = imageData[i+1], b = imageData[i+2], a = imageData[i+3];
+            if (a < 128) continue; // Pular transparentes
+
+            // Converter para HSL para análise
+            const r_norm = r / 255, g_norm = g / 255, b_norm = b / 255;
+            const max = Math.max(r_norm, g_norm, b_norm), min = Math.min(r_norm, g_norm, b_norm);
+            let h = 0, s = 0, l = (max + min) / 2;
+
+            if (max !== min) {
+              const d = max - min;
+              s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+              if (max === r_norm) h = (g_norm - b_norm) / d + (g_norm < b_norm ? 6 : 0);
+              else if (max === g_norm) h = (b_norm - r_norm) / d + 2;
+              else h = (r_norm - g_norm) / d + 4;
+              h *= 60;
+            }
+
+            // Ignorar cores muito desbotadas (cinzas) ou cores quase pretas/brancas para a cor primária
+            if (s > 0.15 && l > 0.15 && l < 0.85) {
+              colors.push({ h, s: s * 100, l: l * 100, weight: s * (1 - Math.abs(2 * l - 1)) });
             }
           }
 
-          if (count === 0) throw new Error('No colors found');
+          if (colors.length === 0) {
+             // Fallback para tom de azul premium se nada for encontrado
+             return resolve({ primary: '220 80% 50%', accent: '220 40% 97%', sidebar: '222 25% 10%' });
+          }
 
-          r = Math.floor(r / count);
-          g = Math.floor(g / count);
-          b = Math.floor(b / count);
+          // Pegar a cor com mais "peso" (vibrante e equilibrada)
+          colors.sort((a, b) => b.weight - a.weight);
+          const top = colors[0];
 
-          const hsl = hexToHsl(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
-          const [h, s, l] = hsl.replace(/%/g, '').split(' ');
+          // REGRAS DE OURO PARA BRANDING PREMIUM:
+          // 1. Primária: Brilhante o suficiente para ícones, mas escura o suficiente para texto branco (L entre 40-55)
+          const primaryL = Math.min(Math.max(top.l, 40), 55);
+          const primaryS = Math.min(Math.max(top.s, 40), 90);
+
+          // 2. Accent: Extremamente suave, quase branco mas com o tom da marca
+          const accentL = 97;
+          const accentS = Math.min(top.s, 30);
+
+          // 3. Sidebar: Muito profunda, tom de "noite" com leve cor da marca
+          const sidebarL = 10;
+          const sidebarS = Math.min(top.s, 15);
 
           resolve({
-            primary: `${h} ${s}% ${l}%`,
-            accent: `${h} ${Math.max(10, parseInt(s) - 20)}% 96%`,
-            sidebar: `${h} ${Math.min(20, parseInt(s))}% 8%`
+            primary: `${Math.round(top.h)} ${Math.round(primaryS)}% ${Math.round(primaryL)}%`,
+            accent: `${Math.round(top.h)} ${Math.round(accentS)}% ${Math.round(accentL)}%`,
+            sidebar: `${Math.round(top.h)} ${Math.round(sidebarS)}% ${Math.round(sidebarL)}%`
           });
         } catch (e) {
-          console.error('Falha ao extrair cores:', e);
-          resolve({ primary: '38 45% 55%', accent: '38 45% 94%', sidebar: '220 10% 10%' });
+          resolve({ primary: '220 80% 50%', accent: '220 50% 98%', sidebar: '220 20% 10%' });
         }
       };
-      img.onerror = () => resolve({ primary: '38 45% 55%', accent: '38 45% 94%', sidebar: '220 10% 10%' });
       img.src = imageUrl;
     });
   };
