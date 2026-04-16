@@ -167,7 +167,7 @@ serve(async (req) => {
     }
 
     // ── Detecção de Origem (Marketing vs Orgânico) ───────────────────────────
-    let detectedOrigem = 'Orgânico';
+    let detectedOrigem = 'organico';
     try {
       // Função auxiliar para busca profunda no payload (UaZapi envia em níveis variados)
       const findInObject = (obj: any, key: string, value?: string): any => {
@@ -187,7 +187,7 @@ serve(async (req) => {
       const hasMarketingContext = findInObject(payload, 'entryPointConversionSource', 'ctwa_ad');
 
       if (hasFBAds || hasAdReply || hasMarketingContext) {
-        detectedOrigem = 'Marketing';
+        detectedOrigem = 'marketing';
         console.log(`[receive-message] DETECTADO COMO MARKETING! (FBAds: ${!!hasFBAds}, AdReply: ${!!hasAdReply}, context: ${!!hasMarketingContext})`);
       }
     } catch (e) {
@@ -236,11 +236,11 @@ serve(async (req) => {
       console.log(`Novo lead registrado: ${contactName} / ${phoneWithCountryCode} (${detectedOrigem})`);
     } else {
       // Se o lead já existe mas mudou para marketing, atualizamos a origem
-      if (detectedOrigem === 'Marketing' && lead.origem !== 'Marketing') {
-        const { error: updErr } = await supabaseAdmin.from('leads').update({ origem: 'Marketing' }).eq('id', lead.id);
+      if (detectedOrigem === 'marketing' && lead.origem !== 'marketing') {
+        const { error: updErr } = await supabaseAdmin.from('leads').update({ origem: 'marketing' }).eq('id', lead.id);
         if (!updErr) {
-          lead.origem = 'Marketing';
-          console.log(`Origem do lead ${lead.telefone} atualizada para Marketing.`);
+          lead.origem = 'marketing';
+          console.log(`Origem do lead ${lead.telefone} atualizada para marketing.`);
         }
       }
     }

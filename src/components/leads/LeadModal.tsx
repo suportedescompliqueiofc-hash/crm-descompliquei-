@@ -293,7 +293,8 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
           nome: lead.nome || "", telefone: lead.telefone || "",
           resumo: lead.resumo || "", 
           origem: lead.origem || "organico", // Mapeia antigo para default
-          fonte: lead.fonte || lead.origem || "", // Fallback para origem antiga se fonte vazia
+          fonte: lead.fonte || "", 
+
           posicao_pipeline: lead.posicao_pipeline || 1,
           status: lead.status || "Ativo", email: lead.email || "", cpf: lead.cpf || "",
           idade: lead.idade?.toString() || "", genero: lead.genero || "", endereco: lead.endereco || "",
