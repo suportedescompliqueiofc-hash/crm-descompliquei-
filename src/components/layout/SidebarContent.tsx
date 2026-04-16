@@ -72,6 +72,27 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
+  const handleBackToMaster = async () => {
+    const originalOrgId = localStorage.getItem('original_master_org_id');
+    if (!originalOrgId || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('perfis')
+        .update({ organization_id: originalOrgId as any })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      localStorage.removeItem('original_master_org_id');
+      window.location.href = '/super-admin';
+    } catch (err: any) {
+      console.error('Erro ao voltar para conta master:', err);
+    }
+  };
+
+  const isImpersonating = !!localStorage.getItem('original_master_org_id');
+
   return (
     <TooltipProvider>
       <div className="flex flex-col h-full bg-sidebar">
@@ -151,7 +172,19 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
         </nav>
 
         {/* User Section */}
-        <div className={`${isCollapsed ? 'p-2' : 'p-4'} border-t border-sidebar-border flex-shrink-0`}>
+        <div className={`${isCollapsed ? 'p-2' : 'p-4'} border-t border-sidebar-border flex-shrink-0 space-y-2`}>
+          {isImpersonating && (
+            <Button 
+              variant="default" 
+              className={`w-full h-9 bg-primary hover:bg-primary/90 text-white shadow-lg animate-pulse ${isCollapsed ? 'justify-center px-0' : 'justify-start px-3'}`}
+              onClick={handleBackToMaster}
+              title={isCollapsed ? "Sair do Modo Cliente" : undefined}
+            >
+              <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+              {!isCollapsed && <span className="ml-2 text-[10px] font-bold uppercase tracking-wider">Sair do Cliente</span>}
+            </Button>
+          )}
+
           <div className={`flex items-center gap-3 mb-2 ${isCollapsed ? 'justify-center' : ''}`}>
             <Avatar className="h-9 w-9 flex-shrink-0 border border-sidebar-border">
               <AvatarImage src={profile?.url_avatar || ''} />
