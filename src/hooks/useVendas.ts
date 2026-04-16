@@ -18,6 +18,7 @@ export interface Venda {
   valor_fechado: number;
   data_fechamento: string;
   forma_pagamento: string | null;
+  produto_servico: string | null;
   criado_em: string;
   leads: Pick<Lead, 'nome' | 'telefone'>; // Para join
 }

@@ -27,8 +27,21 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 
+const formatMessage = (text: string) => {
+  const parts = text.split(/(\*\*.*?\*\*|- )/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} className="font-bold text-foreground">{part.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+};
+
 const NotificationCard = ({ notification, onUpdateStatus }: { notification: NotificationWithLead, onUpdateStatus: (id: string, status: 'pendente' | 'resolvido') => void }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const timeAgo = formatDistanceToNow(new Date(notification.criado_em), { addSuffix: true, locale: ptBR });
+
+  const isLongMessage = notification.mensagem.length > 200 || notification.mensagem.split('\n').length > 3;
 
   return (
     <Card className="shadow-sm hover:shadow-md transition-shadow">
@@ -38,23 +51,36 @@ const NotificationCard = ({ notification, onUpdateStatus }: { notification: Noti
             <div className={notification.status === 'pendente' ? "bg-amber-100 text-amber-600 p-2 rounded-full mt-1 shrink-0" : "bg-muted text-muted-foreground p-2 rounded-full mt-1 shrink-0"}>
               <Bell className="h-5 w-5" />
             </div>
-            <div className="space-y-2 flex-1 min-w-0">
-              <p className="font-semibold text-foreground text-sm sm:text-base break-words">{notification.mensagem}</p>
-              <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
+            <div className="space-y-3 flex-1 min-w-0">
+              <div className="text-sm sm:text-base text-muted-foreground">
+                <div className={`whitespace-pre-wrap leading-relaxed ${!isExpanded && isLongMessage ? 'line-clamp-3' : ''}`}>
+                  {formatMessage(notification.mensagem)}
+                </div>
+                {isLongMessage && (
+                  <button 
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="text-xs text-primary font-bold hover:underline mt-1.5 inline-flex items-center"
+                  >
+                    {isExpanded ? 'Ver menos' : 'Ver mais'}
+                  </button>
+                )}
+              </div>
+
+              <div className="text-xs sm:text-sm text-muted-foreground space-y-1 bg-muted/30 p-2 rounded-md">
                 <div className="flex items-center gap-2">
                   <User className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">Cliente: {notification.leads?.nome || 'Desconhecido'}</span>
+                  <span className="truncate font-medium text-foreground">Cliente: {notification.leads?.nome || 'Desconhecido'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">WhatsApp: {notification.leads?.telefone || 'N/A'}</span>
                 </div>
               </div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground pt-1">{timeAgo}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground/70 font-medium">{timeAgo}</p>
             </div>
           </div>
           {notification.status === 'pendente' && (
-            <Button variant="outline" size="sm" onClick={() => onUpdateStatus(notification.id, 'resolvido')} className="shrink-0 h-8 text-[10px] sm:text-xs">
+            <Button variant="outline" size="sm" onClick={() => onUpdateStatus(notification.id, 'resolvido')} className="shrink-0 h-8 text-[10px] sm:text-xs border-amber-200 hover:bg-amber-50 hover:text-amber-700">
               <CheckCircle className="h-3.5 w-3.5 sm:mr-2" />
               <span className="hidden sm:inline">Resolver</span>
             </Button>

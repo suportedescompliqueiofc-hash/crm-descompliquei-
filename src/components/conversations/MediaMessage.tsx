@@ -27,7 +27,7 @@ export function MediaMessage({ path, type, onView }: MediaMessageProps) {
 
     try {
       const { data, error: functionError } = await supabase.functions.invoke('get-media-url', {
-        body: { mediaPath: path },
+        body: { mediaPath: path, mediaType: type },
       });
 
       if (functionError) throw new Error(functionError.message || "Erro na Edge Function");

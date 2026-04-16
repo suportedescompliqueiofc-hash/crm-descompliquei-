@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const N8N_WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/excluir-mensagem-gleyce';
+const N8N_WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/excluir-mensagens-crm-descompliquei';
 
 serve(async (req) => {
   // Tratamento de CORS

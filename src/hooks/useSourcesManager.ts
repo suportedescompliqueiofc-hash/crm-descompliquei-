@@ -11,10 +11,9 @@ export interface Source {
 }
 
 export function useSourcesManager() {
-  const { profile, role } = useProfile();
+  const { profile } = useProfile();
   const orgId = profile?.organization_id;
   const queryClient = useQueryClient();
-  const isAdmin = role === 'admin';
 
   const { data: sources = [], isLoading } = useQuery<Source[]>({
     queryKey: ['sources', orgId],
@@ -33,7 +32,6 @@ export function useSourcesManager() {
 
   const createSource = useMutation({
     mutationFn: async (newSource: { nome: string }) => {
-      if (!isAdmin) throw new Error("Apenas administradores podem criar fontes.");
       if (!orgId) throw new Error("Organização não encontrada.");
       const { data, error } = await supabase
         .from('fontes')
@@ -59,7 +57,6 @@ export function useSourcesManager() {
 
   const updateSource = useMutation({
     mutationFn: async (updatedSource: Pick<Source, 'id' | 'nome'>) => {
-      if (!isAdmin) throw new Error("Apenas administradores podem editar fontes.");
       const { data, error } = await supabase
         .from('fontes')
         .update({ nome: updatedSource.nome })
@@ -85,7 +82,6 @@ export function useSourcesManager() {
 
   const deleteSource = useMutation({
     mutationFn: async (id: string) => {
-      if (!isAdmin) throw new Error("Apenas administradores podem excluir fontes.");
       const { error } = await supabase.from('fontes').delete().eq('id', id);
       if (error) throw error;
     },

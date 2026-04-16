@@ -8,7 +8,7 @@ export interface Stage {
   cor: string;
   posicao_ordem: number;
   criado_em: string;
-  incluir_no_funil?: boolean;
+  em_funil?: boolean;
 }
 
 export function useStages() {

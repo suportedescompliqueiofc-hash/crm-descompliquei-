@@ -78,7 +78,7 @@ export default function Vendas() {
       <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Vendas</h1>
-          <p className="text-sm md:text-base text-muted-foreground mt-1">Controle de contratos e faturamento.</p>
+          <p className="text-sm md:text-base text-muted-foreground mt-1">Gestão de vendas e faturamento.</p>
         </div>
         
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -138,7 +138,7 @@ export default function Vendas() {
       <Card className="border-none shadow-none sm:border sm:shadow-sm sm:bg-card overflow-hidden">
         <CardHeader className="hidden sm:block">
           <CardTitle>Histórico de Vendas</CardTitle>
-          <CardDescription>Todos os contratos fechados registrados no sistema.</CardDescription>
+          <CardDescription>Todas as vendas fechadas registradas no sistema.</CardDescription>
         </CardHeader>
         
         <CardContent className="p-0 sm:p-6">
@@ -165,6 +165,7 @@ export default function Vendas() {
                         <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         <h4 className="font-bold text-foreground truncate">{venda.leads?.nome || 'Cliente não encontrado'}</h4>
                       </div>
+                      <p className="text-xs text-primary font-medium mb-1">{venda.produto_servico}</p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <CalendarIcon className="h-3 w-3" />
                         {format(parseISO(venda.data_fechamento), 'dd/MM/yyyy', { locale: ptBR })}
@@ -213,6 +214,7 @@ export default function Vendas() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Cliente</TableHead>
+                  <TableHead>Serviço / Produto</TableHead>
                   <TableHead>Valor Fechado</TableHead>
                   <TableHead>Data Fechamento</TableHead>
                   <TableHead>Forma de Pagamento</TableHead>
@@ -225,6 +227,7 @@ export default function Vendas() {
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
                       <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-28" /></TableCell>
@@ -233,11 +236,12 @@ export default function Vendas() {
                     </TableRow>
                   ))
                 ) : vendas.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="h-24 text-center">Nenhuma venda registrada no período.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="h-24 text-center">Nenhuma venda registrada no período.</TableCell></TableRow>
                 ) : (
                   vendas.map(venda => (
                     <TableRow key={venda.id} className="group">
                       <TableCell className="font-medium">{venda.leads?.nome || 'Cliente não encontrado'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{venda.produto_servico || '-'}</TableCell>
                       <TableCell className="font-semibold text-emerald-600">{formatCurrency(venda.valor_fechado)}</TableCell>
                       <TableCell>{format(parseISO(venda.data_fechamento), 'dd/MM/yyyy', { locale: ptBR })}</TableCell>
                       <TableCell><Badge variant="outline" className="bg-muted/50 font-normal">{venda.forma_pagamento || 'N/A'}</Badge></TableCell>

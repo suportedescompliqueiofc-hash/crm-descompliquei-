@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Search, Filter, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Search, Filter, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -331,6 +331,7 @@ export default function Leads() {
                     <TableHead>Telefone</TableHead>
                     <TableHead>Origem</TableHead>
                     <TableHead>Fonte</TableHead>
+                    <TableHead>Etiquetas</TableHead>
                     <TableHead>Área/Serviço</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Etapa</TableHead>
@@ -352,7 +353,17 @@ export default function Leads() {
                       return (
                         <TableRow key={lead.id} className="hover:bg-muted/50">
                           <TableCell><Checkbox /></TableCell>
-                          <TableCell><p className="font-medium text-foreground">{lead.nome}</p></TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-foreground">{lead.nome}</p>
+                              {lead.is_qualified && (
+                                <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white text-[9px] h-4 px-1.5 gap-1 border-none shadow-[0_2px_4px_rgba(16,185,129,0.2)] font-bold">
+                                  <UserCheck className="h-2.5 w-2.5 fill-current" />
+                                  MQL
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell><p className="text-sm text-muted-foreground">{lead.telefone}</p></TableCell>
                           
                           <TableCell>
@@ -361,6 +372,18 @@ export default function Leads() {
                             </Badge>
                           </TableCell>
                           <TableCell><span className="text-sm text-muted-foreground">{lead.fonte || '-'}</span></TableCell>
+                          
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1 max-w-[150px]">
+                              {lead.leads_tags && lead.leads_tags.length > 0 ? (
+                                lead.leads_tags.map(lt => lt.tags && (
+                                  <Badge key={lt.tags.id} variant="secondary" className="text-[10px] px-1 whitespace-nowrap" style={{ backgroundColor: lt.tags.color + '20', color: lt.tags.color, borderColor: lt.tags.color }}>
+                                    {lt.tags.name}
+                                  </Badge>
+                                ))
+                              ) : <span className="text-xs text-muted-foreground">-</span>}
+                            </div>
+                          </TableCell>
 
                           <TableCell><span className="text-sm font-medium text-primary">{lead.procedimento_interesse || '-'}</span></TableCell>
                           <TableCell><Badge className={getStatusColor(lead.status)}>{lead.status}</Badge></TableCell>

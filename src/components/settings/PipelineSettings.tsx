@@ -57,14 +57,14 @@ const SortableStageRow = ({
         <Button 
           variant="ghost" 
           size="icon" 
-          onClick={() => onToggleFunnel(stage.id, !!stage.incluir_no_funil)}
+          onClick={() => onToggleFunnel(stage.id, !!stage.em_funil)}
           className={cn(
             "h-9 w-9 rounded-full transition-all",
-            stage.incluir_no_funil ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100" : "text-muted-foreground/40"
+            stage.em_funil ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100" : "text-muted-foreground/40"
           )}
-          title={stage.incluir_no_funil ? "Etapa faz parte do funil" : "Definir como etapa do funil"}
+          title={stage.em_funil ? "Etapa faz parte do funil" : "Definir como etapa do funil"}
         >
-          <Target className={cn("h-5 w-5", stage.incluir_no_funil && "animate-pulse")} />
+          <Target className={cn("h-5 w-5", stage.em_funil && "animate-pulse")} />
         </Button>
       </TableCell>
       <TableCell className="text-right">
@@ -80,8 +80,8 @@ const SortableStageRow = ({
 };
 
 export function PipelineSettings() {
-  const { stages, isLoading, createStage, updateStage, deleteStage, updateStagesOrder, toggleFunnelStage } = useStagesManager();
-  const { role } = useProfile();
+  const { stages, isLoading: isLoadingStages, createStage, updateStage, deleteStage, updateStagesOrder, toggleFunnelStage } = useStagesManager();
+  const { role, isLoading: isLoadingProfile } = useProfile();
   const [localStages, setLocalStages] = useState<Stage[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
@@ -101,17 +101,17 @@ export function PipelineSettings() {
     })
   );
 
-  if (role !== 'admin') {
+  if (isLoadingProfile || isLoadingStages) {
     return (
       <Card>
         <CardContent className="pt-6 text-center">
-          <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold">Acesso Restrito</h3>
-          <p className="text-muted-foreground">Apenas administradores podem gerenciar as etapas do pipeline.</p>
+          <p className="text-muted-foreground animate-pulse">Carregando configurações...</p>
         </CardContent>
       </Card>
     );
   }
+
+
 
   const openModal = (stage: Stage | null = null) => {
     if (stage) {
@@ -132,7 +132,7 @@ export function PipelineSettings() {
       updateStage.mutate({ id: editingStage.id, nome: stageName, cor: stageColor });
     } else {
       const maxOrder = stages.reduce((max, s) => Math.max(max, s.posicao_ordem), 0);
-      createStage.mutate({ nome: stageName, cor: stageColor, posicao_ordem: maxOrder + 1, incluir_no_funil: false } as any);
+      createStage.mutate({ nome: stageName, cor: stageColor, posicao_ordem: maxOrder + 1, em_funil: false } as any);
     }
     setIsModalOpen(false);
   };
@@ -157,7 +157,7 @@ export function PipelineSettings() {
   };
 
   const handleSeedStages = async () => {
-    if (!confirm("Isso irá redefinir as etapas para o padrão jurídico. Continuar?")) return;
+    if (!confirm("Isso irá apagar as etapas atuais e redefinir para o Padrão. Continuar?")) return;
     setIsResetting(true);
     try {
       await supabase.functions.invoke('seed-stages');
@@ -180,7 +180,7 @@ export function PipelineSettings() {
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2" onClick={handleSeedStages} disabled={isResetting}>
             <Sparkles className="h-4 w-4 text-primary" />
-            Padrão Escritório
+            Padrão
           </Button>
           <Button className="gap-2" onClick={() => openModal()}>
             <Plus className="h-4 w-4" />
@@ -201,7 +201,7 @@ export function PipelineSettings() {
             </TableHeader>
             <SortableContext items={localStages.map(s => s.id)} strategy={verticalListSortingStrategy}>
               <TableBody>
-                {isLoading ? (
+                {isLoadingStages ? (
                   <TableRow><TableCell colSpan={4} className="text-center">Carregando...</TableCell></TableRow>
                 ) : localStages.length === 0 ? (
                   <TableRow><TableCell colSpan={4} className="text-center">Nenhuma etapa criada.</TableCell></TableRow>

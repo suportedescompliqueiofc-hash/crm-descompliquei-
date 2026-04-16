@@ -22,10 +22,28 @@ interface QuickMessagesSidebarProps {
   lead: Lead | null;
 }
 
+function CountdownTimer({ targetDate }: { targetDate: string }) {
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+
+  useEffect(() => {
+    const calculate = () => {
+      const diff = Math.max(0, Math.floor((new Date(targetDate).getTime() - Date.now()) / 1000));
+      setTimeLeft(diff);
+    };
+
+    calculate();
+    const interval = setInterval(calculate, 1000);
+    return () => clearInterval(interval);
+  }, [targetDate]);
+
+  if (timeLeft <= 0) return <span className="font-bold text-[10px]">Enviando...</span>;
+  return <span className="font-bold text-[10px] tabular-nums">-{timeLeft}s</span>;
+}
+
 function SortableMessageItem({ 
-  msg, onClick, onSchedule, getIcon 
+  msg, onClick, getIcon 
 }: { 
-  msg: QuickMessage; onClick: (msg: QuickMessage) => void; onSchedule: (msg: QuickMessage) => void; getIcon: (tipo: string) => React.ReactNode;
+  msg: QuickMessage; onClick: (msg: QuickMessage) => void; getIcon: (tipo: string) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: msg.id });
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 50 : "auto", opacity: isDragging ? 0.5 : 1, position: 'relative' as 'relative' };
@@ -41,15 +59,6 @@ function SortableMessageItem({
             <div className="flex items-center gap-1 text-[9px] text-primary/70 font-bold mt-1"><Clock className="h-2.5 w-2.5" /> {msg.delay_seconds || 5}s de intervalo</div>
           </div>
           <div className="opacity-0 group-hover/btn:opacity-100 absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 transition-opacity">
-            <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-7 w-7 rounded-full bg-background/80 hover:bg-amber-100 text-amber-600 shadow-sm border border-amber-200" 
-                onClick={(e) => { e.stopPropagation(); onSchedule(msg); }} 
-                title="Agendar Envio"
-            >
-                <Clock className="h-3.5 w-3.5" />
-            </Button>
             <div className="bg-primary text-primary-foreground p-1.5 rounded-full shadow-sm"><Send className="h-3 w-3" /></div>
           </div>
         </div>
@@ -65,20 +74,11 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
   
   const [searchTerm, setSearchTerm] = useState("");
   const [messageToConfirm, setMessageToConfirm] = useState<QuickMessage | null>(null);
-  const [messageToSchedule, setMessageToSchedule] = useState<QuickMessage | null>(null);
-  const [scheduledDateTime, setScheduledDateTime] = useState("");
   const [sequenceFolder, setSequenceFolder] = useState<QuickMessageFolder | null>(null);
   const [localMessages, setLocalMessages] = useState<QuickMessage[]>([]);
 
   useEffect(() => { if (!isLoadingMsgs && quickMessages) setLocalMessages(quickMessages); }, [quickMessages, isLoadingMsgs]);
 
-  // Define um horário padrão (próxima hora cheia) ao abrir o modal de agendamento
-  useEffect(() => {
-    if (messageToSchedule) {
-      const nextHour = startOfHour(addHours(new Date(), 1));
-      setScheduledDateTime(format(nextHour, "yyyy-MM-dd'T'HH:mm"));
-    }
-  }, [messageToSchedule]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
@@ -89,23 +89,6 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
     setSequenceFolder(null);
   };
 
-  const handleConfirmSchedule = async () => {
-    if (!lead || !messageToSchedule || !scheduledDateTime) return;
-    
-    const date = new Date(scheduledDateTime);
-    if (date <= new Date()) {
-      alert("Por favor, selecione uma data e hora no futuro.");
-      return;
-    }
-
-    scheduleQuickMessage({
-      message: messageToSchedule,
-      leadId: lead.id,
-      scheduledFor: date.toISOString()
-    });
-
-    setMessageToSchedule(null);
-  };
 
   const getIcon = (tipo: string) => {
     switch (tipo) {
@@ -149,8 +132,37 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
                  {logs.some(l => l.status === 'pending') ? <><StopCircle className="h-3 w-3 mr-1" /> Parar</> : <><X className="h-3 w-3 mr-1" /> Limpar</>}
               </Button>
            </div>
-           <div className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
-              {logs.map(log => (<div key={log.id} className="flex items-center justify-between text-xs bg-background p-2 rounded border shadow-sm"><span className="truncate max-w-[140px] font-medium">{log.mensagens_rapidas?.titulo}</span>{log.status === 'pending' ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : log.status === 'sent' ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : <AlertCircle className="h-3 w-3 text-destructive" />}</div>))}
+           <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+              {logs.map(log => {
+                const isPending = log.status === 'pending';
+                const scheduledTime = new Date(log.scheduled_for).getTime();
+                
+                return (
+                  <div key={log.id} className={cn(
+                    "flex flex-col gap-1 text-xs bg-background p-2 rounded border shadow-sm transition-all",
+                    log.status === 'error' && "border-destructive/30 bg-destructive/5"
+                  )}>
+                    <div className="flex items-center justify-between">
+                      <span className="truncate max-w-[140px] font-medium">{log.mensagens_rapidas?.titulo || 'Mensagem'}</span>
+                      {log.status === 'pending' ? (
+                        <div className="flex items-center gap-1.5 text-primary animate-pulse">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <CountdownTimer targetDate={log.scheduled_for} />
+                        </div>
+                      ) : log.status === 'sent' ? (
+                        <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                      ) : (
+                        <AlertCircle className="h-3 w-3 text-destructive" />
+                      )}
+                    </div>
+                    {isPending && (
+                      <div className="text-[9px] text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-2 w-2" /> Agendado para {format(new Date(log.scheduled_for), "HH:mm:ss")}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
            </div>
         </div>
       )}
@@ -168,7 +180,7 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
                     <div className="absolute right-8 top-1"><Button variant="ghost" size="icon" className="h-6 w-6 text-primary hover:bg-primary/20 opacity-0 group-hover:opacity-100 bg-background/50 border border-primary/10" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSequenceFolder(folder); }} title="Enviar sequência"><Play className="h-3 w-3 fill-current" /></Button></div></div>
                     <AccordionContent className="pt-1 pb-0 px-1">
                       <SortableContext items={msgs.map(m => m.id)} strategy={verticalListSortingStrategy}>
-                        {msgs.map(m => (<SortableMessageItem key={m.id} msg={m} onClick={setMessageToConfirm} onSchedule={setMessageToSchedule} getIcon={getIcon} />))}
+                        {msgs.map(m => (<SortableMessageItem key={m.id} msg={m} onClick={setMessageToConfirm} getIcon={getIcon} />))}
                       </SortableContext>
                     </AccordionContent>
                   </AccordionItem>
@@ -212,7 +224,10 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
           <AlertDialogFooter className="gap-2 sm:gap-0">
             <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={() => { sendQuickMessage({ message: messageToConfirm!, leadId: lead.id, phone: lead.telefone }); setMessageToConfirm(null); }}
+              onClick={() => { 
+                sendQuickMessage({ message: messageToConfirm!, leadId: lead.id, phone: lead.telefone }); 
+                setMessageToConfirm(null); 
+              }}
               className="rounded-xl bg-primary hover:bg-primary/90"
             >
               Enviar Mensagem
@@ -221,51 +236,6 @@ export function QuickMessagesSidebar({ lead }: QuickMessagesSidebarProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* NOVO: Modal para Agendamento Individual */}
-      <Dialog open={!!messageToSchedule} onOpenChange={open => !open && setMessageToSchedule(null)}>
-        <DialogContent className="max-w-md rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-amber-600" /> Agendar Envio
-            </DialogTitle>
-            <DialogDescription>
-              A mensagem <strong>"{messageToSchedule?.titulo}"</strong> será enviada automaticamente na data e hora selecionadas.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="schedule-time" className="text-xs font-bold uppercase text-muted-foreground tracking-wider">
-                Data e Hora do Envio
-              </Label>
-              <div className="relative">
-                <Input 
-                  id="schedule-time"
-                  type="datetime-local" 
-                  value={scheduledDateTime}
-                  onChange={(e) => setScheduledDateTime(e.target.value)}
-                  className="h-11 focus-visible:ring-primary rounded-xl"
-                  min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
-                />
-              </div>
-              <p className="text-[10px] text-muted-foreground italic pl-1">
-                * O envio depende da conexão estável do sistema com o WhatsApp.
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0 border-t pt-4">
-            <Button variant="outline" onClick={() => setMessageToSchedule(null)} className="rounded-xl">Cancelar</Button>
-            <Button 
-              onClick={handleConfirmSchedule} 
-              className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white gap-2 shadow-md"
-            >
-              <CheckCircle2 className="h-4 w-4" /> 
-              Confirmar Agendamento
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

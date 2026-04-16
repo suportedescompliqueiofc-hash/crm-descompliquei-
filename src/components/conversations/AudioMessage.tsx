@@ -37,12 +37,12 @@ export function AudioMessage({ filePath, variant = 'incoming' }: AudioMessagePro
     try {
       // Busca URL assinada via Edge Function centralizada
       const { data, error: functionError } = await supabase.functions.invoke('get-media-url', {
-        body: { mediaPath: filePath },
+        body: { mediaPath: filePath, mediaType: 'audio' },
       });
 
       if (functionError || !data?.signedUrl) {
         // Fallback para buscar no bucket principal caso a função falhe
-        const { data: fallbackData } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
+        const { data: fallbackData } = supabase.storage.from('audio-mensagens').getPublicUrl(filePath);
         if (fallbackData?.publicUrl) {
             setAudioUrl(fallbackData.publicUrl);
         } else {

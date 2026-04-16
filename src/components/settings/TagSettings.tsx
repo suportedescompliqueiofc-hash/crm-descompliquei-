@@ -1,24 +1,71 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Check, Hash } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Plus, Edit, Trash2, Check, Hash, RefreshCw } from "lucide-react";
 import { useTags, TAG_COLORS, Tag, getTagColorStyles } from "@/hooks/useTags";
 import { cn } from "@/lib/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function TagSettings() {
-  const { availableTags, isLoadingTags, createTag, updateTag, deleteTag } = useTags();
+  const queryClient = useQueryClient();
+  const { availableTags, isLoadingTags, createTag, updateTag, deleteTag, refetchTags } = useTags();
+  const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
   const [isDeleting, setIsDeleting] = useState<Tag | null>(null);
   const [tagName, setTagName] = useState("");
   const [tagColor, setTagColor] = useState(TAG_COLORS[0].hex);
   const [customHex, setCustomHex] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const syncLabelsFromWhatsApp = async () => {
+    setIsSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // 1. Sincroniza as etiquetas (cria na tabela tags)
+      const resLabels = await supabase.functions.invoke('manage-whatsapp', {
+        body: { action: 'sync_labels' },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (resLabels.error) throw new Error(resLabels.error.message);
+      
+      // 2. Sincroniza os leads (atribui as etiquetas para leads existentes)
+      const resLeads = await supabase.functions.invoke('manage-whatsapp', {
+        body: { action: 'sync_leads_tags' },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (resLeads.error) console.error("Erro secundário ao sincronizar leads: ", resLeads.error);
+      
+      const { synced = 0 } = resLabels.data || {};
+      const { syncedLeadsCount = 0 } = resLeads.data || {};
+
+      toast({
+        title: '✅ Etiquetas sincronizadas!',
+        description: `${synced} etiqueta(s) importada(s). ${syncedLeadsCount} lead(s) atualizado(s).`,
+      });
+      refetchTags?.(); // Refetch global tags
+      
+      // Força a atualização nas conversas abertas e lista
+      queryClient.invalidateQueries({ queryKey: ['lead_tags'] });
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao sincronizar',
+        description: err.message || 'Verifique se o WhatsApp está conectado.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const openModal = (tag: Tag | null = null) => {
     if (tag) {
@@ -86,10 +133,16 @@ export function TagSettings() {
           <CardTitle>Gerenciar Etiquetas</CardTitle>
           <CardDescription>Crie, edite e remova as etiquetas usadas para organizar seus leads.</CardDescription>
         </div>
-        <Button className="gap-2" onClick={() => openModal()}>
-          <Plus className="h-4 w-4" />
-          Nova Etiqueta
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={syncLabelsFromWhatsApp} disabled={isSyncing}>
+            <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar do WhatsApp'}
+          </Button>
+          <Button className="gap-2" onClick={() => openModal()}>
+            <Plus className="h-4 w-4" />
+            Nova Etiqueta
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>

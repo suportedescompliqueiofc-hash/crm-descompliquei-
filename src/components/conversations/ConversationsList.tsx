@@ -155,9 +155,13 @@ const ConversationItem = ({
               </span>
               
               {conversation.origem === 'marketing' ? (
-                <Megaphone className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                <Megaphone className="h-3 w-3 text-muted-foreground/60 shrink-0" title="Marketing" />
               ) : (
-                <Globe className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                <Globe className="h-3 w-3 text-muted-foreground/60 shrink-0" title="Orgânico" />
+              )}
+              
+              {conversation.em_cadencia && (
+                <Zap className="h-3 w-3 text-orange-500 fill-orange-500/20 shrink-0" title="Em Cadência" />
               )}
               
               <div className="flex gap-0.5 shrink-0">

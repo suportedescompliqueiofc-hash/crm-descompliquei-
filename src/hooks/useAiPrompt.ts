@@ -14,35 +14,44 @@ export function useAiPrompt() {
     queryKey: ['ai_prompt', orgId],
     queryFn: async () => {
       if (!user || !orgId) return null;
-      
       const { data, error } = await supabase
         .from('organization_ai_prompts')
         .select('*')
         .eq('organization_id', orgId)
         .maybeSingle();
-
       if (error) throw error;
       return data;
     },
     enabled: !!user && !!orgId,
   });
 
-  const savePrompt = useMutation({
-    mutationFn: async (newPrompt: string) => {
+  const saveMutation = useMutation({
+    mutationFn: async ({ prompt: newPrompt, promptCrm, iaAtiva, acumulo_mensagens }: { prompt: string; promptCrm?: string; iaAtiva?: boolean; acumulo_mensagens?: number }) => {
       if (!user || !orgId) throw new Error("Usuário não autenticado");
-      
       const timestamp = new Date().toISOString();
-      let resultData;
+      const payload: Record<string, unknown> = {
+        prompt: newPrompt,
+        updated_at: timestamp,
+        ia_ativa: iaAtiva ?? true,
+      };
 
-      // 1. Atualizar/Inserir no Supabase
+      if (promptCrm !== undefined) {
+        payload.prompt_crm = promptCrm;
+      }
+      if (acumulo_mensagens !== undefined) {
+        payload.acumulo_mensagens = acumulo_mensagens;
+      }
+      
+      let resultData;
       if (!promptData) {
+        // Defaults fallbacks if new
+        payload.modelo_ia = 'grok-3-fast';
+        payload.delay_entre_mensagens = 2000;
+        if (payload.acumulo_mensagens === undefined) payload.acumulo_mensagens = 45;
+
         const { data, error } = await supabase
           .from('organization_ai_prompts')
-          .insert([{ 
-            prompt: newPrompt, 
-            organization_id: orgId,
-            updated_at: timestamp
-          }])
+          .insert([{ ...payload, organization_id: orgId }])
           .select()
           .single();
         if (error) throw error;
@@ -50,50 +59,55 @@ export function useAiPrompt() {
       } else {
         const { data, error } = await supabase
           .from('organization_ai_prompts')
-          .update({ 
-            prompt: newPrompt,
-            updated_at: timestamp
-          })
+          .update(payload)
           .eq('id', promptData.id)
           .select()
           .single();
-
         if (error) throw error;
         resultData = data;
       }
-
-      // 2. Chamar Webhook da Karoline para atualizar o agente
-      try {
-        await fetch('https://webhook.orbevision.shop/webhook/assistente-prompt-karoline', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            organization_id: orgId,
-            prompt: newPrompt,
-            user_id: user.id
-          })
-        });
-      } catch (webhookError) {
-        console.error("Falha ao notificar webhook de prompt:", webhookError);
-        // Não lançamos erro aqui para não invalidar o salvamento no banco
-      }
-
       return resultData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ai_prompt', orgId] });
-      toast.success('Prompt da IA salvo com sucesso!', { closeButton: true });
+      toast.success('Configurações de IA salvas com sucesso!', { closeButton: true });
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Erro ao salvar prompt', { closeButton: true });
+      toast.error(error.message || 'Erro ao salvar configurações', { closeButton: true });
     },
   });
 
-  return { 
-    prompt: promptData?.prompt || '', 
+  const toggleMutation = useMutation({
+    mutationFn: async (ativa: boolean) => {
+      if (!orgId) throw new Error("Organização não encontrada");
+      if (!promptData) throw new Error("Configure e salve o prompt antes de ativar a IA");
+      const { error } = await supabase
+        .from('organization_ai_prompts')
+        .update({ ia_ativa: ativa, updated_at: new Date().toISOString() })
+        .eq('id', promptData.id);
+      if (error) throw error;
+    },
+    onSuccess: (_, ativa) => {
+      queryClient.invalidateQueries({ queryKey: ['ai_prompt', orgId] });
+      toast.success(ativa ? '🤖 IA ativada com sucesso!' : '⏸️ IA pausada.', { closeButton: true });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao alterar status da IA', { closeButton: true });
+    },
+  });
+
+  return {
+    prompt: promptData?.prompt || '',
+    promptCrm: promptData?.prompt_crm || '',
+    iaAtiva: promptData?.ia_ativa ?? false,
+    acumuloMensagens: promptData?.acumulo_mensagens ?? 45,
     lastUpdated: promptData?.updated_at,
-    isLoading, 
-    savePrompt: savePrompt.mutate,
-    isSaving: savePrompt.isPending
+    isLoading,
+    savePrompt: (prompt: string, promptCrm?: string, acumulo_mensagens?: number, callbacks?: { onSuccess?: () => void }) => {
+      saveMutation.mutate({ prompt, promptCrm, iaAtiva: true, acumulo_mensagens }, { onSuccess: callbacks?.onSuccess });
+    },
+    toggleIa: toggleMutation.mutate,
+    isTogglingIa: toggleMutation.isPending,
+    isSaving: saveMutation.isPending,
   };
 }

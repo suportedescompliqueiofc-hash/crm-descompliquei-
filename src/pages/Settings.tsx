@@ -12,7 +12,9 @@ import {
   Tag,
   GitBranch,
   Radio,
-  ChevronRight
+  ChevronRight,
+  Smartphone,
+  Brush
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,10 +22,11 @@ import { useProfile } from "@/hooks/useProfile";
 import { useClinicSettings } from "@/hooks/useClinicSettings";
 import { PhoneInput } from "@/components/MaskedInput";
 import { ThemeSettings } from "@/components/settings/ThemeSettings";
-import { TeamSettings } from "@/components/settings/TeamSettings";
 import { TagSettings } from "@/components/settings/TagSettings";
 import { PipelineSettings } from "@/components/settings/PipelineSettings";
 import { SourceSettings } from "@/components/settings/SourceSettings";
+import { BrandingSettings } from "@/components/settings/BrandingSettings";
+import { WhatsAppSettings } from "@/components/settings/WhatsAppSettings";
 import { cn } from "@/lib/utils";
 
 export default function Settings() {
@@ -65,11 +68,11 @@ export default function Settings() {
 
   const menuItems = [
     { id: "profile", label: "Perfil", icon: User },
-    { id: "clinic", label: "Dados do Escritório", icon: Building2 },
-    { id: "team", label: "Equipe", icon: Users, hidden: role !== 'admin' },
-    { id: "pipeline", label: "Etapas do Pipeline", icon: GitBranch, hidden: role !== 'admin' },
-    { id: "sources", label: "Fontes", icon: Radio, hidden: role !== 'admin' },
+    { id: "pipeline", label: "Etapas do Pipeline", icon: GitBranch },
+    { id: "sources", label: "Fontes", icon: Radio },
     { id: "tags", label: "Etiquetas", icon: Tag },
+    { id: "marca", label: "Marca", icon: Brush, hidden: role !== 'admin' && role !== 'superadmin' },
+    { id: "whatsapp", label: "WhatsApp", icon: Smartphone, hidden: role !== 'admin' && role !== 'superadmin' },
     { id: "appearance", label: "Aparência", icon: Palette },
   ];
 
@@ -150,44 +153,12 @@ export default function Settings() {
             </Card>
           )}
 
-          {activeSection === "clinic" && (
-            <Card className="shadow-sm">
-              <CardHeader className="p-4 sm:p-6">
-                <CardTitle className="text-lg">Dados do Escritório</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Informações jurídicas do escritório</CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 sm:p-6 space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Nome do Escritório</Label>
-                    <Input value={clinicForm.nome} onChange={e => setClinicForm({...clinicForm, nome: e.target.value})} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">CNPJ</Label>
-                    <Input value={clinicForm.cnpj} onChange={e => setClinicForm({...clinicForm, cnpj: e.target.value})} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">E-mail Principal</Label>
-                    <Input type="email" value={clinicForm.email} onChange={e => setClinicForm({...clinicForm, email: e.target.value})} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Telefone Principal</Label>
-                    <PhoneInput value={clinicForm.telefone} onChange={e => setClinicForm({...clinicForm, telefone: e.target.value})} />
-                  </div>
-                </div>
-                <Button className="w-full sm:w-auto bg-primary hover:bg-primary/90 shadow-sm" onClick={handleClinicSave}>
-                  <Save className="h-4 w-4 mr-2" />
-                  Salvar Dados
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
           <div className="w-full overflow-hidden">
-            {activeSection === "team" && <TeamSettings />}
             {activeSection === "pipeline" && <PipelineSettings />}
             {activeSection === "sources" && <SourceSettings />}
             {activeSection === "tags" && <TagSettings />}
+            {activeSection === "marca" && <BrandingSettings />}
+            {activeSection === "whatsapp" && <WhatsAppSettings />}
             {activeSection === "appearance" && <ThemeSettings />}
           </div>
         </div>

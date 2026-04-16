@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { MessageSquare, FileText, Phone, Calendar as CalendarIcon, Clock, BarChart3, Kanban } from "lucide-react";
+import { MessageSquare, FileText, Phone, Calendar as CalendarIcon, Clock, BarChart3, Kanban, UserCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -189,7 +189,15 @@ function LeadCard({
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0 pr-2">
               <div className="flex items-center justify-between gap-2 mb-1">
-                <p className="font-semibold text-foreground truncate">{lead.nome}</p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="font-semibold text-foreground truncate">{lead.nome}</p>
+                  {lead.is_qualified && (
+                    <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white text-[8px] h-3.5 px-1 gap-0.5 border-none shadow-[0_2px_4px_rgba(16,185,129,0.2)]">
+                      <UserCheck className="h-2 w-2 fill-current" />
+                      MQL
+                    </Badge>
+                  )}
+                </div>
                 {getScheduleBadge()}
               </div>
               <p className="text-xs text-muted-foreground">{lead.telefone}</p>
@@ -204,9 +212,23 @@ function LeadCard({
             {lead.resumo || <span className="text-muted-foreground italic">Nenhum resumo disponível.</span>}
           </p>
           <div className="flex items-center justify-between pt-2 border-t">
-            <Badge variant="outline" className="text-xs font-normal max-w-[120px] truncate">
-              {lead.origem || 'Sem origem'}
-            </Badge>
+            <div className="flex flex-col gap-1.5">
+              <Badge variant="outline" className="text-[10px] font-normal w-fit truncate bg-muted/30">
+                {lead.origem || 'Sem origem'}
+              </Badge>
+              {lead.leads_tags && lead.leads_tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {lead.leads_tags.slice(0, 3).map(lt => lt.tags && (
+                    <Badge key={lt.tags.id} variant="secondary" className="text-[9px] px-1 h-4 min-h-0" style={{ backgroundColor: lt.tags.color + '20', color: lt.tags.color, borderColor: lt.tags.color }}>
+                      {lt.tags.name}
+                    </Badge>
+                  ))}
+                  {lead.leads_tags.length > 3 && (
+                     <Badge variant="secondary" className="text-[9px] px-1 h-4 min-h-0">+{lead.leads_tags.length - 3}</Badge>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium text-sm text-muted-foreground">{lastContactTime}</span>
@@ -226,7 +248,15 @@ function LeadCard({
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0 pr-2">
               <div className="flex items-center justify-between gap-2 mb-1">
-                <p className="font-semibold text-foreground truncate">{lead.nome}</p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="font-semibold text-foreground truncate">{lead.nome}</p>
+                  {lead.is_qualified && (
+                    <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white text-[8px] h-3.5 px-1 gap-0.5 border-none shadow-[0_2px_4px_rgba(16,185,129,0.2)] animate-in fade-in zoom-in-95 duration-300">
+                      <UserCheck className="h-2 w-2 fill-current" />
+                      MQL
+                    </Badge>
+                  )}
+                </div>
                 {getScheduleBadge()}
               </div>
               <p className="text-xs text-muted-foreground">{lead.telefone}</p>
@@ -243,9 +273,23 @@ function LeadCard({
           </p>
           
           <div className="flex items-center justify-between pt-2 border-t">
-            <Badge variant="outline" className="text-xs font-normal max-w-[120px] truncate">
-              {lead.origem || 'Sem origem'}
-            </Badge>
+            <div className="flex flex-col gap-1.5">
+              <Badge variant="outline" className="text-[10px] font-normal w-fit truncate bg-muted/30">
+                {lead.origem || 'Sem origem'}
+              </Badge>
+              {lead.leads_tags && lead.leads_tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {lead.leads_tags.slice(0, 3).map(lt => lt.tags && (
+                    <Badge key={lt.tags.id} variant="secondary" className="text-[9px] px-1 h-4 min-h-0" style={{ backgroundColor: lt.tags.color + '20', color: lt.tags.color, borderColor: lt.tags.color }}>
+                      {lt.tags.name}
+                    </Badge>
+                  ))}
+                  {lead.leads_tags.length > 3 && (
+                     <Badge variant="secondary" className="text-[9px] px-1 h-4 min-h-0">+{lead.leads_tags.length - 3}</Badge>
+                  )}
+                </div>
+              )}
+            </div>
             
             <div className="flex items-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
                 <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>

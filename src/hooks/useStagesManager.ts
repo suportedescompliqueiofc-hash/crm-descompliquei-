@@ -6,9 +6,8 @@ import { Stage } from './useStages';
 import { useEffect } from 'react';
 
 export function useStagesManager() {
-  const { role } = useProfile();
+  useProfile();
   const queryClient = useQueryClient();
-  const isAdmin = role === 'admin';
 
   useEffect(() => {
     const channel = supabase
@@ -35,8 +34,8 @@ export function useStagesManager() {
 
   const createStage = useMutation({
     mutationFn: async (newStage: Omit<Stage, 'id' | 'criado_em'>) => {
-      if (!isAdmin) throw new Error("Apenas administradores podem criar etapas.");
-      const { data, error } = await supabase.from('etapas').insert(newStage).select().single();
+      const { data: profile } = await supabase.from('perfis').select('organization_id').single();
+      const { data, error } = await supabase.from('etapas').insert({ ...newStage, organization_id: profile?.organization_id } as any).select().single();
       if (error) throw error;
       return data;
     },
@@ -48,10 +47,9 @@ export function useStagesManager() {
 
   const updateStage = useMutation({
     mutationFn: async (updatedStage: Partial<Stage> & { id: number }) => {
-      if (!isAdmin) throw new Error("Apenas administradores podem editar etapas.");
       const { data, error } = await supabase
         .from('etapas')
-        .update(updatedStage)
+        .update(updatedStage as any)
         .eq('id', updatedStage.id)
         .select()
         .single();
@@ -66,8 +64,7 @@ export function useStagesManager() {
 
   const toggleFunnelStage = useMutation({
     mutationFn: async ({ id, incluir }: { id: number, incluir: boolean }) => {
-      if (!isAdmin) throw new Error("Ação não permitida.");
-      const { error } = await supabase.from('etapas').update({ incluir_no_funil: incluir }).eq('id', id);
+      const { error } = await supabase.from('etapas').update({ em_funil: incluir } as any).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -78,7 +75,6 @@ export function useStagesManager() {
 
   const deleteStage = useMutation({
     mutationFn: async (id: number) => {
-      if (!isAdmin) throw new Error("Não autorizado.");
       const { error } = await supabase.from('etapas').delete().eq('id', id);
       if (error) throw error;
     },
@@ -90,7 +86,7 @@ export function useStagesManager() {
 
   const updateStagesOrder = useMutation({
     mutationFn: async (orderedStages: { id: number; posicao_ordem: number }[]) => {
-      const { error } = await supabase.rpc('update_stages_order', { stages_data: orderedStages });
+      const { error } = await supabase.rpc('update_stages_order', { stages_data: orderedStages as any });
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['stages'] })

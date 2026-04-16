@@ -99,17 +99,7 @@ export function TeamSettings() {
     return <div className="p-8 text-center text-muted-foreground">Carregando perfil...</div>;
   }
 
-  if (role !== 'admin') {
-    return (
-      <Card>
-        <CardContent className="pt-6 text-center">
-          <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold">Acesso Restrito</h3>
-          <p className="text-muted-foreground">Apenas administradores podem gerenciar a equipe.</p>
-        </CardContent>
-      </Card>
-    );
-  }
+
 
   return (
     <Card>

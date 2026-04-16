@@ -13,13 +13,15 @@ export interface QuickMessageFolder {
   created_at: string;
 }
 
+const EMPTY_FOLDERS: QuickMessageFolder[] = [];
+
 export function useQuickMessageFolders() {
   const { user } = useAuth();
   const { profile } = useProfile();
   const orgId = profile?.organization_id;
   const queryClient = useQueryClient();
 
-  const { data: folders = [], isLoading } = useQuery({
+  const { data: folders = EMPTY_FOLDERS, isLoading } = useQuery({
     queryKey: ['quick_message_folders', orgId],
     queryFn: async () => {
       if (!user || !orgId) return [];
@@ -48,7 +50,7 @@ export function useQuickMessageFolders() {
         .eq('organization_id', orgId)
         .order('position', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
         
       const nextPos = (maxPosData?.position || 0) + 1;
 

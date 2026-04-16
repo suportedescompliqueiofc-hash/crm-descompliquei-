@@ -6,15 +6,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Configuração PADRÃO corrigida para Advocacia
+// Configuração PADRÃO para Clínicas
 const targetStages = [
-  { nome: 'Novo Lead', cor: '#94a3b8', posicao_ordem: 1 }, 
-  { nome: 'Qualificação', cor: '#64748b', posicao_ordem: 2 },
-  { nome: 'Coletando Informações', cor: '#a8a29e', posicao_ordem: 3 },
-  { nome: 'Agendamento Solicitado', cor: '#C5A47E', posicao_ordem: 4 },
-  { nome: 'Reunião Agendada', cor: '#4ade80', posicao_ordem: 5 },
-  { nome: 'Contrato Fechado', cor: '#15803d', posicao_ordem: 6 },
-  { nome: 'Perdido', cor: '#ef4444', posicao_ordem: 7 }, 
+  { nome: 'Novo Lead', cor: '#93c5fd', posicao_ordem: 1 }, 
+  { nome: 'Qualificação', cor: '#3b82f6', posicao_ordem: 2 },
+  { nome: 'Coletando Informações', cor: '#d1d5db', posicao_ordem: 3 },
+  { nome: 'Agendamento Solicitado', cor: '#fef08a', posicao_ordem: 4 },
+  { nome: 'Agendado', cor: '#10b981', posicao_ordem: 5 },
+  { nome: 'Procedimento Fechado', cor: '#22c55e', posicao_ordem: 6 },
 ];
 
 serve(async (req) => {

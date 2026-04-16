@@ -17,7 +17,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SortableFolder } from "@/components/quick-messages/SortableFolder";
 import { SortableMessageCard } from "@/components/quick-messages/SortableMessageCard";
-import { ScheduledMessagesList } from "@/components/quick-messages/ScheduledMessagesList";
 import { createPortal } from "react-dom";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
@@ -204,22 +203,61 @@ export default function QuickMessagesPage() {
         </DialogContent>
       </Dialog>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList><TabsTrigger value="all" className="gap-2"><Folder className="h-4 w-4" /> Bibliotecas</TabsTrigger><TabsTrigger value="scheduled" className="gap-2"><Calendar className="h-4 w-4" /> Agendamentos</TabsTrigger></TabsList>
-        <TabsContent value="all" className="mt-6">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-            <SortableContext items={localFolders.map(f => f.id)} strategy={verticalListSortingStrategy}>
-              {localFolders.map(f => (<SortableFolder key={f.id} folder={f} messages={getMessagesByFolder(f.id)} onDeleteFolder={setFolderToDelete} onEditMessage={handleEditMessage} onDeleteMessage={setMsgToDelete} />))}
-            </SortableContext>
-            {getMessagesByFolder(null).length > 0 && (
-                <div className="mt-8"><div className="flex items-center gap-2 mb-3"><Folder className="h-5 w-5 text-muted-foreground" /><h3 className="text-lg font-semibold">Sem Pasta</h3></div>
-                <SortableContext id="uncategorized" items={getMessagesByFolder(null).map(m => m.id)} strategy={verticalListSortingStrategy}><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 border border-dashed rounded-xl bg-muted/5">{getMessagesByFolder(null).map(m => (<SortableMessageCard key={m.id} message={m} onEdit={handleEditMessage} onDelete={setMsgToDelete} />))}</div></SortableContext></div>
-            )}
-            {createPortal(<DragOverlay dropAnimation={defaultDropAnimationSideEffects as any}>{activeId && activeItem ? (activeItem.name ? <div className="bg-background border p-4 rounded shadow-xl"><h3>{activeItem.name}</h3></div> : <div className="w-[280px]"><SortableMessageCard message={activeItem} onEdit={() => {}} onDelete={() => {}} /></div>) : null}</DragOverlay>, document.body)}
-          </DndContext>
-        </TabsContent>
-        <TabsContent value="scheduled" className="mt-6"><ScheduledMessagesList /></TabsContent>
-      </Tabs>
+      <Dialog open={isFolderModalOpen} onOpenChange={setIsFolderModalOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Nova Pasta</DialogTitle>
+            <DialogDescription>Crie uma pasta para organizar suas mensagens rápidas.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleFolderSubmit} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Nome da Pasta</Label>
+              <Input 
+                value={folderFormData.name} 
+                onChange={e => setFolderFormData({...folderFormData, name: e.target.value})} 
+                required 
+                placeholder="Ex: Boas-vindas" 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Cor de Destaque</Label>
+              <div className="flex gap-2">
+                <Input 
+                  type="color" 
+                  value={folderFormData.color} 
+                  onChange={e => setFolderFormData({...folderFormData, color: e.target.value})} 
+                  className="w-12 h-10 p-1 cursor-pointer"
+                />
+                <Input 
+                  value={folderFormData.color} 
+                  onChange={e => setFolderFormData({...folderFormData, color: e.target.value})} 
+                  placeholder="#3b82f6"
+                  className="flex-1"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsFolderModalOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={createFolder.isPending}>
+                {createFolder.isPending ? 'Criando...' : 'Criar Pasta'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <div className="mt-6">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+          <SortableContext items={localFolders.map(f => f.id)} strategy={verticalListSortingStrategy}>
+            {localFolders.map(f => (<SortableFolder key={f.id} folder={f} messages={getMessagesByFolder(f.id)} onDeleteFolder={setFolderToDelete} onEditMessage={handleEditMessage} onDeleteMessage={setMsgToDelete} />))}
+          </SortableContext>
+          {getMessagesByFolder(null).length > 0 && (
+              <div className="mt-8"><div className="flex items-center gap-2 mb-3"><Folder className="h-5 w-5 text-muted-foreground" /><h3 className="text-lg font-semibold">Sem Pasta</h3></div>
+              <SortableContext id="uncategorized" items={getMessagesByFolder(null).map(m => m.id)} strategy={verticalListSortingStrategy}><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 border border-dashed rounded-xl bg-muted/5">{getMessagesByFolder(null).map(m => (<SortableMessageCard key={m.id} message={m} onEdit={handleEditMessage} onDelete={setMsgToDelete} />))}</div></SortableContext></div>
+          )}
+          {createPortal(<DragOverlay dropAnimation={defaultDropAnimationSideEffects as any}>{activeId && activeItem ? (activeItem.name ? <div className="bg-background border p-4 rounded shadow-xl"><h3>{activeItem.name}</h3></div> : <div className="w-[280px]"><SortableMessageCard message={activeItem} onEdit={() => {}} onDelete={() => {}} /></div>) : null}</DragOverlay>, document.body)}
+        </DndContext>
+      </div>
       
       <AlertDialog open={!!msgToDelete} onOpenChange={() => setMsgToDelete(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Excluir mensagem?</AlertDialogTitle><AlertDialogDescription>A mensagem será removida permanentemente da sua biblioteca.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={() => { if (msgToDelete) { deleteQuickMessage(msgToDelete); setMsgToDelete(null); } }} className="bg-destructive">Excluir</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>

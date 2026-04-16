@@ -38,30 +38,31 @@ export function useFunnelMetrics(dateRange: DateRange | undefined, origin: 'mark
       if (stagesError) throw stagesError;
 
       // Filtra apenas as etapas que DEVEM compor o funil
-      const funnelStages = allStages.filter(s => s.incluir_no_funil === true);
+      const funnelStages = allStages.filter(s => s.em_funil === true);
       const lostStage = allStages.find(s => s.nome.toLowerCase() === 'perdido');
       const lostPosition = lostStage?.posicao_ordem || 999;
 
-      // 2. Buscar leads ativos no período
-      const { data: leads, error: leadsError } = await supabase
-        .from('leads')
-        .select('posicao_pipeline, atualizado_em, criado_em')
-        .eq('organization_id', orgId)
-        .eq('origem', origin) 
-        .or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(atualizado_em.gte.${startDate},atualizado_em.lte.${endDate})`);
+       // 2. Buscar leads ativos no período
+       const { data: leads, error: leadsError } = await supabase
+         .from('leads')
+         .select('posicao_pipeline, atualizado_em, criado_em, origem')
+         .eq('organization_id', orgId)
+         // O sistema armazena em minúsculas
+         .eq('origem', origin.toLowerCase())
+         .or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(atualizado_em.gte.${startDate},atualizado_em.lte.${endDate})`);
 
       if (leadsError) throw leadsError;
 
       // 3. Construir o Funil com lógica restritiva
       const funnelData: FunnelStep[] = funnelStages.map((stage) => {
         // MUDANÇA: Um lead só conta para esta etapa se:
-        // 1. Sua etapa ATUAL também for uma etapa marcada como "incluir_no_funil"
+        // 1. Sua etapa ATUAL também for uma etapa marcada como "em_funil"
         // 2. Sua posição de ordem for igual ou superior à etapa atual do loop
         const count = (leads || []).filter(l => {
           const leadStage = allStages.find(s => s.posicao_ordem === l.posicao_pipeline);
           
           // Se o lead está em uma etapa que NÃO é de funil, ele não conta para nada aqui
-          if (!leadStage?.incluir_no_funil) return false;
+          if (!leadStage?.em_funil) return false;
 
           return l.posicao_pipeline >= stage.posicao_ordem && l.posicao_pipeline < lostPosition;
         }).length;

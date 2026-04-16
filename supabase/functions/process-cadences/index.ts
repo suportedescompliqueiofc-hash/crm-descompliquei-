@@ -7,8 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/fluxo-cadencia-gleyce';
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -47,6 +45,7 @@ serve(async (req) => {
 
     for (const item of leadsInCadence) {
       try {
+        // 1. Buscar dados do Lead
         const { data: lead, error: leadError } = await supabaseAdmin
           .from('leads')
           .select('id, nome, telefone, usuario_id')
@@ -54,6 +53,18 @@ serve(async (req) => {
           .single();
         
         if (leadError || !lead) throw new Error("Lead não encontrado.");
+
+        // 2. Buscar conexão WhatsApp ativa para a organização
+        const { data: conn } = await supabaseAdmin
+          .from('whatsapp_connections')
+          .select('uazapi_url, uazapi_token')
+          .eq('organization_id', item.organization_id)
+          .eq('status', 'connected')
+          .maybeSingle();
+
+        if (!conn?.uazapi_url || !conn?.uazapi_token) {
+          throw new Error("WhatsApp não conectado para esta organização.");
+        }
 
         const { data: cadence, error: cadenceError } = await supabaseAdmin
           .from('cadencias')
@@ -87,28 +98,73 @@ serve(async (req) => {
 
         const messageBody = (currentStep.conteudo || '').replace(/\{\{nome_lead\}\}/g, lead.nome || 'Cliente');
 
-        const payload = {
-          lead_id: lead.id,
-          mensagem: messageBody,
-          tipo: currentStep.tipo_mensagem,
-          url_midia: url_midia,
-          titulo_pdf: currentStep.tipo_mensagem === 'pdf' ? (cadence.nome || 'Documento') : null,
-          telefone: lead.telefone,
-          user_id: lead.usuario_id,
-          remetente: 'bot'
-        };
+        // 3. Registrar a mensagem no banco (para aparecer no chat)
+        const { data: savedMsg } = await supabaseAdmin
+          .from('mensagens')
+          .insert({
+            lead_id: lead.id,
+            organization_id: item.organization_id,
+            user_id: lead.usuario_id,
+            conteudo: messageBody,
+            direcao: 'saida',
+            remetente: 'bot',
+            tipo_conteudo: currentStep.tipo_mensagem || 'texto',
+            media_path: url_midia,
+          })
+          .select('id')
+          .single();
 
-        const response = await fetch(WEBHOOK_URL, {
+        // 4. Formatar telefone para UAZAPI
+        const telefoneDigits = (lead.telefone || '').replace(/\D/g, '');
+        const phoneFormatted = telefoneDigits.startsWith('55') && telefoneDigits.length >= 12
+          ? telefoneDigits
+          : `55${telefoneDigits}`;
+
+        // 5. Preparar Payload UAZAPI
+        const uazapiUrl = conn.uazapi_url.replace(/\/$/, '');
+        let endpoint = '/send/text';
+        let uazPayload: any = { number: phoneFormatted };
+
+        const tipo = currentStep.tipo_mensagem;
+        if (tipo === 'imagem' || tipo === 'audio' || tipo === 'video') {
+          endpoint = '/send/media';
+          uazPayload.mediaUrl = url_midia;
+          uazPayload.caption = tipo === 'audio' ? '' : messageBody;
+        } else if (tipo === 'pdf') {
+          endpoint = '/send/document';
+          uazPayload.url = url_midia;
+          uazPayload.filename = cadence.nome || 'documento.pdf';
+          uazPayload.caption = messageBody;
+        } else {
+          uazPayload.text = messageBody;
+          uazPayload.delay = 1200;
+        }
+
+        // 6. Disparar via UAZAPI
+        const response = await fetch(`${uazapiUrl}${endpoint}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'token': conn.uazapi_token,
+          },
+          body: JSON.stringify(uazPayload)
         });
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`Erro Webhook n8n (${response.status}): ${errorText}`);
+          throw new Error(`UAZAPI retornou ${response.status}: ${errorText.substring(0, 100)}`);
         }
 
+        const uazData = await response.json();
+        const waMessageId = uazData?.id ?? uazData?.messageid ?? null;
+
+        // Atualizar msg salva com ID do whatsapp
+        if (waMessageId && savedMsg?.id) {
+          await supabaseAdmin.from('mensagens').update({ id_mensagem: waMessageId }).eq('id', savedMsg.id);
+        }
+
+        // 7. Calcular próxima execução
         const followingStep = steps.find(s => s.posicao_ordem === (nextStepOrder + 1));
         const now = new Date();
         let nextDate = null;
@@ -125,7 +181,7 @@ serve(async (req) => {
           finalStatus = 'concluido';
         }
 
-        // 9. Atualiza estado e REGISTRA LOG HISTÓRICO
+        // 8. Atualiza estado e REGISTRA LOG HISTÓRICO
         await supabaseAdmin
           .from('lead_cadencias')
           .update({ 
@@ -138,7 +194,6 @@ serve(async (req) => {
           })
           .eq('id', item.id);
 
-        // Registro Histórico para Monitoramento
         await supabaseAdmin
           .from('cadencia_logs')
           .insert({
@@ -153,9 +208,7 @@ serve(async (req) => {
 
       } catch (err: any) {
         console.error(`[process-cadences] Falha no lead ${item.lead_id}:`, err.message);
-        
         const now = new Date();
-        
         await supabaseAdmin
           .from('lead_cadencias')
           .update({ 
@@ -165,7 +218,6 @@ serve(async (req) => {
           })
           .eq('id', item.id);
 
-        // Registro de Erro no Histórico
         await supabaseAdmin
           .from('cadencia_logs')
           .insert({

@@ -70,7 +70,11 @@ export function CadenceLeadSelector({ leadId }: CadenceLeadSelectorProps) {
                       ? <CheckCircle2 className="h-3 w-3" /> 
                       : <AlertCircle className="h-3 w-3" />
                     }
-                    <span>Passo {activeCadence.passo_atual_ordem} enviado</span>
+                    <span>
+                      {activeCadence.passo_atual_ordem === 0
+                        ? "Fluxo iniciado / aguardando"
+                        : `Passo ${activeCadence.passo_atual_ordem} enviado`}
+                    </span>
                   </div>
                   <span className="text-[10px] opacity-70">
                     {format(parseISO(activeCadence.ultima_execucao), "HH:mm", { locale: ptBR })}

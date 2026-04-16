@@ -18,17 +18,7 @@ export function SourceSettings() {
   const [isDeleting, setIsDeleting] = useState<Source | null>(null);
   const [sourceName, setSourceName] = useState("");
 
-  if (role !== 'admin') {
-    return (
-      <Card>
-        <CardContent className="pt-6 text-center">
-          <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold">Acesso Restrito</h3>
-          <p className="text-muted-foreground">Apenas administradores podem gerenciar as fontes de leads.</p>
-        </CardContent>
-      </Card>
-    );
-  }
+
 
   const openModal = (source: Source | null = null) => {
     if (source) {

@@ -14,9 +14,20 @@ export function useDashboard(dateRange: DateRange | undefined) {
 
   useEffect(() => {
     if (!orgId) return;
-    const channel = supabase.channel('dashboard_realtime').on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
-      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
-    }).subscribe();
+    
+    // Canal único para múltiplas tabelas para economizar conexões
+    const channel = supabase.channel('dashboard_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `organization_id=eq.${orgId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendas', filter: `organization_id=eq.${orgId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'marketing_expenses', filter: `organization_id=eq.${orgId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      })
+      .subscribe();
+
     return () => { supabase.removeChannel(channel); };
   }, [orgId, queryClient]);
 
@@ -51,14 +62,14 @@ export function useDashboard(dateRange: DateRange | undefined) {
         const expenses = expensesRes.data || [];
         const criativos = criativosRes.data || [];
 
-        const funnelStages = allStages.filter(s => s.incluir_no_funil);
+        const funnelStages = allStages.filter(s => s.em_funil);
         const lostPos = allStages.find(s => s.nome.toLowerCase() === 'perdido')?.posicao_ordem || 999;
         const convertedStage = funnelStages[funnelStages.length - 1];
         const convertedPos = convertedStage?.posicao_ordem || 6;
 
         const isLeadInFunnel = (lead: any) => {
             const leadStage = allStages.find(s => s.posicao_ordem === lead.posicao_pipeline);
-            return !!leadStage?.incluir_no_funil;
+            return !!leadStage?.em_funil;
         };
 
         const isLeadConvertedInPeriod = (lead: any) => 
@@ -77,11 +88,16 @@ export function useDashboard(dateRange: DateRange | undefined) {
 
         const conversionCount = leads.filter(isLeadConvertedInPeriod).length;
 
+        const leadsCreatedInPeriod = leads.filter(l => l.criado_em >= startDate && l.criado_em <= endDate);
+        const mqlCount = leadsCreatedInPeriod.filter(l => l.is_qualified).length;
+
         return {
-          totalContatos: leads.filter(l => l.criado_em >= startDate && l.criado_em <= endDate).length,
-          marketingLeads: leads.filter(l => l.origem === 'marketing' && l.criado_em >= startDate && l.criado_em <= endDate).length,
-          organicLeads: leads.filter(l => l.origem === 'organico' && l.criado_em >= startDate && l.criado_em <= endDate).length,
-          conversionRate: leads.length > 0 ? ((conversionCount / leads.length) * 100).toFixed(1) : "0",
+          totalContatos: leadsCreatedInPeriod.length,
+          marketingLeads: leadsCreatedInPeriod.filter(l => l.origem === 'marketing').length,
+          organicLeads: leadsCreatedInPeriod.filter(l => l.origem === 'organico').length,
+          mqlCount,
+          mqlRate: leadsCreatedInPeriod.length > 0 ? ((mqlCount / leadsCreatedInPeriod.length) * 100).toFixed(1) : "0",
+          conversionRate: leadsCreatedInPeriod.length > 0 ? ((vendas.length / leadsCreatedInPeriod.length) * 100).toFixed(1) : "0",
           faturamentoTotal,
           cac: vendas.length > 0 ? totalInvestment / vendas.length : 0,
           leadsByStage: leads.map(l => ({ etapa_id: l.posicao_pipeline })),

@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { mediaPath } = await req.json();
+    const { mediaPath, mediaType } = await req.json();
     
     if (!mediaPath) {
       return new Response(
@@ -21,60 +21,56 @@ serve(async (req) => {
       );
     }
 
+    // Se o path já é um URL externo, retorna direto
+    if (mediaPath.startsWith('http://') || mediaPath.startsWith('https://')) {
+      return new Response(
+        JSON.stringify({ signedUrl: mediaPath }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const buckets = ['media-mensagens', 'campaign-media', 'audio-mensagens'];
-    let bucketToUse = null;
-    let cleanPath = mediaPath.trim();
-
-    // 1. Tenta identificar o bucket pelo prefixo do path (mais eficiente)
-    for (const bucket of buckets) {
-      if (cleanPath.startsWith(`${bucket}/`)) {
-        bucketToUse = bucket;
-        cleanPath = cleanPath.substring(bucket.length + 1);
-        break;
-      }
-    }
-
-    // 2. Se não identificou pelo prefixo, tenta encontrar o arquivo (resiliência)
-    if (!bucketToUse) {
-      // Começa pelo bucket mais provável (mensagens)
-      bucketToUse = 'media-mensagens';
-    }
-
-    const { data, error: signError } = await supabaseAdmin.storage
+    // Mapeamento inteligente de bucket
+    let bucketToUse = 'media-mensagens';
+    if (mediaType === 'audio') bucketToUse = 'audio-mensagens';
+    
+    // Tenta primeiro no bucket mapeado
+    console.log(`[get-media-url] Buscando path: "${mediaPath.trim()}" no bucket: "${bucketToUse}"`);
+    const { data: dataPrimary, error: signErrorPrimary } = await supabaseAdmin.storage
       .from(bucketToUse)
-      .createSignedUrl(cleanPath, 86400); // 24h
+      .createSignedUrl(mediaPath.trim(), 86400); // 24h
 
-    // 3. Fallback: Se deu erro no bucket padrão, tenta nos outros sem logar erro 400 se possível
-    if (signError || !data?.signedUrl) {
-      for (const bucket of buckets.filter(b => b !== bucketToUse)) {
+    if (dataPrimary?.signedUrl) {
+        return new Response(
+            JSON.stringify({ signedUrl: dataPrimary.signedUrl }), 
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+    }
+
+    // Se não encontrou, Fallback para todos os buckets
+    console.log(`[get-media-url] Não encontrado em ${bucketToUse}, tentando outros buckets...`);
+    const buckets = ['media-mensagens', 'campaign-media', 'audio-mensagens', 'organization-logos'];
+    for (const bucket of buckets) {
         const { data: fallbackData } = await supabaseAdmin.storage
           .from(bucket)
-          .createSignedUrl(cleanPath, 86400);
+          .createSignedUrl(mediaPath.trim(), 86400);
         
         if (fallbackData?.signedUrl) {
+          console.log(`[get-media-url] Encontrado no bucket fallback: ${bucket}`);
           return new Response(
             JSON.stringify({ signedUrl: fallbackData.signedUrl }), 
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-      }
-    }
-
-    if (!data?.signedUrl) {
-      return new Response(
-        JSON.stringify({ error: 'Arquivo não encontrado em nenhum bucket.' }), 
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
 
     return new Response(
-      JSON.stringify({ signedUrl: data.signedUrl }), 
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: 'Arquivo não encontrado em nenhum bucket.' }), 
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {

@@ -61,7 +61,8 @@ export function useAllNotifications({ dateRange, leadId }: UseAllNotificationsPr
 
       let query = supabase
         .from('notificacoes')
-        .select('*');
+        .select('*')
+        .eq('organization_id', orgId);
 
       if (dateRange?.from) {
         query = query.gte('criado_em', format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss'));

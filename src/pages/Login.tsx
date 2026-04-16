@@ -8,6 +8,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
+// Import logo, if available locally. Otherwise, provide placeholder logic.
+// Placeholder logic: We'll use a text-based logo since we don't have the image file path yet in this scope
+// Updated to use the Descompliquei identity
+
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
@@ -49,40 +53,39 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Left Side - Brand (Black & Gold Theme) */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[hsl(220,10%,10%)] items-center justify-center p-12 relative overflow-hidden">
-        {/* Background Accent - Gold */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[hsl(38,45%,55%)] opacity-10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[hsl(38,45%,55%)] opacity-5 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
+      {/* Left Side - Brand (Black & Orange Theme) */}
+      <div className="hidden lg:flex lg:w-1/2 bg-[#000000] items-center justify-center p-12 relative overflow-hidden">
+        {/* Background Accent */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#FF7F00] opacity-10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#FF7F00] opacity-5 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
 
-        <div className="max-w-md text-center relative z-10">
+        <div className="max-w-md text-center relative z-10 text-white">
           <div className="mb-10 flex flex-col items-center">
-            {/* Logo Circular/Quadrada */}
-            <div className="w-48 h-48 rounded-full bg-white/5 border border-[hsl(38,45%,55%)]/20 flex items-center justify-center mb-6 overflow-hidden p-2 shadow-2xl">
-                <img 
-                src="https://guotjrwrnpsclfemwjql.supabase.co/storage/v1/object/public/media-mensagens/Logo/Logo%20Dra%20Gleyce.jpeg" 
-                alt="Logo Gleyce Cabral" 
-                className="w-full h-full object-cover rounded-full"
-                />
+            {/* Logo container */}
+            <div className="w-64 h-64 flex items-center justify-center mb-6 shadow-2xl p-4">
+              <img 
+                src="/img/Descompliquei logo real.jpeg" 
+                alt="Logo Descompliquei" 
+                className="w-full h-full object-contain"
+              />
             </div>
-            <div className="h-[1px] w-32 bg-gradient-to-r from-transparent via-[hsl(38,45%,55%)] to-transparent mx-auto rounded-full mb-6" />
           </div>
-          <p className="text-2xl text-[hsl(38,40%,95%)] leading-relaxed font-serif tracking-wide">
-            Excelência jurídica com<br/>
-            <span className="text-[hsl(38,45%,55%)] font-medium">compromisso e integridade</span>
+          <p className="text-3xl leading-relaxed font-bold tracking-tight">
+            Gestão inteligente de<br/>
+            <span className="text-[#FF7F00]">Marketing e Relacionamento</span>
           </p>
-          <div className="mt-12 space-y-5 text-[hsl(38,40%,90%)] text-left pl-8 border-l border-[hsl(38,45%,55%)]/30">
+          <div className="mt-12 space-y-5 text-white/90 text-left pl-8 border-l-2 border-[#FF7F00]/30">
             <div className="flex items-center gap-4">
-              <div className="h-1.5 w-1.5 rounded-full bg-[hsl(38,45%,55%)]" />
-              <span>Gestão de processos integrada</span>
+              <div className="h-2 w-2 rounded-full bg-[#FF7F00]" />
+              <span>Automação de WhatsApp</span>
             </div>
             <div className="flex items-center gap-4">
-              <div className="h-1.5 w-1.5 rounded-full bg-[hsl(38,45%,55%)]" />
-              <span>Relacionamento com o cliente</span>
+              <div className="h-2 w-2 rounded-full bg-[#FF7F00]" />
+              <span>Gestão de Leads Integrada</span>
             </div>
             <div className="flex items-center gap-4">
-              <div className="h-1.5 w-1.5 rounded-full bg-[hsl(38,45%,55%)]" />
-              <span>Acompanhamento estratégico</span>
+              <div className="h-2 w-2 rounded-full bg-[#FF7F00]" />
+              <span>Relatórios Estratégicos</span>
             </div>
           </div>
         </div>
@@ -92,11 +95,11 @@ export default function Login() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-[hsl(220,10%,15%)] font-serif tracking-tight">
-              {isSignUp ? 'Criar conta' : 'Área Restrita'}
+            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
+              {isSignUp ? 'Criar conta' : 'CRM Descompliquei'}
             </h2>
             <p className="text-muted-foreground mt-2">
-              {isSignUp ? 'Preencha os dados para criar sua conta profissional' : 'Acesse o sistema do escritório'}
+              {isSignUp ? 'Preencha os dados para criar sua conta' : 'Acesse o sistema do seu negócio'}
             </p>
           </div>
 
@@ -108,7 +111,7 @@ export default function Login() {
                   id="fullName"
                   type="text"
                   placeholder="Seu nome"
-                  className="h-12 border-muted-foreground/20 focus:border-[hsl(38,45%,55%)]"
+                  className="h-12 border-slate-200 focus:border-[#FF7F00]"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   required
@@ -121,8 +124,8 @@ export default function Login() {
               <Input
                 id="email"
                 type="email"
-                placeholder="contato@gleycecabral.adv.br"
-                className="h-12 border-muted-foreground/20 focus:border-[hsl(38,45%,55%)]"
+                placeholder="seu.email@empresa.com"
+                className="h-12 border-slate-200 focus:border-[#FF7F00]"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -136,7 +139,7 @@ export default function Login() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
-                  className="h-12 pr-10 border-muted-foreground/20 focus:border-[hsl(38,45%,55%)]"
+                  className="h-12 pr-10 border-slate-200 focus:border-[#FF7F00]"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -145,7 +148,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -155,10 +158,10 @@ export default function Login() {
             {!isSignUp && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="remember" className="data-[state=checked]:bg-[hsl(38,45%,55%)] data-[state=checked]:border-[hsl(38,45%,55%)]" />
+                  <Checkbox id="remember" className="data-[state=checked]:bg-[#FF7F00] data-[state=checked]:border-[#FF7F00]" />
                   <label
                     htmlFor="remember"
-                    className="text-sm text-muted-foreground cursor-pointer"
+                    className="text-sm text-slate-600 cursor-pointer"
                   >
                     Lembrar-me
                   </label>
@@ -166,16 +169,16 @@ export default function Login() {
               </div>
             )}
 
-            <Button className="w-full h-12 text-base bg-[hsl(220,10%,15%)] hover:bg-[hsl(220,10%,10%)] text-[hsl(38,45%,95%)] font-medium transition-all shadow-md hover:shadow-lg border border-[hsl(38,45%,55%)]/20" size="lg" type="submit" disabled={loading}>
+            <Button className="w-full h-12 text-base bg-[#FF7F00] hover:bg-[#e67300] text-white font-bold transition-all shadow-md hover:shadow-lg" size="lg" type="submit" disabled={loading}>
               {loading ? 'Processando...' : (isSignUp ? 'Criar conta' : 'Entrar')}
             </Button>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-sm text-slate-500">
             {isSignUp ? 'Já possui acesso?' : 'Não possui acesso?'}{" "}
             <button
               onClick={() => setIsSignUp(!isSignUp)}
-              className="text-[hsl(38,45%,55%)] hover:text-[hsl(38,45%,45%)] font-medium underline-offset-4 hover:underline"
+              className="text-[#FF7F00] hover:text-[#e67300] font-medium underline-offset-4 hover:underline"
             >
               {isSignUp ? 'Fazer login' : 'Solicitar conta'}
             </button>

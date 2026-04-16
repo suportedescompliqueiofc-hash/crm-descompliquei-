@@ -40,7 +40,7 @@ export function useProfile() {
       const orgName = (user.user_metadata?.full_name || 'Meu') + ' Escritório';
       const { data: newOrg, error: orgError } = await supabase
         .from('organizations')
-        .insert({ name: orgName })
+        .insert({ name: orgName } as any)
         .select()
         .single();
 
@@ -51,12 +51,12 @@ export function useProfile() {
       const newProfile = {
         id: user.id,
         nome_completo: user.user_metadata?.full_name || 'Novo Usuário',
-        organization_id: newOrg.id
+        organization_id: newOrg?.id
       };
 
       const { data: createdProfile, error: profileError } = await supabase
         .from('perfis')
-        .insert(newProfile)
+        .insert(newProfile as any)
         .select()
         .single();
 
@@ -67,7 +67,7 @@ export function useProfile() {
       await supabase.from('usuarios_papeis').insert({
         usuario_id: user.id,
         papel: 'admin'
-      });
+      } as any);
 
       return createdProfile as Profile;
     },
@@ -76,7 +76,7 @@ export function useProfile() {
     retry: 1,
   });
 
-  const { data: role } = useQuery({
+  const { data: role, isLoading: isLoadingRole } = useQuery({
     queryKey: ['user_role', user?.id],
     queryFn: async () => {
       if (!user) return null;
@@ -85,7 +85,7 @@ export function useProfile() {
         .select('papel')
         .eq('usuario_id', user.id)
         .maybeSingle();
-      return data?.papel || 'atendente';
+      return (data as any)?.papel || 'atendente';
     },
     enabled: !!user,
     staleTime: 1000 * 60 * 30, // OTIMIZAÇÃO: 30 minutos de cache
@@ -97,7 +97,7 @@ export function useProfile() {
       
       const { data, error } = await supabase
         .from('perfis')
-        .update(updates)
+        .update(updates as any)
         .eq('id', user.id)
         .select()
         .single();
@@ -114,5 +114,5 @@ export function useProfile() {
     },
   });
 
-  return { profile, role, isLoading, updateProfile: updateProfile.mutate };
+  return { profile, role, isLoading: isLoading || isLoadingRole, updateProfile: updateProfile.mutate };
 }

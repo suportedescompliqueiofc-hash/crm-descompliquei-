@@ -35,6 +35,7 @@ export interface Lead {
   ia_paused_until?: string;
   leads_tags?: { tags: Tag }[];
   agendamento?: string;
+  is_qualified?: boolean;
 }
 
 export function useLeads(dateRange?: DateRange) {
@@ -53,30 +54,35 @@ export function useLeads(dateRange?: DateRange) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads', filter: `organization_id=eq.${orgId}` },
         (payload) => {
-          const listQueryKey = ['leads', orgId, dateRange];
-          
-          if (payload.eventType === 'INSERT') {
-            const newLead = payload.new as Lead;
-            queryClient.setQueryData<Lead[]>(listQueryKey, (old) => {
+          // Atualiza o lead individual (singular) - Indiferente de filtros
+          const leadId = (payload.new as any)?.id || (payload.old as any)?.id;
+          if (leadId) {
+            queryClient.setQueryData(['lead', leadId, orgId], payload.new);
+          }
+
+          // Busca todas as queries de lista de leads para esta organização (independente do dateRange)
+          queryClient.getQueriesData({ queryKey: ['leads', orgId] }).forEach(([queryKey]) => {
+            queryClient.setQueryData<Lead[]>(queryKey, (old) => {
               const current = old || [];
-              if (current.find(l => l.id === newLead.id)) return current;
-              return [newLead, ...current];
+              
+              if (payload.eventType === 'INSERT') {
+                const newLead = payload.new as Lead;
+                if (current.find(l => l.id === newLead.id)) return current;
+                return [newLead, ...current];
+              } 
+              
+              if (payload.eventType === 'UPDATE') {
+                const updatedLead = payload.new as Lead;
+                return current.map(lead => lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead);
+              }
+              
+              if (payload.eventType === 'DELETE') {
+                return current.filter(lead => lead.id !== payload.old.id);
+              }
+              
+              return current;
             });
-          } 
-          else if (payload.eventType === 'UPDATE') {
-            const updatedLead = payload.new as Lead;
-            // Atualiza na lista
-            queryClient.setQueryData<Lead[]>(listQueryKey, (old) => {
-              return (old || []).map(lead => lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead);
-            });
-            // Atualiza o cache do lead individual (singular)
-            queryClient.setQueryData(['lead', updatedLead.id, orgId], updatedLead);
-          }
-          else if (payload.eventType === 'DELETE') {
-            queryClient.setQueryData<Lead[]>(listQueryKey, (old) => {
-              return (old || []).filter(lead => lead.id !== payload.old.id);
-            });
-          }
+          });
         }
       )
       .subscribe();
@@ -142,14 +148,46 @@ export function useLeads(dateRange?: DateRange) {
 
   const updateLead = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Lead> & { id: string }) => {
-      const { data, error } = await supabase
+      if (!id || typeof id !== 'string') {
+        throw new Error('ID do lead inválido');
+      }
+
+      if (!orgId) {
+        throw new Error('Usuário sem organização associada');
+      }
+      
+      const allowedFields: (keyof Lead)[] = [
+        'nome', 'telefone', 'email', 'cpf', 'idade', 'genero', 'endereco',
+        'queixa_principal', 'procedimento_interesse', 'resumo', 'origem', 'fonte',
+        'criativo_id', 'status', 'posicao_pipeline', 'ultimo_contato', 'agendamento',
+        'data_nascimento', 'ia_ativa', 'ia_paused_until', 'is_qualified'
+      ];
+      
+      const cleanUpdates: Record<string, unknown> = {};
+      for (const key of allowedFields) {
+        if (key in updates && updates[key] !== undefined) {
+          const value = (updates as any)[key];
+          if (key === 'ia_ativa' && typeof value !== 'boolean') {
+            console.warn('[updateLead] ia_ativa não é boolean, convertendo:', typeof value, value);
+          }
+          cleanUpdates[key] = value;
+        }
+      }
+
+      if (Object.keys(cleanUpdates).length === 0) {
+        throw new Error('Nenhum campo válido para atualizar');
+      }
+
+      console.log('[updateLead] Atualizando lead:', id, 'com:', cleanUpdates);
+      const { error } = await supabase
         .from('leads')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+        .update(cleanUpdates)
+        .eq('id', id);
+      if (error) {
+        console.error('[updateLead] Erro ao atualizar lead:', error);
+        throw new Error(`Erro ao atualizar lead: ${error.message} (código: ${error.code})`);
+      }
+      return { id, ...cleanUpdates } as Lead;
     },
     onMutate: async (variables) => {
       const listQueryKey = ['leads', orgId, dateRange];
@@ -171,14 +209,15 @@ export function useLeads(dateRange?: DateRange) {
       
       return { previousLeads, previousLead };
     },
-    onError: (err, variables, context) => {
+    onError: (err: any, variables, context) => {
+      console.error('[updateLead] Erro:', err?.message || err);
       if (context?.previousLeads) {
         queryClient.setQueryData(['leads', orgId, dateRange], context.previousLeads);
       }
       if (context?.previousLead) {
         queryClient.setQueryData(['lead', variables.id, orgId], context.previousLead);
       }
-      toast.error('Erro ao atualizar lead.');
+      toast.error('Erro ao atualizar lead: ' + (err?.message || 'Tente novamente.'));
     },
     onSettled: (data, error, variables) => {
         queryClient.invalidateQueries({ queryKey: ['leads', orgId] });

@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, GitMerge, MoreVertical, Trash2, Calendar as CalendarIcon, Layout, MessageSquare, ArrowRight, Activity } from "lucide-react";
+import { Plus, GitMerge, MoreVertical, Trash2, Calendar as CalendarIcon, Layout, MessageSquare, ArrowRight, Activity, Zap, BarChart2 } from "lucide-react";
 import { CadenceModal } from "@/components/cadences/CadenceModal";
+import { BulkCadenceDispatchModal } from "@/components/cadences/BulkCadenceDispatchModal";
+import { CadenceDispatchMonitorModal } from "@/components/cadences/CadenceDispatchMonitorModal";
 import { useCadences, Cadence } from "@/hooks/useCadences";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -20,11 +22,25 @@ export default function Cadences() {
   const initialDateRange: DateRange = { from: startOfMonth(today), to: endOfMonth(today) };
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>(initialDateRange);
-  const { cadences, isLoading, deleteCadence } = useCadences();
+  const { cadences, isLoading, deleteCadence, bulkStartCadence } = useCadences();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBulkDispatchOpen, setIsBulkDispatchOpen] = useState(false);
+  const [isMonitorOpen, setIsMonitorOpen] = useState(false);
   const [selectedCadence, setSelectedCadence] = useState<Cadence | null>(null);
+  const [cadenceToDispatch, setCadenceToDispatch] = useState<Cadence | null>(null);
+  const [cadenceToMonitor, setCadenceToMonitor] = useState<Cadence | null>(null);
   const [cadenceToDelete, setCadenceToDelete] = useState<Cadence | null>(null);
   const [activeTab, setActiveTab] = useState("fluxos");
+
+  const startBulkDispatch = async (leadIds: string[], minDelay: number, maxDelay: number) => {
+    if (!cadenceToDispatch) return;
+    try {
+        await bulkStartCadence({ cadenceId: cadenceToDispatch.id, leadIds, minDelay, maxDelay });
+        setIsBulkDispatchOpen(false);
+    } catch (e) {
+        toast.error("Erro ao disparar");
+    }
+  };
 
   const handleOpenCreate = () => {
     setSelectedCadence(null);
@@ -130,14 +146,33 @@ export default function Cadences() {
                             <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
                             <div className="w-8 h-8 rounded-full bg-background border flex items-center justify-center text-[10px] font-bold shadow-sm opacity-30">...</div>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 text-xs font-semibold text-primary hover:bg-primary/10"
-                          onClick={() => handleOpenDetails(cadence)}
-                        >
-                          Ver Detalhes
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                            onClick={() => { setCadenceToMonitor(cadence); setIsMonitorOpen(true); }}
+                            title="Monitorar envios"
+                          >
+                             <BarChart2 className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8 text-xs font-semibold text-primary hover:bg-primary/10"
+                            onClick={() => { setCadenceToDispatch(cadence); setIsBulkDispatchOpen(true); }}
+                          >
+                            <Zap className="h-3 w-3 mr-1" /> Disparar
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 text-xs font-semibold text-primary hover:bg-primary/10"
+                            onClick={() => handleOpenDetails(cadence)}
+                          >
+                            Ver Detalhes
+                          </Button>
+                        </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -155,6 +190,20 @@ export default function Cadences() {
         open={isModalOpen} 
         onOpenChange={setIsModalOpen} 
         cadence={selectedCadence}
+      />
+
+      <BulkCadenceDispatchModal 
+        open={isBulkDispatchOpen} 
+        onOpenChange={setIsBulkDispatchOpen} 
+        cadence={cadenceToDispatch}
+        onConfirm={startBulkDispatch}
+      />
+
+      <CadenceDispatchMonitorModal 
+        open={isMonitorOpen} 
+        onOpenChange={setIsMonitorOpen} 
+        cadenceId={cadenceToMonitor?.id}
+        cadenceName={cadenceToMonitor?.nome}
       />
 
       <AlertDialog open={!!cadenceToDelete} onOpenChange={() => setCadenceToDelete(null)}>

@@ -14,12 +14,14 @@ import {
   Bot,
   Target,
   Zap,
-  GitMerge
+  GitMerge,
+  ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
+import { useBranding } from "@/contexts/BrandingContext";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 const menuItems = [
@@ -28,10 +30,8 @@ const menuItems = [
   { title: "Pipeline", icon: GitBranch, path: "/pipeline" },
   { title: "Conversas", icon: MessageSquare, path: "/conversas" },
   { title: "Notificações", icon: Bell, path: "/notificacoes" },
-  { title: "Contratos", icon: ShoppingCart, path: "/vendas" }, 
-  { title: "Relatórios", icon: BarChart3, path: "/reports" },
+  { title: "Vendas", icon: ShoppingCart, path: "/vendas" }, 
   { title: "Marketing", icon: Target, path: "/marketing" },
-  { title: "Campanhas", icon: Megaphone, path: "/campaigns" },
   { title: "Msgs Rápidas", icon: Zap, path: "/quick-messages" },
   { title: "Cadências", icon: GitMerge, path: "/cadences" },
   { title: "IA", icon: Bot, path: "/ia" },
@@ -46,7 +46,26 @@ interface SidebarContentProps {
 export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarContentProps) {
   const location = useLocation();
   const { signOut, user } = useAuth();
-  const { profile } = useProfile();
+  const { profile, role } = useProfile();
+  const { branding } = useBranding();
+  const isSuperAdmin = role === 'superadmin';
+
+  const allMenuItems = [
+    { title: "Painel", icon: LayoutDashboard, path: "/" },
+    { title: "Leads", icon: Users, path: "/leads" },
+    { title: "Pipeline", icon: GitBranch, path: "/pipeline" },
+    { title: "Conversas", icon: MessageSquare, path: "/conversas" },
+    { title: "Notificações", icon: Bell, path: "/notificacoes" },
+    { title: "Vendas", icon: ShoppingCart, path: "/vendas" },
+    { title: "Marketing", icon: Target, path: "/marketing" },
+    { title: "Msgs Rápidas", icon: Zap, path: "/quick-messages" },
+    { title: "Cadências", icon: GitMerge, path: "/cadences" },
+    { title: "IA", icon: Bot, path: "/ia" },
+    { title: "Configurações", icon: Settings, path: "/settings" },
+    { title: "Super Admin", icon: ShieldCheck, path: "/super-admin", superadminOnly: true },
+  ];
+
+  const menuItems = allMenuItems.filter(item => !item.superadminOnly || isSuperAdmin);
 
   const getInitials = (name?: string | null) => {
     if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
@@ -61,14 +80,23 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
           <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
             {/* Logo Icon */}
             <Avatar className={`h-10 w-10 border-2 border-sidebar-primary/20 transition-all duration-300 flex-shrink-0 ${isCollapsed ? 'mx-auto' : ''}`}>
-                <AvatarImage src="https://guotjrwrnpsclfemwjql.supabase.co/storage/v1/object/public/media-mensagens/Logo/Logo%20Dra%20Gleyce.jpeg" className="object-cover" />
-                <AvatarFallback className="bg-sidebar-primary text-sidebar-background font-serif">GC</AvatarFallback>
+                {branding?.logo_url ? (
+                  <AvatarImage src={branding.logo_url} className="object-contain p-0.5" />
+                ) : (
+                  <AvatarImage src="" />
+                )}
+                <AvatarFallback className="bg-sidebar-primary text-sidebar-background font-serif">
+                  {(branding?.brand_name || 'C').charAt(0).toUpperCase()}
+                </AvatarFallback>
             </Avatar>
             
-            {/* Logo Text */}
-            <div className={`flex flex-col whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}`}>
-              <h1 className="text-sm font-bold text-sidebar-foreground uppercase tracking-wider font-serif leading-none mb-0.5">GLEYCE CABRAL</h1>
-              <p className="text-[9px] text-sidebar-primary tracking-wide uppercase font-medium truncate">Advocacia</p>
+          <div className={`flex flex-col transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'flex-1 min-w-0 opacity-100 overflow-hidden'}`}>
+              <h1 className="text-[11px] font-bold text-sidebar-foreground uppercase tracking-normal font-serif leading-none mb-0.5 truncate" title={branding?.brand_name || 'CRM'}>
+                {branding?.brand_name || 'CRM'}
+              </h1>
+              <p className="text-[9px] text-sidebar-primary tracking-wide uppercase font-medium truncate" title={branding?.tagline || 'Gestão Inteligente'}>
+                {branding?.tagline || 'Gestão Inteligente'}
+              </p>
             </div>
           </div>
           

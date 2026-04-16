@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft, Paperclip, Loader2, ImageIcon, FileText, Globe, Sparkles, Info, Pencil } from "lucide-react";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft, Paperclip, Loader2, ImageIcon, FileText, Globe, Sparkles, Info, Pencil, UserCheck } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,31 +13,34 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useLead, useLeads } from "@/hooks/useLeads";
-import { useMessages, useSendMessage, Message, Attachment, useDeleteMessage, useSendAudioMessage, useSendMediaMessage } from "@/hooks/useConversations";
-import { useNotifications, useUpdateNotificationStatus } from "@/hooks/useNotifications";
-import { useStages } from "@/hooks/useStages";
-import { useMarketing } from "@/hooks/useMarketing";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import EmojiPicker from 'emoji-picker-react';
 import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
+
+import { useLead, useLeads } from "@/hooks/useLeads";
+import { useLeadCadence } from "@/hooks/useCadences";
+import { useMessages, useSendMessage, Message, Attachment, useDeleteMessage, useSendAudioMessage, useSendMediaMessage } from "@/hooks/useConversations";
+import { useNotifications, useUpdateNotificationStatus } from "@/hooks/useNotifications";
+import { useStages } from "@/hooks/useStages";
+import { useMarketing } from "@/hooks/useMarketing";
+
 import { AudioMessage } from "./AudioMessage";
 import { MediaMessage } from "./MediaMessage";
 import { FileMessage } from "./FileMessage";
 import { NotificationMessage } from "./NotificationMessage";
-import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AiLockControl } from "./AiLockControl";
 import { CadenceLeadSelector } from "./CadenceLeadSelector";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { TagManager } from "@/components/tags/TagManager";
 import { AudioRecorder } from "./AudioRecorder";
 import { MediaPreviewModal } from "./MediaPreviewModal";
 import { FullscreenMediaViewer } from "./FullscreenMediaViewer";
-import { useNavigate } from "react-router-dom";
 import { LeadModal } from "@/components/leads/LeadModal";
 import { FormattedText } from "@/components/FormattedText";
 
@@ -117,7 +120,9 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const navigate = useNavigate();
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  
   const { data: lead, isLoading: leadLoading } = useLead(leadId);
+  const { activeCadence } = useLeadCadence(leadId);
   const { data: messages = [], isLoading: messagesLoading } = useMessages(leadId);
   const { data: notifications } = useNotifications(leadId);
   const { stages, isLoading: stagesLoading } = useStages();
@@ -197,13 +202,6 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
     if (!lead) return;
     setIsAiActive(checked);
     updateLead({ id: lead.id, ia_ativa: checked });
-    try {
-      await fetch('https://webhook.orbevision.shop/webhook/ativar-desativar-chat-gleyce', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: checked ? 'ativar' : 'desativar', lead_id: lead.id, telefone: lead.telefone }),
-      });
-    } catch (error) { console.error(error); }
   };
 
   const openMediaViewer = (url: string, type: 'imagem' | 'video' | 'pdf', name?: string) => {
@@ -227,6 +225,11 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                 <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-2">
                         <p className="font-bold truncate text-base leading-tight">{lead?.nome || 'Lead'}</p>
+                        {activeCadence && (
+                            <Badge variant="secondary" className="bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0 h-4 border border-orange-200">
+                                <Zap className="h-2.5 w-2.5 mr-0.5" /> Em cadência
+                            </Badge>
+                        )}
                         <Button 
                             variant="ghost" 
                             size="icon" 
@@ -316,6 +319,22 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                     </SelectTrigger>
                     <SelectContent>{stages.map(stage => (<SelectItem key={stage.id} value={stage.posicao_ordem.toString()}>{stage.nome}</SelectItem>))}</SelectContent>
                     </Select>
+                )}
+                {lead && (
+                  <Button
+                    variant={lead.is_qualified ? "default" : "outline"}
+                    size="sm"
+                    className={cn(
+                      "h-7 px-2 sm:px-3 text-[10px] sm:text-xs font-bold gap-1.5 transition-all duration-300 rounded-full uppercase tracking-wider",
+                      lead.is_qualified 
+                        ? "bg-emerald-500 text-white hover:bg-emerald-600 border-none shadow-[0_0_12px_-2px_rgba(16,185,129,0.4)] scale-105 active:scale-95" 
+                        : "text-muted-foreground hover:bg-muted/40 border-transparent bg-transparent hover:text-foreground"
+                    )}
+                    onClick={() => updateLead({ id: lead.id, is_qualified: !lead.is_qualified })}
+                  >
+                    <UserCheck className={cn("h-3.5 w-3.5", lead.is_qualified ? "fill-current" : "")} />
+                    Qualificado
+                  </Button>
                 )}
             </div>
             <div className="flex-1 flex justify-end min-w-0 overflow-hidden">

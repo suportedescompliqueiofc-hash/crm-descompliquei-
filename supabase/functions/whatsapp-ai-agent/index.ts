@@ -1,0 +1,889 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+import OpenAI from "npm:openai@4";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const XAI_API_KEY = Deno.env.get("XAI_API_KEY") ?? "";
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? XAI_API_KEY;
+
+const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+
+const grok = new OpenAI({ apiKey: XAI_API_KEY, baseURL: "https://api.x.ai/v1" });
+const openaiWhisper = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+function jsonResponse(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ── Sistema de Logs ─────────────────────────────────────────────────────────
+
+interface LogEntry {
+  id?: string;
+  organization_id: string;
+  lead_id?: string | null;
+  session_id?: string | null;
+  status: "running" | "success" | "error";
+  etapa: string;
+  detalhe?: string | null;
+  duracao_ms?: number | null;
+  model?: string | null;
+  partes_enviadas?: number | null;
+  tool_calls?: unknown;
+  erro_detalhe?: string | null;
+}
+
+async function upsertLog(entry: LogEntry): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("ai_execution_logs")
+    .insert({ ...entry, atualizado_em: new Date().toISOString() })
+    .select("id")
+    .single();
+  if (error) console.error("[LOG] Erro ao inserir log:", error.message);
+  return data?.id ?? null;
+}
+
+async function updateLog(logId: string, patch: Partial<LogEntry>): Promise<void> {
+  await supabase
+    .from("ai_execution_logs")
+    .update({ ...patch, atualizado_em: new Date().toISOString() })
+    .eq("id", logId);
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function humanizeAndSplit(rawText: string): string[] {
+  if (!rawText || !rawText.trim()) return [];
+
+  const MAX = 500;
+  const MIN_STANDALONE = 60; // sentença mais curta que isso é mesclada com a próxima
+
+  // ── 1. Formatação WhatsApp e Tratamento de Abreviações ───────────────
+  let text = rawText
+    .replace(/\*\*(.*?)\*\*/gs, "*$1*")           // **bold** → *bold*
+    .replace(/\bPrazer\b/g, "feliz em conhecer")  // substituição lexical
+    // Evitar quebra de sentenças nas abreviações comuns
+    .replace(/\bDra\.\s+/gi, "Dra ")
+    .replace(/\bDr\.\s+/gi, "Dr ")
+    .replace(/\bSr\.\s+/gi, "Sr ")
+    .replace(/\bSra\.\s+/gi, "Sra ");
+
+  // ── 2. Separar em blocos por parágrafo (dupla quebra de linha) ───────────
+  const blocks = text.split(/\n{2,}/);
+  const messages: string[] = [];
+
+  for (const block of blocks) {
+    const b = block.trim();
+    if (!b) continue;
+
+    // ── 3. Detectar lista bullet: manter como bloco único ─────────────────
+    const lines = b.split("\n");
+    const isBulletList = lines.some((l) => l.trim().startsWith("- "));
+    if (isBulletList) {
+      messages.push(b);
+      continue;
+    }
+
+    // ── 4. Dividir em sentenças individuais por . ! ? ou \n ───────────────
+    // Lookbehind mantém a pontuação junto à sentença anterior
+    const sentences = b
+      .split(/(?<=[.!?])\s+|\n+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    // ── 5. Agrupar: cada sentença = 1 mensagem (merge se for curta demais) ─
+    let current = "";
+
+    for (const sentence of sentences) {
+      const isQuestion = sentence.endsWith("?") || sentence.endsWith("?!") || sentence.endsWith("!?");
+
+      // O usuário solicitou que as perguntas sejam SEMPRE isoladas para clareza
+      if (isQuestion) {
+         if (current.trim()) {
+           messages.push(current.trim()); // Envia o que já estava acumulado antes
+           current = "";
+         }
+         messages.push(sentence.trim()); // Envia a pergunta isolada no seu próprio balão
+         continue; // Vai para a próxima sentença (o current fica vazio)
+      }
+
+      const candidate = current ? `${current} ${sentence}` : sentence;
+
+      if (candidate.length > MAX && current.length > 0) {
+        // Teto de 500 chars: força divisão
+        messages.push(current.trim());
+        current = sentence;
+      } else if (current.length >= MIN_STANDALONE) {
+        // Sentença atual já é grande o suficiente: envia e começa nova
+        messages.push(current.trim());
+        current = sentence;
+      } else {
+        // Sentença atual ainda muito curta: mescla com a próxima
+        current = candidate;
+      }
+    }
+
+    if (current.trim()) messages.push(current.trim());
+  }
+
+  // ── 6. Limpeza: remove ponto no final, filtra vazios ─────────────────────
+  return messages
+    .map((m) => m.trim().replace(/\.+$/, "")) // remove só o ponto (.) final, mantém interrogação etc.
+    .filter((m) => m.length > 0);
+}
+
+// Alias para compatibilidade
+const splitMessage = humanizeAndSplit;
+
+async function transcribeAudio(mediaPath: string): Promise<string | null> {
+  try {
+    const bucket = "media-mensagens";
+    const cleanPath = mediaPath.startsWith(`${bucket}/`) ? mediaPath.slice(bucket.length + 1) : mediaPath;
+    const { data: blob, error } = await supabase.storage.from(bucket).download(cleanPath);
+    if (error || !blob) {
+      console.error("[AI-Agent] Erro ao baixar áudio:", error?.message);
+      return null;
+    }
+    const file = new File([blob], "audio.ogg", { type: "audio/ogg" });
+    const transcription = await openaiWhisper.audio.transcriptions.create({
+      file,
+      model: "whisper-1",
+      language: "pt",
+    });
+    return transcription.text || null;
+  } catch (e: any) {
+    console.error("[AI-Agent] Erro Whisper:", e?.message);
+    return null;
+  }
+}
+
+async function loadMemory(sessionId: string, orgId: string, limit = 15): Promise<Array<{ role: string; content: string }>> {
+  const { data } = await supabase
+    .from("memoria_agente")
+    .select("message")
+    .eq("session_id", sessionId)
+    .eq("organization_id", orgId)
+    .order("id", { ascending: false })
+    .limit(limit);
+  if (!data) return [];
+  return data.map((row) => row.message as { role: string; content: string }).reverse();
+}
+
+async function saveMemory(sessionId: string, orgId: string, role: string, content: string): Promise<void> {
+  await supabase.from("memoria_agente").insert({
+    session_id: sessionId,
+    organization_id: orgId,
+    message: { role, content },
+  });
+}
+
+function getTools(promptCrm?: string | null): OpenAI.Chat.ChatCompletionTool[] {
+  const baseDescription =
+    "Gerencia o CRM: salva resumo da conversa, atualiza informações do lead (nome, procedimento de interesse, queixa) e move a fase do pipeline. Use quando o cliente confirmar interesse, informar dados pessoais, ou avançar na qualificação.";
+  const crmDescription = promptCrm
+    ? `${baseDescription}\n\nRegras adicionais: ${promptCrm}`
+    : baseDescription;
+
+  return [
+    {
+      type: "function",
+      function: {
+        name: "crm",
+        description: crmDescription,
+        parameters: {
+          type: "object",
+          properties: {
+            resumo: { type: "string", description: "Resumo completo da conversa para a equipe comercial." },
+            nome_lead: { type: "string", description: "Nome do lead, se informado na conversa." },
+            procedimento_interesse: { type: "string", description: "Procedimento ou serviço de interesse identificado." },
+            nova_posicao_pipeline: {
+              type: "number",
+              description: "Número da nova posição no pipeline (1=Novo, 2=Em Atendimento, 3=Qualificado, 4=Proposta, 5=Fechado).",
+            },
+          },
+          required: ["resumo"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "notificacao",
+        description:
+          "Transfere o atendimento para a equipe humana (ex: secretária/médico) e DESATIVA a IA permanentemente para este lead. " +
+          "O momento exato e a regra de quando acionar esta ferramenta dependem ESTRITAMENTE das instruções definidas no seu System Prompt base.",
+        parameters: {
+          type: "object",
+          properties: {
+            resumo: { type: "string", description: "Resumo detalhado de todo o atendimento para a equipe humana assumir de onde você parou." },
+            nome_lead: { type: "string", description: "Nome do lead, se informado na conversa." },
+          },
+          required: ["resumo"],
+        },
+      },
+    },
+  ];
+}
+
+async function executeCrm(args: any, leadId: string): Promise<string> {
+  const updates: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
+  if (args.resumo) updates.resumo = args.resumo;
+  if (args.nome_lead) updates.nome = args.nome_lead;
+  if (args.procedimento_interesse) updates.procedimento_interesse = args.procedimento_interesse;
+  if (typeof args.nova_posicao_pipeline === "number") updates.posicao_pipeline = args.nova_posicao_pipeline;
+
+  const { error } = await supabase.from("leads").update(updates).eq("id", leadId);
+  if (error) {
+    console.error("[AI-Agent] Erro CRM update:", error.message);
+    return JSON.stringify({ ok: false, error: error.message });
+  }
+  console.log("[AI-Agent] CRM atualizado:", Object.keys(updates).join(", "));
+  return JSON.stringify({ 
+    ok: true, 
+    campos_atualizados: Object.keys(updates),
+    SYSTEM_INSTRUCTION: "Obrigatório: Agora retome a conversa com o cliente IMEDIATAMENTE respondendo como o atendente humano da clínica. O cliente está aguardando sua resposta. VOCÊ DEVE OBRIGATORIAMENTE RESPONDER AO LEAD. NUNCA GERE UMA RESPOSTA VAZIA OU APENAS UMA NOTA INTERNA."
+  });
+}
+
+async function executeNotificacao(args: any, leadId: string, orgId: string): Promise<string> {
+  const nomeStr = args.nome_lead ? ` | Lead: ${args.nome_lead}` : "";
+  const mensagem = `🚨 Lead qualificado${nomeStr}\n\n${args.resumo}`;
+
+  await supabase.from("notificacoes").insert({ lead_id: leadId, organization_id: orgId, mensagem, status: "pendente" });
+  await supabase.from("leads").update({ ia_ativa: false, ia_paused_until: null }).eq("id", leadId);
+
+  console.log(`[AI-Agent] Equipe notificada. IA bloqueada para lead ${leadId}`);
+  return JSON.stringify({ ok: true, message: "Equipe notificada. IA desativada para este lead." });
+}
+
+async function processToolCalls(
+  toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[],
+  leadId: string,
+  orgId: string
+): Promise<OpenAI.Chat.ChatCompletionToolMessageParam[]> {
+  const results: OpenAI.Chat.ChatCompletionToolMessageParam[] = [];
+  for (const tc of toolCalls) {
+    let resultContent = "";
+    const args = JSON.parse(tc.function.arguments);
+    if (tc.function.name === "crm") {
+      resultContent = await executeCrm(args, leadId);
+    } else if (tc.function.name === "notificacao") {
+      resultContent = await executeNotificacao(args, leadId, orgId);
+    } else {
+      resultContent = JSON.stringify({ ok: false, error: "Tool desconhecida" });
+    }
+    results.push({ role: "tool", tool_call_id: tc.id, content: resultContent });
+  }
+  return results;
+}
+
+// ── Handler principal ─────────────────────────────────────────────────────────
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return jsonResponse({ error: "method_not_allowed" }, 405);
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return jsonResponse({ error: "invalid_json" }, 400);
+  }
+
+  const { lead_id, organization_id: orgId, mensagem_usuario, tipo_mensagem = "texto", media_path = null } = body;
+  if (!lead_id || !orgId) return jsonResponse({ error: "lead_id e organization_id são obrigatórios" }, 400);
+
+  const globalStart = Date.now();
+  let execLogId: string | null = null;
+
+  try {
+    // ── LOG INICIAL ──
+    execLogId = await upsertLog({
+      organization_id: orgId,
+      lead_id,
+      status: "running",
+      etapa: "iniciando",
+      detalhe: "Recebida requisição. Verificando lead e configurações...",
+    });
+
+    // 1. Lead
+    const { data: lead, error: leadErr } = await supabase
+      .from("leads")
+      .select("id, nome, telefone, ia_ativa, ia_paused_until, ai_pending_since, posicao_pipeline, origem")
+      .eq("id", lead_id)
+      .single();
+
+    if (leadErr || !lead) {
+      if (execLogId) await updateLog(execLogId, { status: "error", etapa: "erro_lead", erro_detalhe: "Lead não encontrado.", duracao_ms: Date.now() - globalStart });
+      return jsonResponse({ error: "lead_not_found" }, 404);
+    }
+
+    // Filtro: IA atende APENAS leads de marketing ou o número de exceção 21977297413
+    const isExcecao = lead.telefone === '5521977297413' || lead.telefone === '21977297413';
+    if (lead.origem !== 'marketing' && !isExcecao) {
+      console.log(`[AI-Agent] Lead ${lead_id} bloqueado: Origem não é marketing (${lead.origem}) e não é exceção.`);
+      if (execLogId) await updateLog(execLogId, { status: "error", etapa: "bloqueado_origem", detalhe: `IA bloqueada: origem '${lead.origem}' não é marketing e não é número de exceção.`, duracao_ms: Date.now() - globalStart });
+      return jsonResponse({ ok: false, reason: "ia_bloqueada_origem_organico" });
+    }
+
+    if (lead.ia_ativa === false) {
+      if (execLogId) await updateLog(execLogId, { status: "error", etapa: "bloqueado", detalhe: "IA bloqueada (transbordo humano ativo).", duracao_ms: Date.now() - globalStart });
+      return jsonResponse({ ok: false, reason: "ia_bloqueada" });
+    }
+
+    if (lead.ia_paused_until && new Date(lead.ia_paused_until) > new Date()) {
+      if (execLogId) await updateLog(execLogId, { status: "error", etapa: "pausada", detalhe: `IA pausada até ${lead.ia_paused_until}.`, duracao_ms: Date.now() - globalStart });
+      return jsonResponse({ ok: false, reason: "ia_pausada" });
+    }
+
+    if (lead.ai_pending_since) {
+      if (execLogId) await updateLog(execLogId, { status: "success", etapa: "acumulando", detalhe: "Já existe execução em curso para este lead. Mensagem será acumulada.", duracao_ms: Date.now() - globalStart });
+      return jsonResponse({ ok: true, reason: "acumulando" });
+    }
+
+    // 2. Config IA
+    const { data: aiConfig } = await supabase
+      .from("organization_ai_prompts")
+      .select("prompt, prompt_crm, ia_ativa, modelo_ia, delay_entre_mensagens, acumulo_mensagens")
+      .eq("organization_id", orgId)
+      .maybeSingle();
+
+    if (!aiConfig?.ia_ativa || !aiConfig?.prompt) {
+      if (execLogId) await updateLog(execLogId, { status: "error", etapa: "erro_config", erro_detalhe: "IA não configurada para esta organização.", duracao_ms: Date.now() - globalStart });
+      return jsonResponse({ ok: false, reason: "ia_nao_configurada" });
+    }
+
+    const modelo = aiConfig.modelo_ia || "grok-3-fast";
+    const delayMs = aiConfig.delay_entre_mensagens || 2000;
+    const acumuloSeg = (aiConfig.acumulo_mensagens || 45) * 1000;
+    const crmToolsDynamic = getTools(aiConfig.prompt_crm);
+
+    // 3. Acúmulo
+    const pendingSince = new Date().toISOString();
+    await supabase.from("leads").update({ ai_pending_since: pendingSince }).eq("id", lead_id);
+
+    if (execLogId) await updateLog(execLogId, {
+      status: "running",
+      etapa: "aguardando_acumulo",
+      detalhe: `Aguardando ${acumuloSeg / 1000}s para acumular mensagens do lead "${lead.nome || lead_id}"...`,
+      model: modelo,
+    });
+
+    await wait(acumuloSeg);
+
+    // 4. Coleta msgs acumuladas
+    const { data: recentMsgs } = await supabase
+      .from("mensagens")
+      .select("conteudo, tipo_conteudo, media_path, criado_em")
+      .eq("lead_id", lead_id)
+      .eq("direcao", "entrada")
+      .gte("criado_em", pendingSince)
+      .order("criado_em", { ascending: true });
+
+    await supabase.from("leads").update({ ai_pending_since: null }).eq("id", lead_id);
+
+    let userMessageFinal = "";
+    const sessionId = lead.telefone?.replace(/\D/g, "") || lead_id;
+
+    if (recentMsgs && recentMsgs.length > 0) {
+      if (execLogId) await updateLog(execLogId, {
+        status: "running",
+        etapa: "processando_mensagens",
+        detalhe: `${recentMsgs.length} mensagem(ns) acumulada(s). Processando conteúdo...`,
+      });
+
+      const parts: string[] = [];
+      for (const msg of recentMsgs) {
+        if (msg.tipo_conteudo === "audio" && msg.media_path) {
+          if (execLogId) await updateLog(execLogId, { status: "running", etapa: "transcrevendo_audio", detalhe: `Transcrevendo áudio via Whisper...` });
+          const transcricao = await transcribeAudio(msg.media_path);
+          if (transcricao) {
+            parts.push(`[Áudio transcrito]: ${transcricao}`);
+            if (execLogId) await updateLog(execLogId, { status: "running", etapa: "audio_transcrito", detalhe: `Áudio transcrito com sucesso: "${transcricao.slice(0, 80)}..."` });
+          }
+        } else if (msg.tipo_conteudo === "texto" && msg.conteudo) {
+          parts.push(msg.conteudo);
+        } else if (msg.tipo_conteudo === "imagem") {
+          parts.push("[Imagem recebida - a IA não suporta processamento de imagens]");
+        } else if (msg.conteudo) {
+          parts.push(`[${msg.tipo_conteudo}]: ${msg.conteudo ?? ""}`);
+        }
+      }
+      userMessageFinal = parts.join("\n");
+    } else {
+      userMessageFinal = mensagem_usuario || "";
+      if (tipo_mensagem === "audio" && media_path) {
+        if (execLogId) await updateLog(execLogId, { status: "running", etapa: "transcrevendo_audio", detalhe: "Transcrevendo áudio via Whisper..." });
+        const transcricao = await transcribeAudio(media_path);
+        if (transcricao) userMessageFinal = `[Áudio transcrito]: ${transcricao}`;
+      } else if (tipo_mensagem === "imagem") {
+        userMessageFinal = "[Imagem recebida - a IA não suporta processamento de imagens]";
+      }
+    }
+
+    if (!userMessageFinal.trim()) {
+      if (execLogId) await updateLog(execLogId, { status: "error", etapa: "mensagem_vazia", erro_detalhe: "Nenhum conteúdo de texto ou áudio encontrado para processar.", duracao_ms: Date.now() - globalStart });
+      return jsonResponse({ ok: false, reason: "mensagem_vazia" });
+    }
+
+    // Sanitizar userMessageFinal para remover qualquer referência a URLs de mídia
+    const urlPattern = /https?:\/\/[^\s]+/gi;
+    const mediaBucket = "media-mensagens";
+    const sanitizedMessage = userMessageFinal
+      .replace(urlPattern, "[link de mídia removido]")
+      .replace(new RegExp(mediaBucket, 'gi'), "[mídia]");
+    
+    console.log(`[AI-Agent] Mensagem final (sanitizada, ${sanitizedMessage.length} chars):`, sanitizedMessage.substring(0, 300));
+
+    // 5. Memória
+    if (execLogId) await updateLog(execLogId, { status: "running", etapa: "carregando_memoria", detalhe: "Carregando histórico de conversa..." });
+    const memoria = await loadMemory(sessionId, orgId);
+
+    const promptReforcado = (aiConfig.prompt ?? "") + `
+
+=== REGRAS ESTRITAS E INEGOCIÁVEIS ===
+1. NUNCA diga ao lead coisas como 'dados atualizados no CRM', 'notifiquei a equipe', 'salvei no sistema' ou qualquer aviso interno. As ferramentas (CRM e Notificação) funcionam de forma invisível nos bastidores.
+2. Aja 100% do tempo como o atendente humano da clínica. Se você chamar a ferramenta de notificação, simplesmente se despeça educadamente ou diga que alguém já vai falar com ele. Jamais explique o processo interno.
+3. SEMPRE RESPONDA AO LEAD. NUNCA, em hipótese alguma, acione uma ferramenta e deixe de enviar uma mensagem de texto junto. Você DEVE dar continuidade à conversa com o lead normalmente MESMO que esteja atualizando o CRM nos bastidores. O lead NUNCA pode ficar sem resposta.`;
+
+    // Montar array de mensagens: system prompt + histórico + mensagem atual
+    const messages: Array<{ role: string; content: string | null }> = [
+      { role: "system", content: promptReforcado },
+      ...memoria,
+      { role: "user", content: sanitizedMessage },
+    ];
+
+    let toolCallsSummary: Array<{ tool: string; args: unknown }> = [];
+    let toolMessages: Array<{ role: string; content: string | null; tool_calls?: unknown; tool_call_id?: string; name?: string }> = [];
+
+    // 6. Chamada ao Grok com Retentativa Simples
+    let response;
+    let retries = 0;
+    const maxRetries = 3;
+    const grokStart = Date.now();
+    const imageErrorPatterns = ["image", "vision", "Cannot read image", "cannot read image", "image input", "visual"];
+
+    while (retries < maxRetries) {
+      try {
+        response = await grok.chat.completions.create({
+          model: modelo,
+          messages,
+          tools: crmToolsDynamic,
+          tool_choice: "auto",
+        });
+        break; // Sucesso!
+      } catch (grokError: any) {
+        retries++;
+        const errorMsg = grokError?.message || String(grokError);
+        console.error(`[AI-Agent] Tentativa ${retries} falhou:`, errorMsg);
+        
+        // Verificar ERRO DE IMAGEM PRIMEIRO (antes do retry)
+        // Erros de imagem não devem ser retidados - Grok não suporta input de imagem
+        const isImageError = imageErrorPatterns.some(pattern => errorMsg.toLowerCase().includes(pattern.toLowerCase()));
+        if (isImageError) {
+          if (execLogId) await updateLog(execLogId, {
+            status: "error",
+            etapa: "erro_grok_imagem",
+            erro_detalhe: `Grok não suporta imagens: ${errorMsg}`,
+            duracao_ms: Date.now() - globalStart,
+          });
+          return jsonResponse({ 
+            ok: false, 
+            reason: "ia_nao_suporta_imagens",
+            detalhe: "A IA configurada não suporta processamento de imagens. Apenas mensagens de texto e áudio são processadas."
+          });
+        }
+        
+        // Se não é erro de imagem, verificar se é erro retriável (503)
+        if (retries >= maxRetries || !errorMsg.includes("503")) {
+           if (execLogId) await updateLog(execLogId, {
+             status: "error",
+             etapa: "erro_grok",
+             erro_detalhe: `Erro Grok final: ${errorMsg}`,
+             duracao_ms: Date.now() - globalStart,
+           });
+           return jsonResponse({ 
+             ok: false, 
+             reason: "erro_ia",
+             detalhe: errorMsg 
+           }, 500);
+        }
+        // Espera exponencial antes de tentar de novo
+        await wait(Math.pow(2, retries) * 1000);
+      }
+    }
+
+    const grokMs = Date.now() - grokStart;
+
+    let aiResponse = response.choices[0].message;
+
+    // --- Sanitizar resposta da IA: remove notas internas que nunca devem ir ao lead ---
+    const sanitizarRespostaIA = (texto: string | null | undefined): string => {
+      if (!texto) return "";
+
+      let t = texto;
+
+      // 1. Remove frases de confirmação interna conhecidas
+      const internalPhrases = [
+        "(Confirmação de dados atualizados no CRM.)",
+        "(Mensagem mantida como enviada anteriormente, apenas atualizando o CRM nos bastidores.)",
+        "Dados atualizados no CRM",
+        "Confirmado atualização no CRM",
+        "Nenhuma alteração ou nova mensagem necessária",
+        "Mensagem já enviada anteriormente",
+        "Nenhuma ação necessária no momento",
+        "Dados atualizados com sucesso",
+        "A equipe será notificada",
+        "será notificada para dar continuidade",
+        "serão notificados",
+        "Dados atualizados",
+        "notifiquei a equipe",
+      ];
+      for (const phrase of internalPhrases) {
+        t = t.replace(new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), "");
+      }
+
+      // 2. Remove sentenças/parágrafos inteiramente entre colchetes [...]
+      // Estas são notas internas da IA, nunca devem ser enviadas ao lead
+      t = t.replace(/\[([^\[\]]*)\]/g, (match) => {
+        return match.length > 12 ? "" : match;
+      });
+
+      // 3. Remove frases inteiras entre parênteses (...) que falam sobre CRM, bastidores, ou operacionais
+      t = t.replace(/\([^\(\)]*(CRM|bastidores|notificada|notificado|atualizand|atualizando|apenas)[^\(\)]*\)/gi, "");
+
+      return t.trim();
+    };
+
+    if (aiResponse.content) {
+      aiResponse.content = sanitizarRespostaIA(aiResponse.content) || null;
+    }
+    // ---------------------------------------------------------------------------
+    
+    const textoFinalPosFiltro = aiResponse.content || "";
+
+    // Agora o textoFinal sempre terá o conteúdo filtrado
+    let textoFinal = textoFinalPosFiltro;
+    
+    if (!textoFinal.trim() && toolCallsSummary.length === 0) {
+      if (execLogId) await updateLog(execLogId, {
+        status: "error",
+        etapa: "resposta_vazia",
+        erro_detalhe: "O modelo retornou uma resposta vazia e não utilizou ferramentas.",
+        model: modelo,
+        duracao_ms: Date.now() - globalStart,
+      });
+      return jsonResponse({ ok: true, reason: "resposta_vazia" });
+    }
+
+    // 7. Tool calls
+    let safetyBreak = 0;
+    let notificacaoDisparada = false;
+
+    while (aiResponse.tool_calls && aiResponse.tool_calls.length > 0 && safetyBreak < 5) {
+      safetyBreak++;
+      const toolNames = aiResponse.tool_calls.map((t) => t.function.name).join(", ");
+      console.log(`[AI-Agent] Tool calls: ${toolNames}`);
+
+      if (execLogId) await updateLog(execLogId, {
+        status: "running",
+        etapa: "executando_ferramentas",
+        detalhe: `IA acionou ferramentas: ${toolNames}. Processando...`,
+      });
+
+      const toolResults = await processToolCalls(aiResponse.tool_calls, lead_id, orgId);
+
+      // Coleta resumo para o log
+      toolCallsSummary.push(...aiResponse.tool_calls.map((tc) => ({
+        tool: tc.function.name,
+        args: JSON.parse(tc.function.arguments),
+      })));
+
+      toolMessages.push({ role: "assistant", content: aiResponse.content, tool_calls: aiResponse.tool_calls });
+      toolMessages.push(...toolResults);
+
+      // ── INTERRUPÇÃO após notificacao — envia mensagem ao lead antes de notificar ──
+      const disparouNotificacao = aiResponse.tool_calls.some((t: any) => t.function.name === "notificacao");
+      if (disparouNotificacao) {
+        notificacaoDisparada = true;
+
+        // Se a IA gerou uma mensagem final para o lead, enviar ANTES de notificar
+        const mensagemFinalParaLead = sanitizarRespostaIA(aiResponse.content);
+        if (mensagemFinalParaLead) {
+          const { data: connNotif } = await supabase
+            .from("whatsapp_connections")
+            .select("uazapi_url, uazapi_token")
+            .eq("organization_id", orgId)
+            .eq("status", "connected")
+            .limit(1)
+            .maybeSingle();
+
+          if (connNotif?.uazapi_url && connNotif?.uazapi_token) {
+            const telefoneDigits = (lead.telefone ?? "").replace(/\D/g, "");
+            const phoneFormatted = telefoneDigits.startsWith("55") && telefoneDigits.length >= 12
+              ? telefoneDigits
+              : `55${telefoneDigits}`;
+
+            const uazapiUrl = connNotif.uazapi_url.replace(/\/$/, "");
+            const partes = splitMessage(mensagemFinalParaLead);
+
+            for (let pi = 0; pi < partes.length; pi++) {
+              const parte = partes[pi];
+              try {
+                const uazapiRes = await fetch(`${uazapiUrl}/send/text`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "token": connNotif.uazapi_token,
+                  },
+                  body: JSON.stringify({ number: phoneFormatted, text: parte, delay: 1200 }),
+                });
+                const uazapiRespText = await uazapiRes.text();
+                let uazapiRespJson: any = {};
+                try { uazapiRespJson = JSON.parse(uazapiRespText); } catch { /* noop */ }
+                const waMessageId = uazapiRespJson?.id ?? uazapiRespJson?.messageid ?? uazapiRespJson?.message?.id ?? null;
+                await supabase.from("mensagens").insert({
+                  lead_id,
+                  organization_id: orgId,
+                  conteudo: parte,
+                  direcao: "saida",
+                  remetente: "bot",
+                  tipo_conteudo: "texto",
+                  id_mensagem: waMessageId || null,
+                });
+                if (pi < partes.length - 1) await wait(1500);
+              } catch (errEnvio: any) {
+                console.error("[AI-Agent] Erro ao enviar mensagem antes da notificação:", errEnvio?.message);
+              }
+            }
+
+            // Salvar na memória
+            await saveMemory(sessionId, orgId, "user", userMessageFinal);
+            await saveMemory(sessionId, orgId, "assistant", mensagemFinalParaLead);
+          }
+        }
+
+        if (execLogId) await updateLog(execLogId, {
+          status: "success",
+          etapa: "notificacao_enviada",
+          detalhe: mensagemFinalParaLead
+            ? "Mensagem enviada ao lead. Notificação disparada. IA bloqueada."
+            : "Notificação disparada. IA bloqueada. Nenhuma mensagem foi enviada ao lead.",
+          tool_calls: toolCallsSummary,
+          duracao_ms: Date.now() - globalStart,
+        });
+        return jsonResponse({ ok: true, reason: "notificacao_enviada_ia_bloqueada" });
+      }
+
+      if (execLogId) await updateLog(execLogId, {
+        status: "running",
+        etapa: "ferramentas_concluidas",
+        detalhe: `Ferramentas (${toolNames}) executadas. Gerando resposta final...`,
+        tool_calls: toolCallsSummary,
+      });
+
+      response = await grok.chat.completions.create({
+        model: modelo,
+        messages: [...messages, ...toolMessages],
+        tools: crmToolsDynamic,
+        tool_choice: "auto",
+      });
+      aiResponse = response.choices[0].message;
+    }
+
+    textoFinal = sanitizarRespostaIA(aiResponse.content);
+    if (!textoFinal.trim()) {
+      // Se não tem texto final, mas teve toolCalls, nós não falhamos,
+      // a IA só atualizou CRM silenciosamente.
+      if (toolCallsSummary.length > 0) {
+        if (execLogId) await updateLog(execLogId, { status: "success", etapa: "atualizacao_silenciosa", detalhe: "A IA apenas utilizou as ferramentas do CRM, sem resposta para o lead.", duracao_ms: Date.now() - globalStart });
+        return jsonResponse({ ok: true, reason: "atualizacao_silenciosa" });
+      }
+
+      if (execLogId) await updateLog(execLogId, {
+        status: "error",
+        etapa: "resposta_vazia",
+        erro_detalhe: "O modelo retornou uma resposta vazia e não utilizou ferramentas.",
+        model: modelo,
+        duracao_ms: Date.now() - globalStart,
+      });
+      return jsonResponse({ ok: true, reason: "resposta_vazia" });
+    }
+
+    // 8. Memória
+    await saveMemory(sessionId, orgId, "user", userMessageFinal);
+    await saveMemory(sessionId, orgId, "assistant", textoFinal);
+
+    // 9. WhatsApp
+    const { data: conn } = await supabase
+      .from("whatsapp_connections")
+      .select("uazapi_url, uazapi_token")
+      .eq("organization_id", orgId)
+      .eq("status", "connected")
+      .limit(1)
+      .maybeSingle();
+
+    if (!conn) {
+      if (execLogId) await updateLog(execLogId, {
+        status: "error",
+        etapa: "sem_whatsapp",
+        erro_detalhe: "Sem instância WhatsApp conectada para esta organização.",
+        model: modelo,
+        duracao_ms: Date.now() - globalStart,
+      });
+      return jsonResponse({ ok: false, reason: "sem_whatsapp_conectado" });
+    }
+
+    // Normaliza o telefone para o formato que a UAZAPI espera: 55 + DDD + número
+    const telefoneDigits = (lead.telefone ?? "").replace(/\D/g, "");
+    const phoneFormatted = telefoneDigits.startsWith("55") && telefoneDigits.length >= 12
+      ? telefoneDigits
+      : `55${telefoneDigits}`;
+
+    if (!phoneFormatted || phoneFormatted.length < 12) {
+      if (execLogId) await updateLog(execLogId, {
+        status: "error",
+        etapa: "telefone_invalido",
+        erro_detalhe: `Telefone inválido para envio: "${lead.telefone}"`,
+        model: modelo,
+        duracao_ms: Date.now() - globalStart,
+      });
+      return jsonResponse({ ok: false, reason: "telefone_invalido" });
+    }
+
+    const uazapiUrl = conn.uazapi_url.replace(/\/$/, ""); // remove trailing slash
+    const uazapiToken = conn.uazapi_token;
+
+    const partes = splitMessage(textoFinal);
+
+    if (execLogId) await updateLog(execLogId, {
+      status: "running",
+      etapa: "enviando_whatsapp",
+      detalhe: `Resposta gerada (${grokMs}ms). Enviando ${partes.length} parte(s) para ${phoneFormatted}...`,
+      model: modelo,
+      tool_calls: toolCallsSummary.length > 0 ? toolCallsSummary : null,
+    });
+
+    let errosEnvio = 0;
+    for (let i = 0; i < partes.length; i++) {
+      const parte = partes[i];
+      try {
+        // Envia diretamente via UAZAPI (endpoint correto: /send/text, campo: number)
+        const uazapiPayload = {
+          number: phoneFormatted,
+          text: parte,
+          delay: 1200,
+        };
+
+        console.log(`[AI-Agent] Enviando para UAZAPI: ${uazapiUrl}/send/text | number=${phoneFormatted}`);
+
+        const uazapiRes = await fetch(`${uazapiUrl}/send/text`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "token": uazapiToken,
+          },
+          body: JSON.stringify(uazapiPayload),
+        });
+
+        const uazapiRespText = await uazapiRes.text();
+        console.log(`[AI-Agent] UAZAPI response ${uazapiRes.status}: ${uazapiRespText.substring(0, 300)}`);
+
+        let uazapiRespJson: any = {};
+        try { uazapiRespJson = JSON.parse(uazapiRespText); } catch { /* sem json */ }
+
+        if (!uazapiRes.ok) {
+          errosEnvio++;
+          const errMsg = `UAZAPI HTTP ${uazapiRes.status}: ${uazapiRespText.substring(0, 200)}`;
+          console.error(`[AI-Agent] Erro UAZAPI parte ${i + 1}:`, errMsg);
+          if (execLogId) await updateLog(execLogId, {
+            status: "running",
+            etapa: "erro_whatsapp",
+            detalhe: `Erro ao enviar parte ${i + 1}/${partes.length}: ${errMsg}`,
+          });
+          // Mesmo com erro no WhatsApp, salva no CRM para visibilidade
+          await supabase.from("mensagens").insert({
+            lead_id, organization_id: orgId,
+            conteudo: parte, direcao: "saida",
+            remetente: "bot", tipo_conteudo: "texto",
+          });
+        } else {
+          // Sucesso: salva no CRM com o id da mensagem WhatsApp
+          const waMessageId = uazapiRespJson?.id ?? uazapiRespJson?.messageid ?? uazapiRespJson?.message?.id ?? null;
+          const { data: insertedMsg } = await supabase
+            .from("mensagens")
+            .insert({
+              lead_id,
+              organization_id: orgId,
+              conteudo: parte,
+              direcao: "saida",
+              remetente: "bot",
+              tipo_conteudo: "texto",
+              id_mensagem: waMessageId,
+            })
+            .select("id")
+            .single();
+
+          console.log(`[AI-Agent] ✅ Parte ${i + 1}/${partes.length} enviada. waId=${waMessageId} | dbId=${insertedMsg?.id}`);
+        }
+      } catch (err: any) {
+        errosEnvio++;
+        console.error(`[AI-Agent] Catch envio parte ${i + 1}:`, err);
+      }
+
+      if (i < partes.length - 1) {
+        // Delay humanizado: 30ms/char, entre 1.5s e 5s + jitter aleatório
+        const charCount = partes[i].length;
+        const typingDelay = Math.min(Math.max(charCount * 30, 1500), 5000);
+        const totalDelay = Math.round(typingDelay + Math.random() * 800);
+        if (execLogId) await updateLog(execLogId, {
+          status: "running",
+          etapa: "aguardando_proxima",
+          detalhe: `Parte ${i + 1}/${partes.length} enviada. Aguardando ${(totalDelay / 1000).toFixed(1)}s antes da próxima mensagem...`,
+        });
+        await wait(totalDelay);
+      }
+    }
+
+    const duracaoTotal = Date.now() - globalStart;
+
+    if (execLogId) await updateLog(execLogId, {
+      status: errosEnvio > 0 ? "error" : "success",
+      etapa: errosEnvio > 0 ? "concluido_com_erros" : "concluido",
+      detalhe: errosEnvio > 0
+        ? `Concluído com ${errosEnvio} erro(s) no envio. ${partes.length - errosEnvio}/${partes.length} partes enviadas.`
+        : `Concluído com sucesso! ${partes.length} parte(s) enviada(s) em ${duracaoTotal}ms.`,
+      model: modelo,
+      partes_enviadas: partes.length - errosEnvio,
+      tool_calls: toolCallsSummary.length > 0 ? toolCallsSummary : null,
+      duracao_ms: duracaoTotal,
+    });
+
+    console.log(`[AI-Agent] ✅ lead=${lead_id} | partes=${partes.length} | modelo=${modelo} | ${duracaoTotal}ms`);
+    return jsonResponse({ ok: true, partes_enviadas: partes.length });
+  } catch (err: any) {
+    console.error("[AI-Agent] Erro fatal:", err);
+    await supabase.from("leads").update({ ai_pending_since: null } as any).eq("id", lead_id);
+    if (execLogId) await updateLog(execLogId, {
+      status: "error",
+      etapa: "erro_fatal",
+      erro_detalhe: String(err?.message ?? err),
+      duracao_ms: Date.now() - globalStart,
+    });
+    return jsonResponse({ error: "internal_error", detail: String(err?.message ?? err) }, 500);
+  }
+});

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useLeads } from "@/hooks/useLeads";
 import { useStages, Stage } from "@/hooks/useStages";
 import MaskedInput, { PhoneInput, CpfInput } from "@/components/MaskedInput";
@@ -18,6 +19,7 @@ import { useLeadSources } from "@/hooks/useLeadSources";
 import { useMarketing } from "@/hooks/useMarketing"; 
 import { VendaModal } from "@/components/vendas/VendaModal";
 import { FormattedText } from "@/components/FormattedText";
+import { TagManager } from "@/components/tags/TagManager";
 
 // --- Funções Auxiliares (mantidas) ---
 const calculateAge = (dobString: string | undefined): number | '' => {
@@ -73,6 +75,7 @@ const initialFormData = {
   criativo_id: "none",
   data_nascimento_display: "",
   criado_em_display: "",
+  is_qualified: false,
 };
 
 // --- Componentes de UI ---
@@ -82,10 +85,15 @@ const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[
   return (
     <div className="space-y-6 py-4 max-h-[70vh] overflow-y-auto px-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-xl font-bold text-foreground">{lead.nome || 'Lead sem nome'}</h3>
-        <Badge className="text-sm" style={{ backgroundColor: currentStage?.cor, color: 'white' }}>
-          {currentStage?.nome || 'Etapa Desconhecida'}
-        </Badge>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <h3 className="text-xl font-bold text-foreground">{lead.nome || 'Lead sem nome'}</h3>
+            <Badge className="text-sm" style={{ backgroundColor: currentStage?.cor, color: 'white' }}>
+              {currentStage?.nome || 'Etapa Desconhecida'}
+            </Badge>
+          </div>
+          <TagManager leadId={lead.id} />
+        </div>
       </div>
       <Card className="shadow-sm">
         <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2 text-primary"><User className="h-4 w-4" /> Detalhes do Lead</CardTitle></CardHeader>
@@ -131,6 +139,12 @@ const ViewContent = ({ lead, stages, creativeName }: { lead: any, stages: Stage[
           {lead.data_nascimento && <div><span className="font-medium">Nascimento:</span> {toDisplayDate(lead.data_nascimento)}</div>}
           {lead.cpf && <div><span className="font-medium">CPF:</span> {lead.cpf}</div>}
           {lead.endereco && <div className="col-span-2 flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" /><span>{lead.endereco}</span></div>}
+          <div className="col-span-2 mt-2">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${lead.is_qualified ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
+              <div className={`h-2 w-2 rounded-full ${lead.is_qualified ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`}></div>
+              {lead.is_qualified ? 'Lead Qualificado (MQL)' : 'Ainda não qualificado'}
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -229,6 +243,18 @@ const FormContent = ({ formData, handleInputChange, handleSubmit, stages, handle
         </div>
         <div><Label>Data de Cadastro</Label><MaskedInput mask="99/99/9999" placeholder="DD/MM/AAAA" value={formData.criado_em_display} onChange={(e) => handleInputChange('criado_em_display', e.target.value)} /></div>
       </div>
+
+      <div className="flex items-center justify-between border border-border bg-card shadow-sm rounded-lg p-4 mt-2">
+        <div className="space-y-0.5">
+          <Label className="text-base font-medium text-emerald-600 dark:text-emerald-500">Lead Qualificado (MQL)</Label>
+          <p className="text-sm text-muted-foreground">Marque se este contato possui o perfil ideal do escritório (Marketing Qualified Lead).</p>
+        </div>
+        <Switch 
+          checked={formData.is_qualified} 
+          onCheckedChange={(checked) => handleInputChange('is_qualified', checked)} 
+        />
+      </div>
+
       <div className="flex justify-end gap-2 pt-4">
         <Button type="button" variant="outline" onClick={handleClose}>{isEdit ? "Cancelar" : "Fechar"}</Button>
         <Button type="submit">{isEdit ? "Salvar Alterações" : "Criar Lead"}</Button>
@@ -275,6 +301,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
           criativo_id: lead.criativo_id || "none",
           data_nascimento_display: toDisplayDate(lead.data_nascimento),
           criado_em_display: toDisplayDateFromTimestamp(lead.criado_em),
+          is_qualified: lead.is_qualified || false,
         });
       } else {
         setFormData({
@@ -326,6 +353,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
       endereco: formData.endereco || undefined,
       procedimento_interesse: formData.procedimento_interesse || undefined,
       criativo_id: formData.criativo_id === "none" ? null : formData.criativo_id,
+      is_qualified: formData.is_qualified,
     };
     
     delete (data as any).data_nascimento_display;
@@ -390,7 +418,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
                   className="bg-success hover:bg-success/90 text-success-foreground"
                 >
                   <DollarSign className="h-4 w-4 mr-2" />
-                  Fechar Contrato
+                  Registrar Venda
                 </Button>
               )}
               <Button type="button" variant="secondary" onClick={handleOpenConversation} className="bg-secondary hover:bg-secondary/90 text-secondary-foreground">

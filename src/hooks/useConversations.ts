@@ -34,6 +34,7 @@ export interface Conversation extends Lead {
   last_message_type?: string;
   last_message_sender?: string;
   tags: Tag[];
+  em_cadencia?: boolean;
 }
 
 export function useConversationsList() {
@@ -65,6 +66,25 @@ export function useConversationsList() {
           }).sort((a, b) => new Date(b.last_message_timestamp!).getTime() - new Date(a.last_message_timestamp!).getTime());
         });
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads', filter: `organization_id=eq.${orgId}` }, (payload) => {
+        const updatedLead = payload.new as any;
+        queryClient.setQueryData<Conversation[]>(['conversations', orgId], (old) => {
+          if (!old) return old;
+          return old.map(conv => {
+            if (conv.id === updatedLead.id) {
+              return { 
+                ...conv, 
+                ...updatedLead,
+                last_message_content: conv.last_message_content,
+                last_message_timestamp: conv.last_message_timestamp,
+                last_message_type: conv.last_message_type,
+                last_message_sender: conv.last_message_sender
+              };
+            }
+            return conv;
+          });
+        });
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -87,6 +107,9 @@ export function useConversationsList() {
             criado_em,
             tipo_conteudo,
             remetente
+          ),
+          lead_cadencias(
+            status
           )
         `)
         .eq('organization_id', orgId)
@@ -101,9 +124,11 @@ export function useConversationsList() {
       const conversations = leads.map((lead: any) => {
         const lastMessage = lead.mensagens && lead.mensagens.length > 0 ? lead.mensagens[0] : null;
         const tags = lead.leads_tags?.map((lt: any) => lt.tags).filter(Boolean) || [];
+        const em_cadencia = lead.lead_cadencias?.some((lc: any) => lc.status === 'ativo') || false;
         
         delete lead.mensagens;
         delete lead.leads_tags;
+        delete lead.lead_cadencias;
         
         return {
           ...lead,
@@ -112,6 +137,7 @@ export function useConversationsList() {
           last_message_type: lastMessage?.tipo_conteudo || 'texto',
           last_message_sender: lastMessage?.remetente,
           tags: tags,
+          em_cadencia: em_cadencia,
         };
       });
 
@@ -169,6 +195,17 @@ export function useMessages(leadId: string | null) {
       )
       .on(
         'postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, 
+        (payload) => {
+          const updatedMessage = payload.new as Message;
+          queryClient.setQueryData<Message[]>(['messages', leadId], (old) => {
+            if (!old) return old;
+            return old.map(m => m.id === updatedMessage.id ? { ...m, ...updatedMessage } : m);
+          });
+        }
+      )
+      .on(
+        'postgres_changes', 
         { event: 'DELETE', schema: 'public', table: 'mensagens', filter: `lead_id=eq.${leadId}` }, 
         (payload) => {
           queryClient.setQueryData<Message[]>(['messages', leadId], (old) => 
@@ -191,6 +228,20 @@ export function useMessages(leadId: string | null) {
               }
               return m;
             });
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'message_attachments' },
+        (payload) => {
+          const oldAttachment = payload.old as Attachment;
+          queryClient.setQueryData<Message[]>(['messages', leadId], (old) => {
+            if (!old) return old;
+            return old.map(m => ({
+              ...m,
+              message_attachments: (m.message_attachments || []).filter(a => a.id !== oldAttachment.id)
+            }));
           });
         }
       )
@@ -236,37 +287,34 @@ export function useSendMessage() {
 
   return useMutation({
     mutationFn: async ({ leadId, content }: { leadId: string; content: string }) => {
-      const { data: insertedMsg, error: insertError } = await supabase
-        .from('mensagens')
-        .insert({
-            lead_id: leadId,
-            user_id: user?.id,
-            conteudo: content,
-            direcao: 'saida',
-            remetente: 'agente',
-            tipo_conteudo: 'texto'
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
+      if (!user?.id) throw new Error("Usuário não autenticado");
 
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
-      
-      const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            lead_id: leadId, 
-            user_id: user?.id, 
-            conteudo_mensagem: content, 
-            telefone: lead?.telefone,
-            internal_msg_id: insertedMsg.id 
-        }),
+      if (!(lead as any)?.telefone) throw new Error("Telefone do lead não encontrado");
+
+      // Usa send-quick-message que é comprovadamente funcional com UaZAPI
+      // skip_db=false → a Edge Function salva no banco e envia via UaZAPI
+      const { error } = await supabase.functions.invoke('send-quick-message', {
+        body: {
+          lead_id: leadId,
+          mensagem: content,
+          tipo: 'texto',
+          telefone: (lead as any).telefone,
+          user_id: user.id,
+          remetente: 'agente',
+          skip_db: false,
+        },
       });
 
-      if (!response.ok) throw new Error("Falha ao enviar via WhatsApp");
-      return insertedMsg;
+      if (error) {
+        let errorMsg = error.message;
+        try {
+          const errorData = await (error as any).context?.json?.();
+          if (errorData?.error) errorMsg = errorData.error;
+        } catch {}
+        throw new Error(errorMsg);
+      }
+      return { lead_id: leadId, conteudo: content };
     },
     onMutate: async ({ leadId, content }) => {
       const queryKey = ['messages', leadId];
@@ -291,11 +339,11 @@ export function useSendMessage() {
 
       return { previousMessages };
     },
-    onError: (err, variables, context) => {
+    onError: (err: any, variables, context) => {
       if (context?.previousMessages) {
         queryClient.setQueryData(['messages', variables.leadId], context.previousMessages);
       }
-      toast.error("Erro ao enviar mensagem.");
+      toast.error(err?.message || "Erro ao enviar mensagem.");
     },
   });
 }
@@ -346,8 +394,10 @@ export function useSendAudioMessage() {
 
   return useMutation({
     mutationFn: async ({ leadId, audioBlob }: { leadId: string; audioBlob: Blob }) => {
+      const orgId = profile?.organization_id;
+      if (!orgId) throw new Error("Perfil da organização não carregado. Tente novamente.");
       const timestamp = Date.now();
-      const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.ogg`;
+      const filePath = `${orgId}/audio/${leadId}/${timestamp}.ogg`;
       
       const { error: uploadError } = await supabase.storage.from('media-mensagens').upload(filePath, audioBlob);
       if (uploadError) throw uploadError;
@@ -362,35 +412,45 @@ export function useSendAudioMessage() {
             remetente: 'agente',
             tipo_conteudo: 'audio',
             media_path: filePath
-        })
+        } as any)
         .select()
         .single();
 
       if (insertError) throw insertError;
 
-      await supabase.from('message_attachments').insert({
+      await (supabase.from('message_attachments').insert({
         message_id: insertedMsg.id,
         file_path: filePath,
         file_type: 'audio'
-      });
+      } as any) as any);
       
       const { data: { publicUrl } } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
-      
-      const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          lead_id: leadId, 
-          user_id: user?.id, 
-          tipo: 'audio', 
-          url_midia: publicUrl, 
-          telefone: lead?.telefone,
-          internal_msg_id: insertedMsg.id
-        }),
+      if (!(lead as any)?.telefone) throw new Error("Telefone do lead não encontrado");
+      if (!(insertedMsg as any)?.id) throw new Error("Erro ao registrar áudio no banco");
+
+      const { error } = await supabase.functions.invoke('send-quick-message', {
+        body: {
+          lead_id: leadId,
+          mensagem: '',
+          tipo: 'audio',
+          url_midia: publicUrl,
+          telefone: (lead as any).telefone,
+          user_id: user?.id,
+          remetente: 'agente',
+          skip_db: true,
+          internal_msg_id: (insertedMsg as any).id,
+        },
       });
 
-      if (!response.ok) throw new Error("Falha ao enviar áudio pelo gateway");
+      if (error) {
+        let errorMsg = error.message;
+        try {
+          const errorData = await (error as any).context?.json?.();
+          if (errorData?.error) errorMsg = errorData.error;
+        } catch {}
+        throw new Error(errorMsg);
+      }
       return insertedMsg;
     },
     onMutate: async ({ leadId, audioBlob }) => {
@@ -416,11 +476,11 @@ export function useSendAudioMessage() {
 
       return { previousMessages };
     },
-    onError: (err, variables, context) => {
+    onError: (err: any, variables, context) => {
       if (context?.previousMessages) {
         queryClient.setQueryData(['messages', variables.leadId], context.previousMessages);
       }
-      toast.error("Erro ao enviar áudio.");
+      toast.error(err?.message || "Erro ao enviar áudio.");
     }
   });
 }
@@ -432,9 +492,11 @@ export function useSendMediaMessage() {
 
   return useMutation({
     mutationFn: async ({ leadId, file, type, caption }: { leadId: string; file: File; type: 'imagem' | 'video' | 'pdf'; caption?: string }) => {
+      const orgId = profile?.organization_id;
+      if (!orgId) throw new Error("Perfil da organização não carregado. Tente novamente.");
       const timestamp = Date.now();
       const fileExt = file.name.split('.').pop();
-      const filePath = `${profile?.organization_id}/${leadId}/${timestamp}.${fileExt}`;
+      const filePath = `${orgId}/media/${leadId}/${timestamp}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage.from('media-mensagens').upload(filePath, file);
       if (uploadError) throw uploadError;
@@ -449,36 +511,45 @@ export function useSendMediaMessage() {
             remetente: 'agente',
             tipo_conteudo: type,
             media_path: filePath
-        })
+        } as any)
         .select()
         .single();
 
       if (insertError) throw insertError;
 
-      await supabase.from('message_attachments').insert({
+      await (supabase.from('message_attachments').insert({
         message_id: insertedMsg.id,
         file_path: filePath,
         file_type: type === 'pdf' ? 'pdf' : type as any
-      });
+      } as any) as any);
       
       const { data: { publicUrl } } = supabase.storage.from('media-mensagens').getPublicUrl(filePath);
       const { data: lead } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
-      
-      const response = await fetch('https://webhook.orbevision.shop/webhook/mensagens-crm-gleyce', {
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          lead_id: leadId, 
-          user_id: user?.id, 
-          tipo: type, 
-          url_midia: publicUrl, 
-          telefone: lead?.telefone,
-          internal_msg_id: insertedMsg.id,
-          conteudo_mensagem: caption || ''
-        }),
+      if (!(lead as any)?.telefone) throw new Error("Telefone do lead não encontrado");
+      if (!(insertedMsg as any)?.id) throw new Error(`Erro ao registrar ${type} no banco`);
+
+      const { error } = await supabase.functions.invoke('send-quick-message', {
+        body: {
+          lead_id: leadId,
+          mensagem: caption || '',
+          tipo: type,
+          url_midia: publicUrl,
+          telefone: (lead as any).telefone,
+          user_id: user?.id,
+          remetente: 'agente',
+          skip_db: true,
+          internal_msg_id: (insertedMsg as any).id,
+        },
       });
 
-      if (!response.ok) throw new Error(`Falha ao enviar ${type} pelo gateway`);
+      if (error) {
+        let errorMsg = error.message;
+        try {
+          const errorData = await (error as any).context?.json?.();
+          if (errorData?.error) errorMsg = errorData.error;
+        } catch {}
+        throw new Error(errorMsg);
+      }
       return insertedMsg;
     },
     onMutate: async ({ leadId, file, type, caption }) => {
@@ -504,11 +575,11 @@ export function useSendMediaMessage() {
 
       return { previousMessages };
     },
-    onError: (err, variables, context) => {
+    onError: (err: any, variables, context) => {
       if (context?.previousMessages) {
         queryClient.setQueryData(['messages', variables.leadId], context.previousMessages);
       }
-      toast.error(`Erro ao enviar ${variables.type}.`);
+      toast.error(err?.message || `Erro ao enviar ${variables.type}.`);
     }
   });
 }

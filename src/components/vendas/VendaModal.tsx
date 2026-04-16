@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -30,6 +31,7 @@ interface VendaFormData {
   valor_fechado: number | undefined;
   data_fechamento: Date;
   forma_pagamento: string;
+  produto_servico: string;
 }
 
 const initialFormState: VendaFormData = {
@@ -39,6 +41,7 @@ const initialFormState: VendaFormData = {
   valor_fechado: undefined,
   data_fechamento: new Date(),
   forma_pagamento: "",
+  produto_servico: "",
 };
 
 export function VendaModal({ open, onOpenChange, lead: preselectedLead, venda: editingVenda }: VendaModalProps) {
@@ -61,6 +64,7 @@ export function VendaModal({ open, onOpenChange, lead: preselectedLead, venda: e
           valor_fechado: editingVenda.valor_fechado,
           data_fechamento: parseISO(editingVenda.data_fechamento),
           forma_pagamento: editingVenda.forma_pagamento || "",
+          produto_servico: editingVenda.produto_servico || "",
         });
       } else if (preselectedLead) {
         // Modo Criação a partir do LeadModal
@@ -78,8 +82,8 @@ export function VendaModal({ open, onOpenChange, lead: preselectedLead, venda: e
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.lead_id || formData.valor_fechado === undefined || formData.valor_fechado === null || !formData.data_fechamento) {
-      toast.error("Preencha os campos obrigatórios: Cliente, Valor Fechado e Data do Fechamento.");
+    if (!formData.lead_id || formData.valor_fechado === undefined || formData.valor_fechado === null || !formData.data_fechamento || !formData.produto_servico) {
+      toast.error("Preencha os campos obrigatórios: Cliente, Serviço/Produto, Valor Fechado e Data do Fechamento.");
       return;
     }
 
@@ -90,6 +94,7 @@ export function VendaModal({ open, onOpenChange, lead: preselectedLead, venda: e
       data_orcamento: formData.data_orcamento ? format(formData.data_orcamento, 'yyyy-MM-dd') : null,
       data_fechamento: format(formData.data_fechamento, 'yyyy-MM-dd'),
       forma_pagamento: formData.forma_pagamento || null,
+      produto_servico: formData.produto_servico,
     };
 
     if (isEditMode && formData.id) {
@@ -116,7 +121,7 @@ export function VendaModal({ open, onOpenChange, lead: preselectedLead, venda: e
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Editar Venda" : "Registrar Nova Venda"}</DialogTitle>
-          <DialogDescription>Preencha os detalhes do contrato fechado.</DialogDescription>
+          <DialogDescription>Preencha os detalhes da venda realizada.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-6 py-4">
           <div className="grid gap-2">
@@ -199,6 +204,15 @@ export function VendaModal({ open, onOpenChange, lead: preselectedLead, venda: e
                 <SelectItem value="Outro">Outro</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="produto-servico">Serviço / Procedimento / Produto *</Label>
+            <Input 
+              id="produto-servico"
+              placeholder="Ex: Divórcio, Botox, Mentoria..."
+              value={formData.produto_servico}
+              onChange={e => setFormData(prev => ({ ...prev, produto_servico: e.target.value }))}
+            />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>

@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/botoes-crm-gleyce';
+const WEBHOOK_URL = 'https://webhook.orbevision.shop/webhook/botoes-crm-descompliquei1';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -26,7 +26,6 @@ serve(async (req) => {
       `)
       .eq('status', 'pending')
       .lte('scheduled_for', new Date().toISOString());
-
     if (fetchError) throw fetchError;
     if (!pendingMessages || pendingMessages.length === 0) {
       return new Response(JSON.stringify({ success: true, count: 0 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

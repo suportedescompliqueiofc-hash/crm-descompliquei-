@@ -31,7 +31,7 @@ export function useReports(dateRange: DateRange | undefined, filters: any) {
 
       const allStages = allStagesRes || [];
       const leads = leadsData || [];
-      const funnelStages = allStages.filter(s => s.incluir_no_funil);
+      const funnelStages = allStages.filter(s => s.em_funil);
       const lostStage = allStages.find(s => s.nome.toLowerCase() === 'perdido');
       const lostPosition = lostStage?.posicao_ordem || 999;
 
@@ -40,7 +40,7 @@ export function useReports(dateRange: DateRange | undefined, filters: any) {
 
       const isLeadInFunnel = (lead: any) => {
         const leadStage = allStages.find(s => s.posicao_ordem === lead.posicao_pipeline);
-        return !!leadStage?.incluir_no_funil;
+        return !!leadStage?.em_funil;
       };
 
       const isLeadConvertedInPeriod = (lead: any) => 

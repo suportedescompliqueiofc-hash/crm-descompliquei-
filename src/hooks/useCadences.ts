@@ -105,7 +105,53 @@ export function useCadences() {
       }
   });
 
-  return { cadences, isLoading, createCadence: createCadence.mutate, updateCadence: updateCadence.mutate, deleteCadence: deleteCadence.mutate, isCreating: createCadence.isPending, isUpdating: updateCadence.isPending };
+  const bulkStartCadence = useMutation({
+    mutationFn: async ({ cadenceId, leadIds, minDelay, maxDelay }: { cadenceId: string, leadIds: string[], minDelay: number, maxDelay: number }) => {
+        if (!orgId) throw new Error("Não autorizado");
+
+        // 1. Buscar primeiro passo da cadência
+        const { data: firstStep } = await supabase
+            .from('cadencia_passos')
+            .select('*')
+            .eq('cadencia_id', cadenceId)
+            .order('posicao_ordem', { ascending: true })
+            .limit(1)
+            .single();
+
+        if (!firstStep) throw new Error("Esta cadência não possui passos configurados.");
+
+        const inserts = leadIds.map(leadId => {
+            const randomDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
+            let executionDate = new Date();
+            
+            if (firstStep.unidade_tempo === 'minutos') executionDate = addMinutes(executionDate, firstStep.tempo_espera + (randomDelay / 60));
+            else if (firstStep.unidade_tempo === 'horas') executionDate = addHours(executionDate, firstStep.tempo_espera + (randomDelay / 3600));
+            else executionDate = addDays(executionDate, firstStep.tempo_espera + (randomDelay / 86400));
+
+            return {
+                organization_id: orgId,
+                lead_id: leadId,
+                cadencia_id: cadenceId,
+                passo_atual_ordem: 0,
+                status: 'ativo',
+                proxima_execucao: executionDate.toISOString()
+            };
+        });
+
+        const { error } = await supabase
+            .from('lead_cadencias')
+            .upsert(inserts, { onConflict: 'lead_id,cadencia_id' });
+
+        if (error) throw error;
+        return true;
+    },
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['lead_cadence_active'] });
+        toast.success("Disparo em massa iniciado!");
+    }
+  });
+
+  return { cadences, isLoading, createCadence: createCadence.mutate, updateCadence: updateCadence.mutate, deleteCadence: deleteCadence.mutate, bulkStartCadence: bulkStartCadence.mutate, isCreating: createCadence.isPending, isUpdating: updateCadence.isPending };
 }
 
 export function useLeadCadence(leadId: string | undefined) {

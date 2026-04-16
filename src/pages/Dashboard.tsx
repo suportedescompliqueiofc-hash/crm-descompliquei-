@@ -98,8 +98,8 @@ export default function Dashboard() {
     { title: "Leads Marketing", value: (metrics.marketingLeads || 0).toString(), icon: Megaphone, description: "Anúncios (Ads)" },
     { title: "Leads Orgânico", value: (metrics.organicLeads || 0).toString(), icon: Users, description: "Indicação, Manual..." },
     { title: "Taxa Conversão", value: `${metrics.conversionRate}%`, icon: TrendingUp, description: "Vendas fechadas" },
-    { title: "Faturamento", value: `R$ ${metrics.faturamentoTotal.toLocaleString('pt-BR')}`, icon: DollarSign, description: "Contratos fechados" },
-    { title: "CAC Global", value: `R$ ${metrics.cac.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, icon: Calculator, description: "Custo Aquisição" },
+    { title: "Faturamento", value: `R$ ${metrics.faturamentoTotal.toLocaleString('pt-BR')}`, icon: DollarSign, description: "Vendas fechadas" },
+    { title: "Taxa de MQL", value: `${metrics.mqlRate}%`, icon: Tag, description: `${metrics.mqlCount} leads qualificados` },
   ];
 
   return (

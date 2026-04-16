@@ -153,7 +153,8 @@ export function useTags() {
     isLoadingTags,
     createTag,
     updateTag,
-    deleteTag
+    deleteTag,
+    refetchTags: () => queryClient.invalidateQueries({ queryKey: ['tags', orgId] }),
   };
 }
 
@@ -214,22 +215,24 @@ export function useLeadTags(leadId: string | undefined) {
       
       if (error) throw error;
 
+      // White-label: chama edge function para adicionar etiqueta na UAZAPI do cliente
       try {
         const { data: leadData } = await supabase.from('leads').select('telefone').eq('id', leadId).single();
         const { data: tagData } = await supabase.from('tags').select('label_lid').eq('id', tagId).single();
 
         if (leadData?.telefone && tagData?.label_lid) {
-          await fetch('https://webhook.orbevision.shop/webhook/adiciona-etiqueta-gleyce', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          const { data: { session } } = await supabase.auth.getSession();
+          await supabase.functions.invoke('manage-whatsapp', {
+            body: {
+              action: 'add_label',
               telefone: leadData.telefone,
-              label_lid: tagData.label_lid
-            })
+              label_lid: tagData.label_lid,
+            },
+            headers: { Authorization: `Bearer ${session?.access_token}` },
           });
         }
       } catch (err) {
-        console.error("Falha ao enviar webhook de etiqueta:", err);
+        console.error("Falha ao sincronizar etiqueta com WhatsApp:", err);
       }
     },
     onSuccess: () => {
@@ -254,14 +257,16 @@ export function useLeadTags(leadId: string | undefined) {
         
         if (error) throw error;
 
+        // White-label: chama edge function para remover etiqueta na UAZAPI do cliente
         if (leadData?.telefone && tagData?.label_lid) {
-          await fetch('https://webhook.orbevision.shop/webhook/retira-etiqueta-gleyce', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          const { data: { session } } = await supabase.auth.getSession();
+          await supabase.functions.invoke('manage-whatsapp', {
+            body: {
+              action: 'remove_label',
               telefone: leadData.telefone,
-              label_lid: tagData.label_lid
-            })
+              label_lid: tagData.label_lid,
+            },
+            headers: { Authorization: `Bearer ${session?.access_token}` },
           });
         }
       } catch (err: any) {

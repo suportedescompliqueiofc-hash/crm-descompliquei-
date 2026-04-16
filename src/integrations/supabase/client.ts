@@ -2,9 +2,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// Credenciais do NOVO projeto Supabase (guotjrwrnpsclfemwjql)
-const SUPABASE_URL = "https://guotjrwrnpsclfemwjql.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1b3RqcndybnBzY2xmZW13anFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzMDY2NDcsImV4cCI6MjA4Njg4MjY0N30.NPlanpggFSc4o-o3cPjZT2aXpsBPv_cl8nm18NymME4";
+// Projeto Supabase White-Label Multi-Tenant (noncbgdczgcboronmcah)
+const SUPABASE_URL = "https://noncbgdczgcboronmcah.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5vbmNiZ2RjemdjYm9yb25tY2FoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwMTgxNjUsImV4cCI6MjA4MjU5NDE2NX0.2oWe_oyHb4Y7MB5DspkpcfHCaUR8tu6W2Vco-cAPtgM";
+
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
