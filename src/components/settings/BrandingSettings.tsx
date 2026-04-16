@@ -84,6 +84,59 @@ export function BrandingSettings() {
     }
   }, [branding]);
 
+  const extractColorsFromImage = (imageUrl: string): Promise<{ primary: string, accent: string, sidebar: string }> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.canvas.getContext('2d');
+        if (!ctx) return resolve({ primary: '38 45% 55%', accent: '38 45% 94%', sidebar: '220 10% 10%' });
+
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+          let r = 0, g = 0, b = 0, count = 0;
+
+          // Amostra simplificada (pula pixels para performance)
+          for (let i = 0; i < imageData.length; i += 40) {
+            // Ignorar pixels muito claros (fundo branco) ou muito escuros (preto puro)
+            const luminance = (0.299 * imageData[i] + 0.587 * imageData[i+1] + 0.114 * imageData[i+2]);
+            if (luminance > 20 && luminance < 230) {
+              r += imageData[i];
+              g += imageData[i + 1];
+              b += imageData[i + 2];
+              count++;
+            }
+          }
+
+          if (count === 0) throw new Error('No colors found');
+
+          r = Math.floor(r / count);
+          g = Math.floor(g / count);
+          b = Math.floor(b / count);
+
+          const hsl = hexToHsl(`#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`);
+          const [h, s, l] = hsl.replace(/%/g, '').split(' ');
+
+          resolve({
+            primary: `${h} ${s}% ${l}%`,
+            accent: `${h} ${Math.max(10, parseInt(s) - 20)}% 96%`,
+            sidebar: `${h} ${Math.min(20, parseInt(s))}% 8%`
+          });
+        } catch (e) {
+          console.error('Falha ao extrair cores:', e);
+          resolve({ primary: '38 45% 55%', accent: '38 45% 94%', sidebar: '220 10% 10%' });
+        }
+      };
+      img.onerror = () => resolve({ primary: '38 45% 55%', accent: '38 45% 94%', sidebar: '220 10% 10%' });
+      img.src = imageUrl;
+    });
+  };
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     const orgId = branding?.organization_id || profile?.organization_id;
@@ -100,9 +153,29 @@ export function BrandingSettings() {
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage.from('organization-logos').getPublicUrl(path);
-      await updateBranding({ logo_url: urlData.publicUrl });
+      const publicUrl = urlData.publicUrl;
 
-      toast({ title: 'Logo atualizada!', description: 'A identidade visual foi atualizada.' });
+      // Extrair cores
+      const colors = await extractColorsFromImage(publicUrl);
+      
+      const newBranding = { 
+        logo_url: publicUrl,
+        color_primary: colors.primary,
+        color_accent: colors.accent,
+        color_sidebar_bg: colors.sidebar
+      };
+
+      await updateBranding(newBranding);
+      
+      // Atualizar o formulário local para refletir as novas cores imediatamente
+      setForm(prev => ({
+        ...prev,
+        color_primary: colors.primary,
+        color_accent: colors.accent,
+        color_sidebar_bg: colors.sidebar
+      }));
+
+      toast({ title: 'Identidade Visual Extraída!', description: 'As cores foram ajustadas para combinar com sua logo.' });
     } catch (err: any) {
       toast({ title: 'Erro no upload', description: err.message, variant: 'destructive' });
     } finally {
