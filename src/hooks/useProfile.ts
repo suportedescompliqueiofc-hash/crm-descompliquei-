@@ -88,7 +88,7 @@ export function useProfile() {
       return (data as any)?.papel || 'atendente';
     },
     enabled: !!user,
-    staleTime: 1000 * 60 * 30, // OTIMIZAÇÃO: 30 minutos de cache
+    staleTime: 1000 * 60 * 1, // Reduzido para 1 minuto para maior reatividade em mudanças de permissão
   });
 
   const updateProfile = useMutation({
