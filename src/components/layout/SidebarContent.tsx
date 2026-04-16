@@ -72,9 +72,11 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
+  const MASTER_ORG_ID = 'aa787cc8-787a-4774-bd80-ffbf78c0cf5f';
+  
   const handleBackToMaster = async () => {
-    const originalOrgId = localStorage.getItem('original_master_org_id');
-    if (!originalOrgId || !user) return;
+    const originalOrgId = localStorage.getItem('original_master_org_id') || MASTER_ORG_ID;
+    if (!user) return;
 
     try {
       const { error } = await supabase
@@ -91,7 +93,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     }
   };
 
-  const isImpersonating = !!localStorage.getItem('original_master_org_id');
+  const isImpersonating = !!localStorage.getItem('original_master_org_id') || (isSuperAdmin && profile?.organization_id !== MASTER_ORG_ID);
 
   return (
     <TooltipProvider>
