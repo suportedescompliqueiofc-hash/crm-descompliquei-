@@ -153,7 +153,6 @@ serve(async (req) => {
         userId = connection.usuario_id_default;
       }
     } else {
-      // Se UaZapi não enviar instanceName explícito no payload, buscar o primeiro (fallback)
        const { data: defaultConnection } = await supabaseAdmin
         .from('whatsapp_connections')
         .select('organization_id, usuario_id_default')
@@ -167,7 +166,35 @@ serve(async (req) => {
        }
     }
 
-    // ── Encontrar Lead CORRETO (para a Organização atual) ────────────────────
+    // ── Detecção de Origem (Marketing vs Orgânico) ───────────────────────────
+    let detectedOrigem = 'Orgânico';
+    try {
+      // Função auxiliar para busca profunda no payload (UaZapi envia em níveis variados)
+      const findInObject = (obj: any, key: string, value?: string): any => {
+        if (!obj || typeof obj !== 'object') return null;
+        if (obj[key] === value || (value === undefined && key in obj)) return obj[key] || true;
+        for (const k in obj) {
+          if (Object.prototype.hasOwnProperty.call(obj, k)) {
+            const found = findInObject(obj[k], key, value);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const hasFBAds = findInObject(payload, 'conversionSource', 'FB_Ads') || findInObject(payload, 'entryPointConversionExternalSource', 'FB_Ads');
+      const hasAdReply = findInObject(payload, 'externalAdReply');
+      const hasMarketingContext = findInObject(payload, 'entryPointConversionSource', 'ctwa_ad');
+
+      if (hasFBAds || hasAdReply || hasMarketingContext) {
+        detectedOrigem = 'Marketing';
+        console.log(`[receive-message] DETECTADO COMO MARKETING! (FBAds: ${!!hasFBAds}, AdReply: ${!!hasAdReply}, context: ${!!hasMarketingContext})`);
+      }
+    } catch (e) {
+      console.error('[receive-message] Erro na detecção de marketing:', e);
+    }
+
+    // ── Encontrar ou Criar Lead ──────────────────────────────────────────────
     let leadQuery = supabaseAdmin
       .from('leads')
       .select('id, organization_id, usuario_id, nome, ia_ativa, origem')
@@ -177,23 +204,9 @@ serve(async (req) => {
       leadQuery = leadQuery.eq('organization_id', orgId);
     }
     
-    let { data: lead } = await leadQuery.limit(1).single();
-
-    // ── Detecção de Origem (Marketing vs Orgânico) ───────────────────────────
-    let detectedOrigem = 'Orgânico';
-    try {
-      // Regra de anúncio: conversionSource="FB_Ads" e sourceApp=(instagram|facebook) OU presença de externalAdReply
-      const pStr = JSON.stringify(payload);
-      const isFBAds = pStr.includes('"conversionSource":"FB_Ads"') && (pStr.includes('"sourceApp":"instagram"') || pStr.includes('"sourceApp":"facebook"'));
-      const hasExternalAd = pStr.includes('"externalAdReply"');
-      if (isFBAds || hasExternalAd) {
-        detectedOrigem = 'Marketing';
-      }
-    } catch (e) { }
+    let { data: lead } = await leadQuery.limit(1).maybeSingle();
 
     if (!lead) {
-      // ── Criar Lead Automaticamente ─────────────────────────────────────────
-
       if (!orgId) {
         return new Response(JSON.stringify({ message: 'Lead não encontrado e impossível criar (falta organization_id).' }), { status: 404, headers: corsHeaders });
       }
@@ -222,7 +235,7 @@ serve(async (req) => {
       lead = newLead;
       console.log(`Novo lead registrado: ${contactName} / ${phoneWithCountryCode} (${detectedOrigem})`);
     } else {
-      // Se o lead já existe e está como Orgânico, mas detectamos engajamento de Marketing, atualizamos ele
+      // Se o lead já existe mas mudou para marketing, atualizamos a origem
       if (detectedOrigem === 'Marketing' && lead.origem !== 'Marketing') {
         const { error: updErr } = await supabaseAdmin.from('leads').update({ origem: 'Marketing' }).eq('id', lead.id);
         if (!updErr) {
