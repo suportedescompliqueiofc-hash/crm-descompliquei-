@@ -85,8 +85,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    // O onAuthStateChange cuidará do redirecionamento
+    try {
+      // Tenta o logout normal
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.warn("Erro no logout remoto, tentando local:", error);
+        // Fallback: logout local apenas
+        await supabase.auth.signOut({ scope: 'local' });
+      }
+    } catch (err) {
+      console.error("Erro crítico no logout:", err);
+    } finally {
+      // Independente do erro no servidor, limpamos o estado local e redirecionamos
+      setSession(null);
+      setUser(null);
+      localStorage.removeItem('supabase.auth.token');
+      navigate('/login', { replace: true });
+    }
   };
 
   return (
