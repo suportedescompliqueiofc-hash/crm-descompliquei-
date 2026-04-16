@@ -91,9 +91,8 @@ export function BrandingSettings() {
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        if (!ctx) return resolve({ primary: '220 80% 50%', accent: '220 50% 98%', sidebar: '220 20% 10%' });
+        if (!ctx) return resolve({ primary: '220 15% 20%', accent: '220 10% 97%', sidebar: '220 15% 8%' });
 
-        // Redimensionar para miniatura para processamento rápido
         canvas.width = 50;
         canvas.height = 50;
         ctx.drawImage(img, 0, 0, 50, 50);
@@ -101,12 +100,12 @@ export function BrandingSettings() {
         try {
           const imageData = ctx.getImageData(0, 0, 50, 50).data;
           let colors: { h: number, s: number, l: number, weight: number }[] = [];
+          let grayscaleColors: { h: number, s: number, l: number, weight: number }[] = [];
 
           for (let i = 0; i < imageData.length; i += 4) {
             const r = imageData[i], g = imageData[i+1], b = imageData[i+2], a = imageData[i+3];
-            if (a < 128) continue; // Pular transparentes
+            if (a < 128) continue;
 
-            // Converter para HSL para análise
             const r_norm = r / 255, g_norm = g / 255, b_norm = b / 255;
             const max = Math.max(r_norm, g_norm, b_norm), min = Math.min(r_norm, g_norm, b_norm);
             let h = 0, s = 0, l = (max + min) / 2;
@@ -120,41 +119,47 @@ export function BrandingSettings() {
               h *= 60;
             }
 
-            // Ignorar cores muito desbotadas (cinzas) ou cores quase pretas/brancas para a cor primária
-            if (s > 0.15 && l > 0.15 && l < 0.85) {
-              colors.push({ h, s: s * 100, l: l * 100, weight: s * (1 - Math.abs(2 * l - 1)) });
+            const sat = s * 100;
+            const lum = l * 100;
+
+            if (sat > 12 && lum > 15 && lum < 85) {
+              colors.push({ h, s: sat, l: lum, weight: sat * (1 - Math.abs(2 * l - 1)) });
+            } else if (lum > 5 && lum < 95) {
+              grayscaleColors.push({ h, s: sat, l: lum, weight: 1 - Math.abs(2 * l - 1) });
             }
           }
 
-          if (colors.length === 0) {
-             // Fallback para tom de azul premium se nada for encontrado
-             return resolve({ primary: '220 80% 50%', accent: '220 40% 97%', sidebar: '222 25% 10%' });
+          // Se tiver cores vibrantes, usa a melhor. Senão, usa tons de cinza/preto da logo
+          const candidatePool = colors.length > 0 ? colors : grayscaleColors;
+          
+          if (candidatePool.length === 0) {
+             return resolve({ primary: '220 15% 20%', accent: '220 10% 97%', sidebar: '220 15% 8%' });
           }
 
-          // Pegar a cor com mais "peso" (vibrante e equilibrada)
-          colors.sort((a, b) => b.weight - a.weight);
-          const top = colors[0];
+          candidatePool.sort((a, b) => b.weight - a.weight);
+          const top = candidatePool[0];
+          const isGrayscale = colors.length === 0;
 
-          // REGRAS DE OURO PARA BRANDING PREMIUM:
-          // 1. Primária: Brilhante o suficiente para ícones, mas escura o suficiente para texto branco (L entre 40-55)
-          const primaryL = Math.min(Math.max(top.l, 40), 55);
-          const primaryS = Math.min(Math.max(top.s, 40), 90);
+          // REGRAS PARA MARCAS SÓBRIAS (P&B) OU COLORIDAS
+          let primaryH = Math.round(top.h);
+          let primaryS = isGrayscale ? 15 : Math.min(Math.max(top.s, 40), 90);
+          let primaryL = isGrayscale ? 20 : Math.min(Math.max(top.l, 40), 55);
 
-          // 2. Accent: Extremamente suave, quase branco mas com o tom da marca
-          const accentL = 97;
-          const accentS = Math.min(top.s, 30);
+          // Accent: Quase branco
+          let accentS = isGrayscale ? 5 : Math.min(top.s, 20);
+          let accentL = 97;
 
-          // 3. Sidebar: Muito profunda, tom de "noite" com leve cor da marca
-          const sidebarL = 10;
-          const sidebarS = Math.min(top.s, 15);
+          // Sidebar: Quase preto
+          let sidebarS = isGrayscale ? 10 : Math.min(top.s, 15);
+          let sidebarL = 8;
 
           resolve({
-            primary: `${Math.round(top.h)} ${Math.round(primaryS)}% ${Math.round(primaryL)}%`,
-            accent: `${Math.round(top.h)} ${Math.round(accentS)}% ${Math.round(accentL)}%`,
-            sidebar: `${Math.round(top.h)} ${Math.round(sidebarS)}% ${Math.round(sidebarL)}%`
+            primary: `${primaryH} ${primaryS}% ${primaryL}%`,
+            accent: `${primaryH} ${accentS}% ${accentL}%`,
+            sidebar: `${primaryH} ${sidebarS}% ${sidebarL}%`
           });
         } catch (e) {
-          resolve({ primary: '220 80% 50%', accent: '220 50% 98%', sidebar: '220 20% 10%' });
+          resolve({ primary: '220 15% 20%', accent: '220 10% 97%', sidebar: '220 15% 8%' });
         }
       };
       img.src = imageUrl;
