@@ -179,6 +179,18 @@ serve(async (req) => {
     
     let { data: lead } = await leadQuery.limit(1).single();
 
+    // ── Detecção de Origem (Marketing vs Orgânico) ───────────────────────────
+    let detectedOrigem = 'Orgânico';
+    try {
+      // Regra de anúncio: conversionSource="FB_Ads" e sourceApp=(instagram|facebook) OU presença de externalAdReply
+      const pStr = JSON.stringify(payload);
+      const isFBAds = pStr.includes('"conversionSource":"FB_Ads"') && (pStr.includes('"sourceApp":"instagram"') || pStr.includes('"sourceApp":"facebook"'));
+      const hasExternalAd = pStr.includes('"externalAdReply"');
+      if (isFBAds || hasExternalAd) {
+        detectedOrigem = 'Marketing';
+      }
+    } catch (e) { }
+
     if (!lead) {
       // ── Criar Lead Automaticamente ─────────────────────────────────────────
 
@@ -196,9 +208,10 @@ serve(async (req) => {
           organization_id: orgId,
           usuario_id: userId,
           status: 'Ativo',
-          posicao_pipeline: 1
+          posicao_pipeline: 1,
+          origem: detectedOrigem
         })
-        .select('id, organization_id, usuario_id, nome')
+        .select('id, organization_id, usuario_id, nome, ia_ativa, origem')
         .single();
 
       if (createLeadError) {
@@ -207,7 +220,16 @@ serve(async (req) => {
       }
 
       lead = newLead;
-      console.log(`Novo lead registrado: ${contactName} / ${phoneWithCountryCode}`);
+      console.log(`Novo lead registrado: ${contactName} / ${phoneWithCountryCode} (${detectedOrigem})`);
+    } else {
+      // Se o lead já existe e está como Orgânico, mas detectamos engajamento de Marketing, atualizamos ele
+      if (detectedOrigem === 'Marketing' && lead.origem !== 'Marketing') {
+        const { error: updErr } = await supabaseAdmin.from('leads').update({ origem: 'Marketing' }).eq('id', lead.id);
+        if (!updErr) {
+          lead.origem = 'Marketing';
+          console.log(`Origem do lead ${lead.telefone} atualizada para Marketing.`);
+        }
+      }
     }
 
     // ── Definição de Direção/Remetente ─────────────────────────────────────────
