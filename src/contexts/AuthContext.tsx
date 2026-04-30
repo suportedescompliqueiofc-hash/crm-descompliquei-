@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (event === 'SIGNED_OUT') {
           localStorage.removeItem('supabase.auth.token'); // Limpeza extra preventiva
-          navigate('/login');
+          navigate('/crm/login');
         }
       }
     );
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
       });
       if (error) return { error };
-      navigate('/');
+      navigate('/crm');
       return { error: null };
     } catch (error) {
       return { error };
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       setUser(null);
       localStorage.removeItem('supabase.auth.token');
-      navigate('/login', { replace: true });
+      navigate('/crm/login', { replace: true });
     }
   };
 

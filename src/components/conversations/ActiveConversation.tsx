@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft, Paperclip, Loader2, ImageIcon, FileText, Globe, Sparkles, Info, Pencil, UserCheck } from "lucide-react";
+import { Send, Smile, AlertTriangle, CheckCircle, Phone, User, Bot, ChevronDown, Trash2, Mic, Zap, MoreVertical, ChevronLeft, Paperclip, Loader2, ImageIcon, FileText, Globe, Sparkles, Info, Pencil, UserCheck, Download, X, CalendarCheck, BadgeCheck, EyeOff } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import EmojiPicker from 'emoji-picker-react';
 import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 import { useLead, useLeads } from "@/hooks/useLeads";
 import { useLeadCadence } from "@/hooks/useCadences";
@@ -30,6 +31,8 @@ import { useMessages, useSendMessage, Message, Attachment, useDeleteMessage, use
 import { useNotifications, useUpdateNotificationStatus } from "@/hooks/useNotifications";
 import { useStages } from "@/hooks/useStages";
 import { useMarketing } from "@/hooks/useMarketing";
+import { useBranding } from "@/contexts/BrandingContext";
+import { exportConversationPdf, type ConversationPdfMessage } from "@/lib/conversation-pdf";
 
 import { AudioMessage } from "./AudioMessage";
 import { MediaMessage } from "./MediaMessage";
@@ -110,6 +113,37 @@ const groupMessagesByDay = (messages: Message[]) => {
   return grouped;
 };
 
+const getMessageSelectionLabel = (message: Message) =>
+  `${format(parseISO(message.criado_em), "dd/MM 'às' HH:mm", { locale: ptBR })} · ${message.remetente === "lead" ? "Lead" : "Equipe/IA"}`;
+
+const getMessageExportText = (message: Message) => {
+  const attachmentTypes = (message.message_attachments || []).map((attachment) => {
+    if (attachment.file_type === "audio") return "[Áudio]";
+    if (attachment.file_type === "video") return "[Vídeo]";
+    if (attachment.file_type === "pdf") return "[PDF]";
+    if (attachment.file_type === "imagem") return "[Imagem]";
+    return "[Arquivo]";
+  });
+
+  const mediaFallback =
+    message.tipo_conteudo === "audio"
+      ? "[Áudio]"
+      : message.tipo_conteudo === "imagem"
+        ? "[Imagem]"
+        : message.tipo_conteudo === "video"
+          ? "[Vídeo]"
+          : message.tipo_conteudo === "pdf"
+            ? "[PDF]"
+            : "";
+
+  const parts = [message.conteudo?.trim(), ...attachmentTypes, mediaFallback]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+
+  return parts || "[Mensagem sem texto]";
+};
+
 interface ActiveConversationProps {
   leadId: string;
   showQuickMessages?: boolean;
@@ -120,8 +154,9 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const navigate = useNavigate();
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const { branding } = useBranding();
   
-  const { data: lead, isLoading: leadLoading } = useLead(leadId);
+  const { data: lead, isLoading: leadLoading, isFetching: leadFetching } = useLead(leadId);
   const { activeCadence } = useLeadCadence(leadId);
   const { data: messages = [], isLoading: messagesLoading } = useMessages(leadId);
   const { data: notifications } = useNotifications(leadId);
@@ -139,6 +174,10 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const [deletingMessage, setDeletingMessage] = useState<Message | null>(null);
   const [isRecordingMode, setIsRecordingMode] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isExportMode, setIsExportMode] = useState(false);
+  const [exportStartId, setExportStartId] = useState<string | null>(null);
+  const [exportEndId, setExportEndId] = useState<string | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   
   // Media Preview States (Send)
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -158,7 +197,29 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
     return creative?.nome || creative?.titulo || "Criativo Desconhecido";
   }, [lead?.criativo_id, criativos]);
 
+  const messageIndexById = useMemo(
+    () => new Map(messages.map((message, index) => [message.id, index])),
+    [messages]
+  );
+
+  const exportStartIndex = exportStartId ? messageIndexById.get(exportStartId) ?? -1 : -1;
+  const exportEndIndex = exportEndId ? messageIndexById.get(exportEndId) ?? -1 : -1;
+  const hasValidExportRange = exportStartIndex >= 0 && exportEndIndex >= exportStartIndex;
+  const exportStartMessage = exportStartIndex >= 0 ? messages[exportStartIndex] : null;
+  const exportEndMessage = exportEndIndex >= 0 ? messages[exportEndIndex] : null;
+
+  const selectedExportMessages = useMemo(() => {
+    if (!hasValidExportRange) return [];
+    return messages.slice(exportStartIndex, exportEndIndex + 1);
+  }, [messages, exportStartIndex, exportEndIndex, hasValidExportRange]);
+
   useEffect(() => { if (lead) setIsAiActive(lead.ia_ativa ?? true); }, [lead]);
+  useEffect(() => {
+    setIsExportMode(false);
+    setExportStartId(null);
+    setExportEndId(null);
+    setIsExportingPdf(false);
+  }, [leadId]);
   
   useLayoutEffect(() => { 
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" }); 
@@ -204,6 +265,75 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
     updateLead({ id: lead.id, ia_ativa: checked });
   };
 
+  const handleStartExportSelection = () => {
+    setIsExportMode(true);
+    setExportStartId(null);
+    setExportEndId(null);
+  };
+
+  const handleCancelExportSelection = () => {
+    setIsExportMode(false);
+    setExportStartId(null);
+    setExportEndId(null);
+    setIsExportingPdf(false);
+  };
+
+  const handleSelectExportStart = (messageId: string) => {
+    setExportStartId(messageId);
+    const startIndex = messageIndexById.get(messageId) ?? -1;
+    if (exportEndId) {
+      const currentEndIndex = messageIndexById.get(exportEndId) ?? -1;
+      if (currentEndIndex !== -1 && startIndex > currentEndIndex) {
+        setExportEndId(null);
+        toast.info("A mensagem final foi limpa. Escolha uma mensagem final abaixo da inicial.");
+      }
+    }
+  };
+
+  const handleSelectExportEnd = (messageId: string) => {
+    const endIndex = messageIndexById.get(messageId) ?? -1;
+    if (exportStartId) {
+      const currentStartIndex = messageIndexById.get(exportStartId) ?? -1;
+      if (currentStartIndex !== -1 && endIndex < currentStartIndex) {
+        toast.info("Selecione uma mensagem final que venha depois da mensagem inicial.");
+        return;
+      }
+    }
+    setExportEndId(messageId);
+  };
+
+  const handleExportConversationPdf = async () => {
+    if (!lead || !hasValidExportRange || selectedExportMessages.length === 0) {
+      toast.error("Selecione a mensagem inicial e a final para exportar.");
+      return;
+    }
+
+    const pdfMessages: ConversationPdfMessage[] = selectedExportMessages.map((message) => ({
+      id: message.id,
+      createdAt: message.criado_em,
+      senderLabel: message.remetente === "lead" ? (lead.nome || "Lead") : (message.remetente === "bot" ? "Agente IA" : "Equipe"),
+      direction: message.remetente === "lead" ? "incoming" : "outgoing",
+      content: getMessageExportText(message),
+    }));
+
+    try {
+      setIsExportingPdf(true);
+      await exportConversationPdf({
+        branding,
+        leadName: lead.nome || "Lead",
+        leadPhone: lead.telefone,
+        messages: pdfMessages,
+        periodLabel: "Intervalo selecionado na conversa",
+      });
+      toast.success("PDF exportado com sucesso.");
+      handleCancelExportSelection();
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível exportar a conversa em PDF.");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   const openMediaViewer = (url: string, type: 'imagem' | 'video' | 'pdf', name?: string) => {
     setViewingMedia({ url, type, name });
   };
@@ -211,14 +341,15 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
   const getInitials = (name?: string) => name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'L';
   const currentStage = stages.find(s => s.posicao_ordem === lead?.posicao_pipeline);
 
-  if (leadLoading || stagesLoading) return <Skeleton className="h-full w-full" />;
+  // Apenas bloqueia na primeira carga absoluta (sem nenhum dado já carregado)
+  const isFirstLoad = !lead && leadLoading && !messages.length;
 
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden relative">
       <header className="flex flex-col border-b bg-card shadow-sm z-10 flex-shrink-0">
         <div className="flex items-center justify-between p-2 sm:p-3 gap-2">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-                <Button variant="ghost" size="icon" className="md:hidden h-8 w-8" onClick={() => navigate('/conversas')}><ChevronLeft className="h-5 w-5" /></Button>
+                <Button variant="ghost" size="icon" className="md:hidden h-8 w-8" onClick={() => navigate('/crm/conversas')}><ChevronLeft className="h-5 w-5" /></Button>
                 <Avatar className="h-10 w-10 sm:h-11 sm:w-11 border bg-muted flex-shrink-0">
                     <AvatarFallback className="bg-accent text-accent-foreground text-xs sm:text-sm font-medium">{getInitials(lead?.nome)}</AvatarFallback>
                 </Avatar>
@@ -298,6 +429,19 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                 <div className="hidden lg:block">
                     {leadId && <CadenceLeadSelector leadId={leadId} />}
                 </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "h-9 gap-2 rounded-full px-3 text-xs font-semibold",
+                    isExportMode && "border-primary bg-primary/5 text-primary"
+                  )}
+                  onClick={isExportMode ? handleCancelExportSelection : handleStartExportSelection}
+                >
+                  {isExportMode ? <X className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
+                  <span className="hidden sm:inline">{isExportMode ? "Cancelar Exportação" : "Exportar PDF"}</span>
+                </Button>
                 
                 <div className="flex items-center gap-2 pl-2 border-l ml-1">
                     <div className="flex items-center gap-2">
@@ -321,20 +465,50 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                     </Select>
                 )}
                 {lead && (
-                  <Button
-                    variant={lead.is_qualified ? "default" : "outline"}
-                    size="sm"
-                    className={cn(
-                      "h-7 px-2 sm:px-3 text-[10px] sm:text-xs font-bold gap-1.5 transition-all duration-300 rounded-full uppercase tracking-wider",
-                      lead.is_qualified 
-                        ? "bg-emerald-500 text-white hover:bg-emerald-600 border-none shadow-[0_0_12px_-2px_rgba(16,185,129,0.4)] scale-105 active:scale-95" 
-                        : "text-muted-foreground hover:bg-muted/40 border-transparent bg-transparent hover:text-foreground"
-                    )}
-                    onClick={() => updateLead({ id: lead.id, is_qualified: !lead.is_qualified })}
-                  >
-                    <UserCheck className={cn("h-3.5 w-3.5", lead.is_qualified ? "fill-current" : "")} />
-                    Qualificado
-                  </Button>
+                  <>
+                    <Button
+                      variant={lead.is_qualified ? "default" : "outline"}
+                      size="sm"
+                      className={cn(
+                        "h-7 px-2 sm:px-3 text-[10px] sm:text-xs font-bold gap-1.5 transition-all duration-300 rounded-full uppercase tracking-wider",
+                        lead.is_qualified
+                          ? "bg-emerald-500 text-white hover:bg-emerald-600 border-none shadow-[0_0_12px_-2px_rgba(16,185,129,0.4)] scale-105 active:scale-95"
+                          : "text-muted-foreground hover:bg-muted/40 border-transparent bg-transparent hover:text-foreground"
+                      )}
+                      onClick={() => updateLead({ id: lead.id, is_qualified: !lead.is_qualified })}
+                    >
+                      <UserCheck className={cn("h-3.5 w-3.5", lead.is_qualified ? "fill-current" : "")} />
+                      Qualificado
+                    </Button>
+                    <Button
+                      variant={lead.is_scheduled ? "default" : "outline"}
+                      size="sm"
+                      className={cn(
+                        "h-7 px-2 sm:px-3 text-[10px] sm:text-xs font-bold gap-1.5 transition-all duration-300 rounded-full uppercase tracking-wider",
+                        lead.is_scheduled
+                          ? "bg-blue-500 text-white hover:bg-blue-600 border-none shadow-[0_0_12px_-2px_rgba(59,130,246,0.4)] scale-105 active:scale-95"
+                          : "text-muted-foreground hover:bg-muted/40 border-transparent bg-transparent hover:text-foreground"
+                      )}
+                      onClick={() => updateLead({ id: lead.id, is_scheduled: !lead.is_scheduled })}
+                    >
+                      <CalendarCheck className={cn("h-3.5 w-3.5", lead.is_scheduled ? "fill-current" : "")} />
+                      Agendado
+                    </Button>
+                    <Button
+                      variant={lead.is_closed ? "default" : "outline"}
+                      size="sm"
+                      className={cn(
+                        "h-7 px-2 sm:px-3 text-[10px] sm:text-xs font-bold gap-1.5 transition-all duration-300 rounded-full uppercase tracking-wider",
+                        lead.is_closed
+                          ? "bg-violet-500 text-white hover:bg-violet-600 border-none shadow-[0_0_12px_-2px_rgba(139,92,246,0.4)] scale-105 active:scale-95"
+                          : "text-muted-foreground hover:bg-muted/40 border-transparent bg-transparent hover:text-foreground"
+                      )}
+                      onClick={() => updateLead({ id: lead.id, is_closed: !lead.is_closed })}
+                    >
+                      <BadgeCheck className={cn("h-3.5 w-3.5", lead.is_closed ? "fill-current" : "")} />
+                      Fechado
+                    </Button>
+                  </>
                 )}
             </div>
             <div className="flex-1 flex justify-end min-w-0 overflow-hidden">
@@ -362,10 +536,81 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                 <div className="lg:hidden">
                     {leadId && <CadenceLeadSelector leadId={leadId} />}
                 </div>
+                {lead && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    title={lead.excluir_metricas ? "Lead desconsiderado das métricas — clique para incluir" : "Desconsiderar das métricas"}
+                    className={cn(
+                      "h-7 px-2 text-[10px] font-bold gap-1 rounded-full border transition-all duration-200",
+                      lead.excluir_metricas
+                        ? "border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                        : "border-border text-muted-foreground hover:border-amber-400 hover:text-amber-600"
+                    )}
+                    onClick={() => updateLead({ id: lead.id, excluir_metricas: !lead.excluir_metricas })}
+                  >
+                    <EyeOff className="h-3 w-3" />
+                    <span className="hidden sm:inline">
+                      {lead.excluir_metricas ? "Fora das métricas" : "Métricas"}
+                    </span>
+                  </Button>
+                )}
                 <div className="xs:block">{lead && <AiLockControl lead={lead} />}</div>
             </div>
         </div>
       </header>
+
+      {isExportMode && (
+        <div className="border-b bg-[#FFF4EE] px-3 py-3 text-[#7A3617] flex-shrink-0">
+          <div className="max-w-5xl mx-auto flex flex-col gap-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold">Selecione a primeira e a última mensagem para exportar</p>
+                <p className="text-xs leading-relaxed text-[#96512E]">
+                  Use os botões "Início" e "Fim" dentro da conversa. O PDF será gerado apenas com o trecho marcado e usando a identidade visual do CRM.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-[#E85D24] bg-white text-[#E85D24] hover:bg-white/90"
+                  onClick={handleCancelExportSelection}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-[#E85D24] text-white hover:bg-[#D6531E]"
+                  disabled={!hasValidExportRange || isExportingPdf}
+                  onClick={handleExportConversationPdf}
+                >
+                  {isExportingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Baixar PDF
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-xl border border-[#F3CBB8] bg-white/80 px-3 py-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#B85D32]">Mensagem inicial</div>
+                <div className="mt-1 text-xs text-[#6B3A20]">
+                  {exportStartMessage
+                    ? getMessageSelectionLabel(exportStartMessage)
+                    : "Selecione a primeira mensagem do trecho."}
+                </div>
+              </div>
+              <div className="rounded-xl border border-[#F3CBB8] bg-white/80 px-3 py-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#B85D32]">Mensagem final</div>
+                <div className="mt-1 text-xs text-[#6B3A20]">
+                  {exportEndMessage
+                    ? getMessageSelectionLabel(exportEndMessage)
+                    : "Selecione a última mensagem do trecho."}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {notifications && notifications.length > 0 && (
         <div className="p-2 bg-amber-100 border-b border-amber-200 flex-shrink-0">
@@ -380,9 +625,18 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
 
       <ScrollArea className="flex-1 bg-muted/10">
         <div className="p-3 sm:p-4 space-y-2 max-w-4xl 2xl:max-w-5xl mx-auto min-h-full">
-          {groupedMessages.map((item, index) => {
+          {(isFirstLoad || messagesLoading) ? (
+            <div className="flex items-center justify-center h-full min-h-[200px]">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : groupedMessages.map((item, index) => {
             if (item.type === 'separator') return <DateSeparator key={`sep-${index}`} dateString={item.date} />;
             const msg = item as Message;
+            const messageIndex = messageIndexById.get(msg.id) ?? -1;
+            const isStartSelected = exportStartId === msg.id;
+            const isEndSelected = exportEndId === msg.id;
+            const isWithinExportRange =
+              hasValidExportRange && messageIndex >= exportStartIndex && messageIndex <= exportEndIndex;
             
             const isOutgoing = msg.remetente !== 'lead';
             const isAi = msg.remetente === 'bot';
@@ -396,7 +650,15 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
             const isPdf = typeLower.includes('pdf') || pathLower.includes('.pdf');
 
             return (
-              <div key={msg.id} className={cn("group relative flex flex-col gap-0.5 py-0.5 animate-in fade-in slide-in-from-bottom-1 duration-200", isOutgoing ? "items-end" : "items-start")}>
+              <div
+                key={msg.id}
+                className={cn(
+                  "group relative flex flex-col gap-0.5 py-0.5 animate-in fade-in slide-in-from-bottom-1 duration-200",
+                  isOutgoing ? "items-end" : "items-start",
+                  isExportMode && "rounded-2xl px-2 py-2",
+                  isWithinExportRange && "bg-primary/5 ring-1 ring-primary/15"
+                )}
+              >
                 <div className={cn("flex items-end gap-2 max-w-[90%] sm:max-w-[85%]", isOutgoing ? "flex-row-reverse" : "flex-row")}>
                   <Avatar className="h-8 w-8 flex-shrink-0 border shadow-sm">
                     {isOutgoing ? (
@@ -404,6 +666,50 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
                     ) : (<AvatarFallback className="bg-muted text-muted-foreground text-xs font-medium">{getInitials(lead?.nome)}</AvatarFallback>)}
                   </Avatar>
                   <div className={cn("p-2 sm:p-3 rounded-2xl relative shadow-sm transition-all min-w-[100px]", isOutgoing ? "bg-primary text-primary-foreground rounded-br-none" : "bg-card border border-border/40 rounded-bl-none")}>
+                    {isExportMode && (
+                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={isStartSelected ? "default" : "outline"}
+                          className={cn(
+                            "h-6 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider",
+                            isOutgoing
+                              ? "border-white/80 bg-white text-primary hover:bg-white/90"
+                              : "border-border bg-background text-foreground hover:bg-muted",
+                            isStartSelected && "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+                          )}
+                          onClick={() => handleSelectExportStart(msg.id)}
+                        >
+                          Início
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={isEndSelected ? "default" : "outline"}
+                          className={cn(
+                            "h-6 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider",
+                            isOutgoing
+                              ? "border-white/80 bg-white text-primary hover:bg-white/90"
+                              : "border-border bg-background text-foreground hover:bg-muted",
+                            isEndSelected && "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+                          )}
+                          onClick={() => handleSelectExportEnd(msg.id)}
+                        >
+                          Fim
+                        </Button>
+                        {isStartSelected && (
+                          <Badge variant="secondary" className="h-6 rounded-full border-primary/20 bg-primary/10 text-[10px] font-semibold text-primary">
+                            Primeira
+                          </Badge>
+                        )}
+                        {isEndSelected && (
+                          <Badge variant="secondary" className="h-6 rounded-full border-primary/20 bg-primary/10 text-[10px] font-semibold text-primary">
+                            Última
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                     <div className="mb-1 space-y-1">
                       {msg.message_attachments?.map(att => (
                         <AttachmentRenderer 
@@ -444,7 +750,7 @@ export function ActiveConversation({ leadId, showQuickMessages, onToggleQuickMes
               </div>
             );
           })}
-          <div ref={messagesEndRef} className="h-4" />
+          {!(isFirstLoad || messagesLoading) && <div ref={messagesEndRef} className="h-4" />}
         </div>
       </ScrollArea>
 

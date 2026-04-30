@@ -14,7 +14,8 @@ import {
   Radio,
   ChevronRight,
   Smartphone,
-  Brush
+  Brush,
+  Lock
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +28,7 @@ import { PipelineSettings } from "@/components/settings/PipelineSettings";
 import { SourceSettings } from "@/components/settings/SourceSettings";
 import { BrandingSettings } from "@/components/settings/BrandingSettings";
 import { WhatsAppSettings } from "@/components/settings/WhatsAppSettings";
+import PasswordChangeCard from "@/components/settings/PasswordChangeCard";
 import { cn } from "@/lib/utils";
 
 export default function Settings() {
@@ -74,6 +76,7 @@ export default function Settings() {
     { id: "marca", label: "Marca", icon: Brush, hidden: role !== 'admin' && role !== 'superadmin' },
     { id: "whatsapp", label: "WhatsApp", icon: Smartphone, hidden: role !== 'admin' && role !== 'superadmin' },
     { id: "appearance", label: "Aparência", icon: Palette },
+    { id: "security", label: "Senha", icon: Lock },
   ];
 
   return (
@@ -160,6 +163,7 @@ export default function Settings() {
             {activeSection === "marca" && <BrandingSettings />}
             {activeSection === "whatsapp" && <WhatsAppSettings />}
             {activeSection === "appearance" && <ThemeSettings />}
+            {activeSection === "security" && <PasswordChangeCard />}
           </div>
         </div>
       </div>

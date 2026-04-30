@@ -3,7 +3,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Mic, Image as ImageIcon, Video, FileText, MessageSquare, GripVertical, Pencil, Clock } from "lucide-react";
+import { Trash2, Mic, Image as ImageIcon, Video, FileText, MessageSquare, GripVertical, Pencil } from "lucide-react";
 import { QuickMessage } from "@/hooks/useQuickMessages";
 import { cn } from "@/lib/utils";
 
@@ -69,10 +69,6 @@ export function SortableMessageCard({ message, onEdit, onDelete }: SortableMessa
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase font-bold tracking-tight">
               {getIcon(message.tipo)}
               <span>{message.tipo}</span>
-            </div>
-            <div className="flex items-center gap-1 text-[10px] text-primary font-bold">
-              <Clock className="h-2.5 w-2.5" />
-              <span>{message.delay_seconds || 5}s</span>
             </div>
           </div>
         </CardHeader>

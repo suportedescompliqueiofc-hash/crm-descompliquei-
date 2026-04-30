@@ -5,6 +5,7 @@ import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 
 export function useAiPrompt() {
+  const defaultModel = 'grok-4-1-fast-non-reasoning';
   const { user } = useAuth();
   const { profile } = useProfile();
   const orgId = profile?.organization_id;
@@ -26,13 +27,14 @@ export function useAiPrompt() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async ({ prompt: newPrompt, promptCrm, iaAtiva, acumulo_mensagens }: { prompt: string; promptCrm?: string; iaAtiva?: boolean; acumulo_mensagens?: number }) => {
+    mutationFn: async ({ prompt: newPrompt, promptCrm, iaAtiva, acumulo_mensagens, modeloIa }: { prompt: string; promptCrm?: string; iaAtiva?: boolean; acumulo_mensagens?: number; modeloIa?: string }) => {
       if (!user || !orgId) throw new Error("Usuário não autenticado");
       const timestamp = new Date().toISOString();
       const payload: Record<string, unknown> = {
         prompt: newPrompt,
         updated_at: timestamp,
         ia_ativa: iaAtiva ?? true,
+        modelo_ia: modeloIa?.trim() || promptData?.modelo_ia || defaultModel,
       };
 
       if (promptCrm !== undefined) {
@@ -45,7 +47,6 @@ export function useAiPrompt() {
       let resultData;
       if (!promptData) {
         // Defaults fallbacks if new
-        payload.modelo_ia = 'grok-3-fast';
         payload.delay_entre_mensagens = 2000;
         if (payload.acumulo_mensagens === undefined) payload.acumulo_mensagens = 45;
 
@@ -77,6 +78,32 @@ export function useAiPrompt() {
     },
   });
 
+  const saveModelMutation = useMutation({
+    mutationFn: async (modeloIa: string) => {
+      if (!user || !orgId) throw new Error("Usuário não autenticado");
+      if (!promptData) throw new Error("Configure e salve o prompt antes de alterar o modelo");
+
+      const value = modeloIa.trim();
+      if (!value) throw new Error("Informe um modelo para salvar.");
+
+      const { data, error } = await supabase
+        .from('organization_ai_prompts')
+        .update({ modelo_ia: value, updated_at: new Date().toISOString() })
+        .eq('id', promptData.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ai_prompt', orgId] });
+      toast.success('Modelo salvo com sucesso!', { closeButton: true });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Erro ao salvar modelo', { closeButton: true });
+    },
+  });
+
   const toggleMutation = useMutation({
     mutationFn: async (ativa: boolean) => {
       if (!orgId) throw new Error("Organização não encontrada");
@@ -99,13 +126,16 @@ export function useAiPrompt() {
   return {
     prompt: promptData?.prompt || '',
     promptCrm: promptData?.prompt_crm || '',
+    modeloIa: promptData?.modelo_ia || defaultModel,
     iaAtiva: promptData?.ia_ativa ?? false,
     acumuloMensagens: promptData?.acumulo_mensagens ?? 45,
     lastUpdated: promptData?.updated_at,
     isLoading,
-    savePrompt: (prompt: string, promptCrm?: string, acumulo_mensagens?: number, callbacks?: { onSuccess?: () => void }) => {
-      saveMutation.mutate({ prompt, promptCrm, iaAtiva: true, acumulo_mensagens }, { onSuccess: callbacks?.onSuccess });
+    savePrompt: (prompt: string, promptCrm?: string, acumulo_mensagens?: number, callbacks?: { onSuccess?: () => void }, modeloIa?: string) => {
+      saveMutation.mutate({ prompt, promptCrm, iaAtiva: true, acumulo_mensagens, modeloIa }, { onSuccess: callbacks?.onSuccess });
     },
+    saveModel: saveModelMutation.mutate,
+    isSavingModel: saveModelMutation.isPending,
     toggleIa: toggleMutation.mutate,
     isTogglingIa: toggleMutation.isPending,
     isSaving: saveMutation.isPending,

@@ -1,46 +1,95 @@
-import { useState, useEffect } from "react";
-import { Save, Bot, Sparkles, History, Undo2, Power, Wrench, Clock, MessageSquare, Bell, Database, Activity, Loader2, Maximize2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Activity,
+  AlertTriangle,
+  Bell,
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Database,
+  Check,
+  History,
+  Loader2,
+  Maximize2,
+  MessageSquare,
+  Plus,
+  Power,
+  Save,
+  Sparkles,
+  Trash2,
+  Undo2,
+  Wrench,
+} from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { PromptEditor } from "@/components/ai/PromptEditor";
-import { useAiPrompt } from "@/hooks/useAiPrompt";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { toast } from "sonner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { AiLogsViewer } from "@/components/ai/AiLogsViewer";
+import { useAiPrompt } from "@/hooks/useAiPrompt";
 
-const defaultPrompt = `# 1. IDENTIDADE E PAPEL
-Você é a Assistente Virtual Inteligente da [NOME DA CLÍNICA].
-Sua função é realizar o pré-atendimento, triagem inicial e agendamento de avaliações.
+type ProcedureItem = {
+  id: string;
+  name: string;
+  description: string;
+};
 
-# 2. DIRETRIZES GERAIS
-- Seja sempre cordial, acolhedora e profissional.
-- Use linguagem clara, simples e próxima — ideal para WhatsApp.
-- Responda de forma concisa e direta (máx. 3 parágrafos por mensagem).
-- Nunca forneça diagnósticos clínicos.
+type FaqItem = {
+  id: string;
+  question: string;
+  answer: string;
+};
 
-# 3. OBJETIVOS
-1. Identificar se é um paciente novo ou recorrente.
-2. Entender o motivo do contato.
-3. Coletar o nome do lead.
-4. Agending de avaliação presencial.
+type AgentPromptFormData = {
+  agentName: string;
+  clinicName: string;
+  professionalName: string;
+  specialty: string;
+  useEmojis: boolean;
+  emojis: string;
+  useCallName: boolean;
+  callTarget: "equipe" | "secretaria" | "doutor" | "";
+  callPersonName: string;
+  voiceTone: string;
+  procedures: ProcedureItem[];
+  faqs: FaqItem[];
+  instagram: string;
+  address: string;
+  instructions: string;
+};
 
-# 4. QUANDO ACIONAR A EQUIPE
-Use a ferramenta "notificacao" quando o lead:
-- Confirmar interesse em agendar
-- Solicitar falar com um humano
-- Apresentar caso de urgência`;
+type ParsedPromptResult =
+  | { ok: true; data: AgentPromptFormData }
+  | { ok: false };
+
+type FormErrors = {
+  agentName?: string;
+  clinicName?: string;
+  procedures?: string;
+  instagram?: string;
+};
+
 const AI_TOOLS = [
   {
     icon: Database,
     name: "crm",
     label: "Ferramenta CRM",
-    description: "Atualiza automaticamente o nome do lead, procedimento de interesse, resumo da conversa e move a fase no pipeline.",
+    description:
+      "Atualiza automaticamente o nome do lead, procedimento de interesse, resumo da conversa e move a fase no pipeline.",
     color: "text-blue-500",
     bg: "bg-blue-500/10",
   },
@@ -48,74 +97,1053 @@ const AI_TOOLS = [
     icon: Bell,
     name: "notificacao",
     label: "Ferramenta Notificação",
-    description: "Notifica a equipe humana quando o lead está qualificado. A IA é desativada e o atendimento passa para um humano.",
+    description:
+      "Notifica a equipe humana quando o lead está qualificado. A IA é desativada e o atendimento passa para um humano.",
     color: "text-orange-500",
     bg: "bg-orange-500/10",
   },
 ];
 
+const MODEL_SUGGESTIONS = [
+  {
+    label: "OpenAI",
+    items: ["gpt-4.1-mini", "gpt-4o-mini"],
+  },
+  {
+    label: "OpenRouter",
+    items: [
+      "openrouter/openai/gpt-4.1-mini",
+      "openrouter/anthropic/claude-haiku-4-5-20251001",
+      "openrouter/google/gemini-2.5-flash-preview",
+      "openrouter/deepseek/deepseek-v4-flash",
+      "openrouter/meta-llama/llama-4-scout",
+      "openrouter/x-ai/grok-4-1-fast",
+    ],
+  },
+  {
+    label: "xAI",
+    items: ["grok-4-1-fast-non-reasoning"],
+  },
+];
+
+const PARSE_WARNING_MESSAGE =
+  "Encontramos um prompt salvo fora do formato padrão do formulário. Para continuar usando este editor estruturado, resete o conteúdo para o modelo padrão.";
+function createProcedureItem(
+  overrides?: Partial<Omit<ProcedureItem, "id">>,
+): ProcedureItem {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: overrides?.name ?? "",
+    description: overrides?.description ?? "",
+  };
+}
+
+function createFaqItem(
+  overrides?: Partial<Omit<FaqItem, "id">>,
+): FaqItem {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    question: overrides?.question ?? "",
+    answer: overrides?.answer ?? "",
+  };
+}
+
+function createEmptyFormData(): AgentPromptFormData {
+  return {
+    agentName: "",
+    clinicName: "",
+    professionalName: "",
+    specialty: "",
+    useEmojis: false,
+    emojis: "",
+    useCallName: true,
+    callTarget: "equipe",
+    callPersonName: "",
+    voiceTone: "",
+    procedures: [createProcedureItem()],
+    faqs: [createFaqItem()],
+    instagram: "",
+    address: "",
+    instructions: "",
+  };
+}
+
+function cloneFormData(data: AgentPromptFormData): AgentPromptFormData {
+  return {
+    ...data,
+    procedures: data.procedures.map((procedure) => ({ ...procedure })),
+    faqs: data.faqs.map((faq) => ({ ...faq })),
+  };
+}
+
+function normalizeSingleLine(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function parseYesNo(value: string | null): boolean {
+  return /^(sim|yes|true|1)$/i.test((value ?? "").trim());
+}
+
+function buildFaqBlock(faq: FaqItem): string | null {
+  const question = normalizeSingleLine(faq.question);
+  const answer = normalizeSingleLine(faq.answer);
+
+  if (!question && !answer) {
+    return null;
+  }
+
+  return `- Pergunta: ${question}\n  Resposta: ${answer}`;
+}
+
+function parseFaqSection(section: string): FaqItem[] {
+  const lines = section
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const faqs: FaqItem[] = [];
+  let currentFaq: FaqItem | null = null;
+
+  for (const line of lines) {
+    if (line.startsWith("- ")) {
+      if (currentFaq && (currentFaq.question || currentFaq.answer)) {
+        faqs.push(currentFaq);
+      }
+
+      currentFaq = createFaqItem();
+      const questionMatch = line.match(/^- Pergunta:\s*(.*)$/i);
+      currentFaq.question = questionMatch
+        ? questionMatch[1].trim()
+        : line.replace(/^- /, "").trim();
+      continue;
+    }
+
+    const questionMatch = line.match(/^Pergunta:\s*(.*)$/i);
+    if (questionMatch) {
+      if (!currentFaq) {
+        currentFaq = createFaqItem();
+      }
+      currentFaq.question = questionMatch[1].trim();
+      continue;
+    }
+
+    const answerMatch = line.match(/^Resposta:\s*(.*)$/i);
+    if (answerMatch) {
+      if (!currentFaq) {
+        currentFaq = createFaqItem();
+      }
+      currentFaq.answer = answerMatch[1].trim();
+      continue;
+    }
+
+    if (currentFaq) {
+      currentFaq.answer = currentFaq.answer ? `${currentFaq.answer} ${line}` : line;
+    }
+  }
+
+  if (currentFaq && (currentFaq.question || currentFaq.answer)) {
+    faqs.push(currentFaq);
+  }
+
+  return faqs;
+}
+
+function buildPromptMarkdown(data: AgentPromptFormData): string {
+  const procedures = data.procedures
+    .map((procedure) => ({
+      name: normalizeSingleLine(procedure.name),
+      description: normalizeSingleLine(procedure.description),
+    }))
+    .filter((procedure) => procedure.name || procedure.description)
+    .map((procedure) =>
+      procedure.description
+        ? `- ${procedure.name}: ${procedure.description}`
+        : `- ${procedure.name}`,
+    );
+
+  const faqs = data.faqs
+    .map((faq) => buildFaqBlock(faq))
+    .filter((faq): faq is string => Boolean(faq));
+
+  const sections = [
+    "## IDENTIDADE DO AGENTE",
+    `Nome do agente: ${data.agentName.trim()}`,
+    `Nome da clínica: ${data.clinicName.trim()}`,
+    `Nome do profissional: ${data.professionalName.trim()}`,
+    `Especialidade: ${data.specialty.trim()}`,
+    "",
+    "## EMOJIS",
+    `A IA deve usar emojis?: ${data.useEmojis ? "Sim" : "NÃ£o"}`,
+    `Emojis permitidos: ${data.useEmojis ? data.emojis.trim() : ""}`,
+    "",
+    "## FORMA DE CHAMADA",
+    `Quem a IA deve chamar?: ${data.callTarget}`,
+    `Nome da pessoa: ${data.callTarget && data.callTarget !== "equipe" ? data.callPersonName.trim() : ""}`,
+    "",
+    "## TOM DE VOZ E PERSONALIDADE",
+    data.voiceTone.trim(),
+    "",
+    "## PROCEDIMENTOS OFERECIDOS",
+    procedures.join("\n"),
+    "",
+    "## FAQ",
+    faqs.join("\n"),
+    "",
+    "## REDES SOCIAIS E CONTATO",
+    `Instagram: ${data.instagram.trim()}`,
+    `Endereço: ${data.address.trim()}`,
+    "",
+    "## INSTRUÇÕES PONTUAIS",
+    data.instructions.trim(),
+  ];
+
+  return sections.join("\n").trim();
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractSection(markdown: string, title: string): string | null {
+  const regex = new RegExp(
+    `##\\s+${escapeRegex(title)}\\s*\\n([\\s\\S]*?)(?=\\n##\\s+|$)`,
+    "i",
+  );
+  const match = markdown.match(regex);
+  return match ? match[1].trim() : null;
+}
+
+function extractLabeledValue(section: string, label: string): string | null {
+  const regex = new RegExp(`^${escapeRegex(label)}:\\s*(.*)$`, "im");
+  const match = section.match(regex);
+  return match ? match[1].trim() : null;
+}
+
+function parsePromptMarkdown(markdown: string): ParsedPromptResult {
+  const normalized = markdown.replace(/\r\n/g, "\n").trim();
+  if (!normalized) {
+    return { ok: true, data: createEmptyFormData() };
+  }
+
+  const identitySection = extractSection(normalized, "IDENTIDADE DO AGENTE");
+  const proceduresSection = extractSection(normalized, "PROCEDIMENTOS OFERECIDOS");
+  const contactSection = extractSection(normalized, "REDES SOCIAIS E CONTATO");
+  const instructionsSection = extractSection(normalized, "INSTRUÇÕES PONTUAIS");
+
+  if (identitySection === null || proceduresSection === null || contactSection === null) {
+    return { ok: false };
+  }
+
+  const agentName = extractLabeledValue(identitySection, "Nome do agente");
+  const clinicName = extractLabeledValue(identitySection, "Nome da clínica");
+  const professionalName = extractLabeledValue(
+    identitySection,
+    "Nome do profissional",
+  );
+  const specialty = extractLabeledValue(identitySection, "Especialidade");
+  const instagram = extractLabeledValue(contactSection, "Instagram") ?? "";
+  const addressLine = contactSection
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.toLowerCase().startsWith("endere"));
+  const address = addressLine ? addressLine.split(":").slice(1).join(":").trim() : "";
+  const emojisSection = extractSection(normalized, "EMOJIS");
+  const callNameSection = extractSection(normalized, "FORMA DE CHAMADA");
+  const voiceToneSection = extractSection(normalized, "TOM DE VOZ E PERSONALIDADE");
+  const faqsSection = extractSection(normalized, "FAQ");
+  const useEmojis = parseYesNo(
+    emojisSection ? extractLabeledValue(emojisSection, "A IA deve usar emojis?") : null,
+  );
+  const emojis = emojisSection
+    ? extractLabeledValue(emojisSection, "Emojis permitidos") ?? ""
+    : "";
+  const callTargetRaw = callNameSection
+    ? extractLabeledValue(callNameSection, "Quem a IA deve chamar?") ?? ""
+    : "";
+  const callTarget = /equipe/i.test(callTargetRaw)
+    ? "equipe"
+    : /secret/i.test(callTargetRaw)
+      ? "secretaria"
+      : /doutor/i.test(callTargetRaw)
+        ? "doutor"
+        : "";
+  const callPersonName = callNameSection
+    ? extractLabeledValue(callNameSection, "Nome da pessoa") ?? ""
+    : "";
+  const voiceTone = voiceToneSection ? voiceToneSection.trim() : "";
+  const faqs = faqsSection ? parseFaqSection(faqsSection) : [];
+
+  if (
+    agentName === null ||
+    clinicName === null ||
+    professionalName === null ||
+    specialty === null
+  ) {
+    return { ok: false };
+  }
+
+  const rawProcedureLines = proceduresSection
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (
+    rawProcedureLines.some(
+      (line) => !line.startsWith("- ") && line.replace(/-/g, "").trim() !== "",
+    )
+  ) {
+    return { ok: false };
+  }
+
+  const procedures = rawProcedureLines
+    .filter((line) => line.startsWith("- "))
+    .map((line) => line.replace(/^- /, "").trim())
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const separatorIndex = line.indexOf(":");
+      if (separatorIndex === -1) {
+        return createProcedureItem({ name: line, description: "" });
+      }
+
+      return createProcedureItem({
+        name: line.slice(0, separatorIndex).trim(),
+        description: line.slice(separatorIndex + 1).trim(),
+      });
+    });
+
+  return {
+    ok: true,
+    data: {
+      agentName,
+      clinicName,
+      professionalName,
+      specialty,
+      useEmojis,
+      emojis,
+      useCallName: true,
+      callTarget,
+      callPersonName,
+      voiceTone,
+      procedures: procedures.length > 0 ? procedures : [createProcedureItem()],
+      faqs: faqs.length > 0 ? faqs : [createFaqItem()],
+      instagram,
+      address,
+      instructions: instructionsSection ?? "",
+    },
+  };
+}
+
+function validateFormData(data: AgentPromptFormData): FormErrors {
+  const errors: FormErrors = {};
+  const validProcedures = data.procedures.filter(
+    (procedure) => procedure.name.trim().length > 0,
+  );
+
+  if (!data.agentName.trim()) {
+    errors.agentName = "Informe o nome do agente.";
+  }
+
+  if (!data.clinicName.trim()) {
+    errors.clinicName = "Informe o nome da clínica.";
+  }
+
+  if (validProcedures.length === 0) {
+    errors.procedures = "Cadastre pelo menos 1 procedimento.";
+  }
+
+  if (data.instagram.trim() && !data.instagram.trim().startsWith("http")) {
+    errors.instagram = "O link do Instagram deve começar com http.";
+  }
+
+  return errors;
+}
+
+type AgentPromptFormFieldsProps = {
+  data: AgentPromptFormData;
+  disabled: boolean;
+  warningMessage: string | null;
+  errors: FormErrors;
+  previewMarkdown: string;
+  previewOpen: boolean;
+  onFieldChange: <K extends keyof AgentPromptFormData>(
+    field: K,
+    value: AgentPromptFormData[K],
+  ) => void;
+  onProcedureChange: (
+    id: string,
+    field: keyof Omit<ProcedureItem, "id">,
+    value: string,
+  ) => void;
+  onAddProcedure: () => void;
+  onRemoveProcedure: (id: string) => void;
+  onFaqChange: (
+    id: string,
+    field: keyof Omit<FaqItem, "id">,
+    value: string,
+  ) => void;
+  onAddFaq: () => void;
+  onRemoveFaq: (id: string) => void;
+  onResetToStructuredForm: () => void;
+  onPreviewOpenChange: (open: boolean) => void;
+};
+
+function AgentPromptFormFields({
+  data,
+  disabled,
+  warningMessage,
+  errors,
+  previewMarkdown,
+  previewOpen,
+  onFieldChange,
+  onProcedureChange,
+  onAddProcedure,
+  onRemoveProcedure,
+  onFaqChange,
+  onAddFaq,
+  onRemoveFaq,
+  onResetToStructuredForm,
+  onPreviewOpenChange,
+}: AgentPromptFormFieldsProps) {
+  const fieldInputClass =
+    "border-border bg-muted/40 text-foreground shadow-sm placeholder:text-muted-foreground/70 focus-visible:border-primary/50 focus-visible:ring-primary/20";
+  const fieldTextareaClass =
+    "border-border bg-muted/40 text-foreground shadow-sm placeholder:text-muted-foreground/70 focus-visible:border-primary/50 focus-visible:ring-primary/20";
+
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="space-y-6">
+          {warningMessage && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800">
+                    Prompt fora do padrão do formulário
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-amber-700">
+                    {warningMessage}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-3 border-amber-300 bg-white text-amber-800 hover:bg-amber-100"
+                    onClick={onResetToStructuredForm}
+                  >
+                    Resetar para formulário padrão
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="agent-name">Como seu agente vai se chamar?</Label>
+            <Input
+              id="agent-name"
+              value={data.agentName}
+              onChange={(event) => onFieldChange("agentName", event.target.value)}
+              disabled={disabled}
+              className={`${fieldInputClass} ${
+                errors.agentName ? "border-destructive focus-visible:ring-destructive" : ""
+              }`}
+            />
+            {errors.agentName && (
+              <p className="text-xs text-destructive">{errors.agentName}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="clinic-name">Qual o nome da sua clínica?</Label>
+            <Input
+              id="clinic-name"
+              value={data.clinicName}
+              onChange={(event) => onFieldChange("clinicName", event.target.value)}
+              disabled={disabled}
+              className={
+                `${fieldInputClass} ${
+                  errors.clinicName
+                    ? "border-destructive focus-visible:ring-destructive"
+                    : ""
+                }`
+              }
+            />
+            {errors.clinicName && (
+              <p className="text-xs text-destructive">{errors.clinicName}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="professional-name">
+              Qual o nome do profissional responsável?
+            </Label>
+            <Input
+              id="professional-name"
+              value={data.professionalName}
+              onChange={(event) =>
+                onFieldChange("professionalName", event.target.value)
+              }
+              disabled={disabled}
+              className={fieldInputClass}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="specialty">Qual a especialidade da clínica?</Label>
+            <Input
+              id="specialty"
+              value={data.specialty}
+              onChange={(event) => onFieldChange("specialty", event.target.value)}
+              disabled={disabled}
+              className={fieldInputClass}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="use-emojis">A IA deve usar emojis?</Label>
+              <Switch
+                id="use-emojis"
+                checked={data.useEmojis}
+                onCheckedChange={(checked) => onFieldChange("useEmojis", checked === true)}
+                disabled={disabled}
+              />
+            </div>
+            {data.useEmojis && (
+              <div className="space-y-2">
+                <Label htmlFor="emojis">Quais emojis a IA pode usar?</Label>
+                <Textarea
+                  id="emojis"
+                  value={data.emojis}
+                  onChange={(event) => onFieldChange("emojis", event.target.value)}
+                  className={`${fieldTextareaClass} min-h-[90px] resize-y`}
+                  disabled={disabled}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="call-target">Quem a IA deve chamar?</Label>
+            <Select
+              value={data.callTarget}
+              onValueChange={(value) =>
+                onFieldChange("callTarget", value as "equipe" | "secretaria" | "doutor")
+              }
+              disabled={disabled}
+            >
+              <SelectTrigger id="call-target" className={fieldInputClass}>
+                <SelectValue placeholder="Selecione..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="equipe">Equipe</SelectItem>
+                <SelectItem value="secretaria">Secretária</SelectItem>
+                <SelectItem value="doutor">Doutor(a)</SelectItem>
+              </SelectContent>
+            </Select>
+            {(data.callTarget === "secretaria" || data.callTarget === "doutor") && (
+              <div className="space-y-2">
+                <Label htmlFor="call-person-name">
+                  Nome da {data.callTarget === "secretaria" ? "secretária" : "doutor(a)"}
+                </Label>
+                <Input
+                  id="call-person-name"
+                  value={data.callPersonName}
+                  onChange={(event) => onFieldChange("callPersonName", event.target.value)}
+                  disabled={disabled}
+                  className={fieldInputClass}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="voice-tone">Tom de voz e personalidade do agente</Label>
+            <Textarea
+              id="voice-tone"
+              value={data.voiceTone}
+              onChange={(event) => onFieldChange("voiceTone", event.target.value)}
+              className={`${fieldTextareaClass} min-h-[120px] resize-y`}
+              disabled={disabled}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <Label>Quais procedimentos você oferece?</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={onAddProcedure}
+                disabled={disabled}
+              >
+                <Plus className="h-4 w-4" />
+                Adicionar procedimento
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {data.procedures.map((procedure, index) => (
+                <div
+                  key={procedure.id}
+                  className="rounded-lg border border-border bg-muted/20 p-3"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium text-foreground">
+                      Procedimento {index + 1}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => onRemoveProcedure(procedure.id)}
+                      disabled={disabled || data.procedures.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Input
+                      value={procedure.name}
+                      onChange={(event) =>
+                        onProcedureChange(procedure.id, "name", event.target.value)
+                      }
+                      disabled={disabled}
+                      className={fieldInputClass}
+                    />
+                    <div className="space-y-2">
+                      <Textarea
+                        value={procedure.description}
+                        onChange={(event) =>
+                          onProcedureChange(
+                            procedure.id,
+                            "description",
+                            event.target.value,
+                          )
+                        }
+                        className={`${fieldTextareaClass} min-h-[90px] resize-y`}
+                        disabled={disabled}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {errors.procedures && (
+              <p className="text-xs text-destructive">{errors.procedures}</p>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <Label>FAQ da clínica</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={onAddFaq}
+                disabled={disabled}
+              >
+                <Plus className="h-4 w-4" />
+                Adicionar FAQ
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {data.faqs.map((faq, index) => (
+                <div
+                  key={faq.id}
+                  className="rounded-lg border border-border bg-muted/20 p-3"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium text-foreground">
+                      FAQ {index + 1}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => onRemoveFaq(faq.id)}
+                      disabled={disabled || data.faqs.length === 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Input
+                      value={faq.question}
+                      onChange={(event) =>
+                        onFaqChange(faq.id, "question", event.target.value)
+                      }
+                      disabled={disabled}
+                      className={fieldInputClass}
+                    />
+                    <Textarea
+                      value={faq.answer}
+                      onChange={(event) =>
+                        onFaqChange(faq.id, "answer", event.target.value)
+                      }
+                      className={`${fieldTextareaClass} min-h-[100px] resize-y`}
+                      disabled={disabled}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="instagram">Qual o link do seu Instagram?</Label>
+            <Input
+              id="instagram"
+              value={data.instagram}
+              onChange={(event) => onFieldChange("instagram", event.target.value)}
+              disabled={disabled}
+              className={`${fieldInputClass} ${
+                errors.instagram ? "border-destructive focus-visible:ring-destructive" : ""
+              }`}
+            />
+            {errors.instagram && (
+              <p className="text-xs text-destructive">{errors.instagram}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="address">Qual o endereço da clínica?</Label>
+            <Input
+              id="address"
+              value={data.address}
+              onChange={(event) => onFieldChange("address", event.target.value)}
+              disabled={disabled}
+              className={fieldInputClass}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label htmlFor="instructions">
+                Tem alguma instrução específica para o agente?
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Use este campo para regras específicas da sua clínica. Não adicione
+                regras de comportamento geral — elas já estão configuradas no
+                sistema.
+              </p>
+            </div>
+            <Textarea
+              id="instructions"
+              value={data.instructions}
+              onChange={(event) => onFieldChange("instructions", event.target.value)}
+              className={`${fieldTextareaClass} min-h-[140px] resize-y`}
+              disabled={disabled}
+            />
+          </div>
+
+          <Collapsible open={previewOpen} onOpenChange={onPreviewOpenChange}>
+            <div className="rounded-lg border border-border bg-muted/10">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                >
+                  <span className="text-sm font-medium text-foreground">
+                    Ver como o agente vai receber essas informações
+                  </span>
+                  {previewOpen ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="border-t border-border px-4 py-3">
+                  <pre className="whitespace-pre-wrap break-words rounded-md bg-background p-4 font-mono text-xs leading-6 text-foreground">
+                    {previewMarkdown}
+                  </pre>
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AiSettings() {
-  const { prompt, iaAtiva, acumuloMensagens, lastUpdated, isLoading, savePrompt, toggleIa, isTogglingIa, isSaving } = useAiPrompt();
-  const [localPrompt, setLocalPrompt] = useState("");
+  const {
+    prompt,
+    modeloIa: modeloIaBanco,
+    iaAtiva,
+    acumuloMensagens,
+    lastUpdated,
+    isLoading,
+    savePrompt,
+    saveModel,
+    toggleIa,
+    isTogglingIa,
+    isSaving,
+    isSavingModel,
+  } = useAiPrompt();
+
+  const [localForm, setLocalForm] = useState<AgentPromptFormData>(
+    createEmptyFormData(),
+  );
+  const [originalForm, setOriginalForm] = useState<AgentPromptFormData>(
+    createEmptyFormData(),
+  );
   const [localAcumulo, setLocalAcumulo] = useState(45);
-  const [originalPrompt, setOriginalPrompt] = useState("");
   const [originalAcumulo, setOriginalAcumulo] = useState(45);
-  const [hasChanges, setHasChanges] = useState(false);
+  const [localModelo, setLocalModelo] = useState("");
+  const [originalModelo, setOriginalModelo] = useState("");
+  const [originalPrompt, setOriginalPrompt] = useState(
+    buildPromptMarkdown(createEmptyFormData()),
+  );
   const [activeTab, setActiveTab] = useState("base");
+  const [parseWarning, setParseWarning] = useState<string | null>(null);
+  const [originalParseWarning, setOriginalParseWarning] = useState<string | null>(
+    null,
+  );
+  const [requiresReset, setRequiresReset] = useState(false);
+  const [originalRequiresReset, setOriginalRequiresReset] = useState(false);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [modeloSaveSuccess, setModeloSaveSuccess] = useState(false);
+  const [modeloSaveError, setModeloSaveError] = useState<string | null>(null);
+  const [modeloSuggestionsOpen, setModeloSuggestionsOpen] = useState(false);
 
   useEffect(() => {
-    if (prompt) {
-      setLocalPrompt(prompt);
+    if (isLoading) return;
+
+    const fallbackForm = createEmptyFormData();
+    const parsed = prompt
+      ? parsePromptMarkdown(prompt)
+      : ({ ok: true, data: fallbackForm } as const);
+
+    if (parsed.ok) {
+      const normalizedPrompt = buildPromptMarkdown(parsed.data);
+      const cloned = cloneFormData(parsed.data);
+      setLocalForm(cloned);
+      setOriginalForm(cloneFormData(cloned));
+      setOriginalPrompt(normalizedPrompt);
+      setParseWarning(null);
+      setOriginalParseWarning(null);
+      setRequiresReset(false);
+      setOriginalRequiresReset(false);
+    } else {
+      setLocalForm(cloneFormData(fallbackForm));
+      setOriginalForm(cloneFormData(fallbackForm));
       setOriginalPrompt(prompt);
-    } else if (!isLoading) {
-      setLocalPrompt(defaultPrompt);
-      setOriginalPrompt(defaultPrompt);
+      setParseWarning(PARSE_WARNING_MESSAGE);
+      setOriginalParseWarning(PARSE_WARNING_MESSAGE);
+      setRequiresReset(true);
+      setOriginalRequiresReset(true);
     }
 
-    if (acumuloMensagens) {
-      setLocalAcumulo(acumuloMensagens);
-      setOriginalAcumulo(acumuloMensagens);
-    }
-  }, [prompt, acumuloMensagens, isLoading]);
+    setErrors({});
+    setPreviewOpen(false);
+    setLocalAcumulo(acumuloMensagens || 45);
+    setOriginalAcumulo(acumuloMensagens || 45);
+    setLocalModelo(modeloIaBanco || "");
+    setOriginalModelo(modeloIaBanco || "");
+    setModeloSaveSuccess(false);
+    setModeloSaveError(null);
+    setModeloSuggestionsOpen(false);
+  }, [prompt, acumuloMensagens, isLoading, modeloIaBanco]);
 
-  const handlePromptChange = (value: string) => {
-    setLocalPrompt(value);
-    setHasChanges(value !== originalPrompt || localAcumulo !== originalAcumulo);
+  const currentPrompt = buildPromptMarkdown(localForm);
+  const hasChanges =
+    !requiresReset &&
+    (currentPrompt !== originalPrompt ||
+      localAcumulo !== originalAcumulo ||
+      localModelo !== originalModelo);
+  const formDisabled = isLoading || isSaving || isSavingModel || requiresReset;
+
+  const handleFieldChange = <K extends keyof AgentPromptFormData>(
+    field: K,
+    value: AgentPromptFormData[K],
+  ) => {
+    setErrors((previous) => ({ ...previous, [field]: undefined }));
+    setLocalForm((previous) => ({ ...previous, [field]: value }));
   };
 
-  const handleAcumuloChange = (value: string) => {
-    const num = Number(value);
-    setLocalAcumulo(num);
-    setHasChanges(localPrompt !== originalPrompt || num !== originalAcumulo);
+  const handleProcedureChange = (
+    id: string,
+    field: keyof Omit<ProcedureItem, "id">,
+    value: string,
+  ) => {
+    setErrors((previous) => ({ ...previous, procedures: undefined }));
+    setLocalForm((previous) => ({
+      ...previous,
+      procedures: previous.procedures.map((procedure) =>
+        procedure.id === id ? { ...procedure, [field]: value } : procedure,
+      ),
+    }));
   };
 
-  const handleSave = () => {
-    savePrompt(localPrompt, undefined, localAcumulo, {
-      onSuccess: () => {
-        setHasChanges(false);
-        setOriginalPrompt(localPrompt);
-        setOriginalAcumulo(localAcumulo);
-      }
+  const handleAddProcedure = () => {
+    setErrors((previous) => ({ ...previous, procedures: undefined }));
+    setLocalForm((previous) => ({
+      ...previous,
+      procedures: [...previous.procedures, createProcedureItem()],
+    }));
+  };
+
+  const handleRemoveProcedure = (id: string) => {
+    setErrors((previous) => ({ ...previous, procedures: undefined }));
+    setLocalForm((previous) => {
+      const nextProcedures = previous.procedures.filter(
+        (procedure) => procedure.id !== id,
+      );
+
+      return {
+        ...previous,
+        procedures:
+          nextProcedures.length > 0 ? nextProcedures : [createProcedureItem()],
+      };
     });
   };
 
-  const handleRevert = () => {
-    setLocalPrompt(originalPrompt);
-    setLocalAcumulo(originalAcumulo);
-    setHasChanges(false);
-    toast.info("Alterações descartadas.");
+  const handleFaqChange = (
+    id: string,
+    field: keyof Omit<FaqItem, "id">,
+    value: string,
+  ) => {
+    setLocalForm((previous) => ({
+      ...previous,
+      faqs: previous.faqs.map((faq) =>
+        faq.id === id ? { ...faq, [field]: value } : faq,
+      ),
+    }));
   };
 
+  const handleAddFaq = () => {
+    setLocalForm((previous) => ({
+      ...previous,
+      faqs: [...previous.faqs, createFaqItem()],
+    }));
+  };
+
+  const handleRemoveFaq = (id: string) => {
+    setLocalForm((previous) => {
+      const nextFaqs = previous.faqs.filter((faq) => faq.id !== id);
+
+      return {
+        ...previous,
+        faqs: nextFaqs.length > 0 ? nextFaqs : [createFaqItem()],
+      };
+    });
+  };
+
+  const handleAcumuloChange = (value: string) => {
+    setLocalAcumulo(Number(value));
+  };
+
+  const handleSaveModel = () => {
+    const nextModel = localModelo.trim();
+    if (!nextModel) {
+      setModeloSaveError("Informe um modelo antes de salvar.");
+      return;
+    }
+
+    setModeloSaveError(null);
+    saveModel(nextModel, {
+      onSuccess: () => {
+        setOriginalModelo(nextModel);
+        setModeloSaveSuccess(true);
+        window.setTimeout(() => setModeloSaveSuccess(false), 2000);
+      },
+      onError: (error: any) => {
+        setModeloSaveError(error?.message || "Erro ao salvar modelo.");
+      },
+    });
+  };
+
+  const handleSave = () => {
+    if (requiresReset) return;
+
+    const validationErrors = validateFormData(localForm);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      toast.error("Preencha os campos obrigatórios antes de salvar.");
+      return;
+    }
+
+    savePrompt(currentPrompt, undefined, localAcumulo, {
+      onSuccess: () => {
+        setOriginalForm(cloneFormData(localForm));
+        setOriginalPrompt(currentPrompt);
+        setOriginalAcumulo(localAcumulo);
+        setOriginalModelo(localModelo.trim());
+        setParseWarning(null);
+        setOriginalParseWarning(null);
+        setRequiresReset(false);
+        setOriginalRequiresReset(false);
+        setErrors({});
+      },
+    }, localModelo);
+  };
+
+  const handleRevert = () => {
+    setLocalForm(cloneFormData(originalForm));
+    setLocalAcumulo(originalAcumulo);
+    setLocalModelo(originalModelo);
+    setParseWarning(originalParseWarning);
+    setRequiresReset(originalRequiresReset);
+    setErrors({});
+    setModeloSaveError(null);
+    setModeloSaveSuccess(false);
+    toast.info("Altera????es descartadas.");
+  };
+  const handleResetToStructuredForm = () => {
+    setLocalForm(createEmptyFormData());
+    setParseWarning(null);
+    setRequiresReset(false);
+    setErrors({});
+    toast.info(
+      "Formulário padrão restaurado. Agora você já pode preencher e salvar.",
+    );
+  };
+
+  const formContent = (
+    <AgentPromptFormFields
+      data={localForm}
+      disabled={formDisabled}
+      warningMessage={parseWarning}
+      errors={errors}
+      previewMarkdown={currentPrompt}
+      previewOpen={previewOpen}
+      onFieldChange={handleFieldChange}
+      onProcedureChange={handleProcedureChange}
+      onAddProcedure={handleAddProcedure}
+      onRemoveProcedure={handleRemoveProcedure}
+      onFaqChange={handleFaqChange}
+      onAddFaq={handleAddFaq}
+      onRemoveFaq={handleRemoveFaq}
+      onResetToStructuredForm={handleResetToStructuredForm}
+      onPreviewOpenChange={setPreviewOpen}
+    />
+  );
+
   return (
-    <div className="flex flex-col gap-4 overflow-y-auto pb-6 pr-1 h-[calc(100vh-6rem)] scrollbar-hide">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 flex-shrink-0">
+    <div className="flex h-[calc(100vh-6rem)] flex-col gap-4 overflow-y-auto pb-6 pr-1 scrollbar-hide">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="flex items-center gap-2 text-3xl font-bold text-foreground">
             <Bot className="h-8 w-8 text-primary" />
             Inteligência Artificial
           </h1>
-          <p className="text-muted-foreground mt-1">Configure o comportamento e as regras da sua assistente virtual.</p>
+          <p className="mt-1 text-muted-foreground">
+            Configure o comportamento e as regras da sua assistente virtual.
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {hasChanges && (
@@ -125,39 +1153,48 @@ export default function AiSettings() {
             </Button>
           )}
           {lastUpdated && !hasChanges && (
-            <span className="text-xs text-muted-foreground flex items-center gap-1 hidden md:flex mr-2">
+            <span className="mr-2 hidden items-center gap-1 text-xs text-muted-foreground md:flex">
               <History className="h-3 w-3" />
-              Atualizado em {format(new Date(lastUpdated), "dd/MM 'às' HH:mm", { locale: ptBR })}
+              Atualizado em{" "}
+              {format(new Date(lastUpdated), "dd/MM 'às' HH:mm", {
+                locale: ptBR,
+              })}
             </span>
           )}
-          <Button 
-            onClick={handleSave} 
-            disabled={isLoading || isSaving || !hasChanges}
-            className="gap-2 min-w-[120px] relative"
+          <Button
+            onClick={handleSave}
+            disabled={isLoading || isSaving || isSavingModel || !hasChanges}
+            className="relative min-w-[120px] gap-2"
           >
             <Save className="h-4 w-4" />
             {isSaving ? "Salvando..." : "Salvar"}
-            {hasChanges && <span className="absolute -top-1 -right-1 flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>}
+            {hasChanges && (
+              <span className="absolute -right-1 -top-1 flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+              </span>
+            )}
           </Button>
         </div>
       </div>
 
-      {/* ── Seção de Logs (TOP) ── */}
-      <div className="flex-shrink-0" style={{ height: '340px' }}>
-        <Card className="flex flex-col h-full border-sidebar-border shadow-sm bg-background/50 backdrop-blur-sm overflow-hidden">
-          <div className="flex flex-row items-center justify-between py-2.5 px-4 border-b bg-muted/20">
+      <div className="flex-shrink-0" style={{ height: "340px" }}>
+        <Card className="flex h-full flex-col overflow-hidden border-sidebar-border bg-background/50 shadow-sm backdrop-blur-sm">
+          <div className="flex flex-row items-center justify-between border-b bg-muted/20 px-4 py-2.5">
             <div className="flex items-center gap-2">
               <Activity className="h-4 w-4 text-primary" />
-              <span className="text-sm font-bold tracking-tight">Monitor de Inteligência em Tempo Real</span>
+              <span className="text-sm font-bold tracking-tight">
+                Monitor de Inteligência em Tempo Real
+              </span>
             </div>
             <div className="flex items-center gap-4">
-              <Badge className="gap-1.5 bg-green-500/10 text-green-500 border-green-500/20 text-[10px] uppercase font-bold tracking-wider">
-                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              <Badge className="gap-1.5 border-green-500/20 bg-green-500/10 text-[10px] font-bold uppercase tracking-wider text-green-500">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
                 Live Tracking
               </Badge>
             </div>
           </div>
-          <div className="flex-1 relative">
+          <div className="relative flex-1">
             <div className="absolute inset-0 p-4 pt-1">
               <AiLogsViewer />
             </div>
@@ -165,67 +1202,98 @@ export default function AiSettings() {
         </Card>
       </div>
 
-      <div className="flex gap-4" style={{ minHeight: '520px' }}>
-        {/* Lado Esquerdo Principal (Prompt Editors) */}
-        <div className="flex-1 flex flex-col" style={{ minHeight: '520px' }}>
-          <Tabs defaultValue="base" value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col">
-            <TabsList className="w-fit mb-2 bg-muted/30 p-1 border flex-shrink-0">
-              <TabsTrigger value="base" className="text-xs px-6 py-1.5 font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                <Sparkles className="h-3.5 w-3.5 mr-2 opacity-70" />
+      <div className="flex gap-4" style={{ minHeight: "520px" }}>
+        <div className="flex flex-1 flex-col" style={{ minHeight: "520px" }}>
+          <Tabs
+            defaultValue="base"
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="flex flex-1 flex-col"
+          >
+            <TabsList className="mb-2 flex w-fit flex-shrink-0 border bg-muted/30 p-1">
+              <TabsTrigger
+                value="base"
+                className="px-6 py-1.5 text-xs font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                <Sparkles className="mr-2 h-3.5 w-3.5 opacity-70" />
                 Prompt Agente Base
               </TabsTrigger>
             </TabsList>
 
-            {/* Conteúdo renderizado condicionalmente para evitar bug de layout do Radix */}
-            <div className="flex-1" style={{ minHeight: '460px' }}>
+            <div className="flex-1" style={{ minHeight: "460px" }}>
               {activeTab === "base" && (
-                <Card className="flex flex-col border-sidebar-border shadow-sm bg-background overflow-hidden" style={{ height: '460px' }}>
-                  <div className="flex flex-row items-center justify-between py-2 px-4 border-b bg-muted/10">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Instruções de Comportamento</span>
+                <Card
+                  className="flex h-full flex-col overflow-hidden border-sidebar-border bg-background shadow-sm"
+                  style={{ height: "460px" }}
+                >
+                  <div className="mx-4 mt-4 rounded-lg border border-[#E85D24] bg-[#FFF4EE] px-4 py-3">
+                    <div className="text-sm font-semibold text-[#E85D24]">
+                      ⚡ Como funciona o Agente
+                    </div>
+                    <p className="mt-1 text-sm leading-relaxed text-[#E85D24]">
+                      O comportamento, as regras e a metodologia de atendimento já
+                      estão configurados automaticamente pelo sistema. Aqui você
+                      preenche apenas as informações específicas desta clínica para
+                      personalizar o agente.
+                    </p>
+                  </div>
+                  <div className="flex flex-row items-center justify-between border-b bg-muted/10 px-4 py-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Dados da Clínica — Personalização do Agente
+                    </span>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono text-[10px] bg-background px-1.5 py-0">system.prompt.md</Badge>
+                      <Badge
+                        variant="outline"
+                        className="bg-background px-1.5 py-0 font-mono text-[10px]"
+                      >
+                        system.prompt.md
+                      </Badge>
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 text-muted-foreground hover:text-foreground">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="ml-1 h-6 w-6 text-muted-foreground hover:text-foreground"
+                          >
                             <Maximize2 className="h-3.5 w-3.5" />
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-5xl w-[95vw] h-[85vh] flex flex-col p-0 overflow-hidden bg-background">
-                          <div className="flex flex-row items-center justify-between py-3 px-4 border-b bg-muted/10 flex-shrink-0">
+                        <DialogContent className="flex h-[85vh] w-[95vw] max-w-5xl flex-col overflow-hidden bg-background p-0">
+                          <div className="flex flex-row items-center justify-between border-b bg-muted/10 px-4 py-3">
                             <div className="flex items-center gap-2">
                               <Sparkles className="h-4 w-4 text-primary" />
-                              <span className="font-semibold text-sm">Prompt Agente Base (Tela Cheia)</span>
+                              <span className="text-sm font-semibold">
+                                Dados da Clínica — Personalização do Agente (Tela
+                                Cheia)
+                              </span>
                             </div>
-                            <Badge variant="outline" className="font-mono text-xs bg-background px-2 py-0.5">system.prompt.md</Badge>
+                            <Badge
+                              variant="outline"
+                              className="bg-background px-2 py-0.5 font-mono text-xs"
+                            >
+                              system.prompt.md
+                            </Badge>
                           </div>
-                          <div className="flex-1 relative overflow-hidden min-h-0 bg-background">
+                          <div className="min-h-0 flex-1 overflow-hidden bg-background">
                             {isLoading ? (
-                              <div className="flex items-center justify-center h-full">
+                              <div className="flex h-full items-center justify-center">
                                 <Loader2 className="h-6 w-6 animate-spin text-primary opacity-50" />
                               </div>
                             ) : (
-                              <PromptEditor
-                                value={localPrompt}
-                                onChange={handlePromptChange}
-                                disabled={isLoading || isSaving}
-                              />
+                              formContent
                             )}
                           </div>
                         </DialogContent>
                       </Dialog>
                     </div>
                   </div>
-                  <div className="flex-1 relative overflow-hidden min-h-0">
+                  <div className="min-h-0 flex-1 overflow-hidden">
                     {isLoading ? (
-                      <div className="flex items-center justify-center h-full">
+                      <div className="flex h-full items-center justify-center">
                         <Loader2 className="h-6 w-6 animate-spin text-primary opacity-50" />
                       </div>
                     ) : (
-                      <PromptEditor
-                        value={localPrompt}
-                        onChange={handlePromptChange}
-                        disabled={isLoading || isSaving}
-                      />
+                      formContent
                     )}
                   </div>
                 </Card>
@@ -234,26 +1302,31 @@ export default function AiSettings() {
           </Tabs>
         </div>
 
-        {/* Painel lateral */}
-        <div className="w-72 flex flex-col gap-3 flex-shrink-0 pr-1 pb-4">
-          
-          {/* Status da IA */}
-          <Card className="p-4 border-sidebar-border shadow-sm">
-            <div className="flex items-center justify-between mb-3">
+        <div className="flex w-72 flex-shrink-0 flex-col gap-3 pb-4 pr-1">
+          <Card className="border-sidebar-border p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Power className={`h-4 w-4 ${iaAtiva ? 'text-green-500' : 'text-muted-foreground'}`} />
-                <span className="font-semibold text-sm">Status da IA</span>
+                <Power
+                  className={`h-4 w-4 ${
+                    iaAtiva ? "text-green-500" : "text-muted-foreground"
+                  }`}
+                />
+                <span className="text-sm font-semibold">Status da IA</span>
               </div>
-              <Badge 
+              <Badge
                 variant={iaAtiva ? "default" : "secondary"}
-                className={iaAtiva ? "bg-green-500/20 text-green-600 border-green-500/30" : ""}
+                className={
+                  iaAtiva
+                    ? "border-green-500/30 bg-green-500/20 text-green-600"
+                    : ""
+                }
               >
                 {iaAtiva ? "Ativa" : "Inativa"}
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground mb-4">
-              {iaAtiva 
-                ? "A IA responde automaticamente as mensagens dos leads no WhatsApp." 
+            <p className="mb-4 text-xs text-muted-foreground">
+              {iaAtiva
+                ? "A IA responde automaticamente as mensagens dos leads no WhatsApp."
                 : "A IA está desativada. As mensagens não serão respondidas automaticamente."}
             </p>
             <div className="flex items-center gap-3">
@@ -263,68 +1336,174 @@ export default function AiSettings() {
                 disabled={isTogglingIa || isLoading}
                 id="toggle-ia"
               />
-              <Label htmlFor="toggle-ia" className="text-sm cursor-pointer">
+              <Label htmlFor="toggle-ia" className="cursor-pointer text-sm">
                 {iaAtiva ? "Desativar IA" : "Ativar IA"}
               </Label>
             </div>
           </Card>
 
-          {/* Config técnica */}
-          <Card className="p-4 border-sidebar-border shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
+          <Card className="border-sidebar-border p-4 shadow-sm">
+            <div className="mb-3 flex items-center gap-2">
               <Clock className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-sm">Configurações</span>
+              <span className="text-sm font-semibold">Configurações</span>
             </div>
             <div className="space-y-4 text-xs">
-              <div className="flex justify-between items-center">
+              <div className="space-y-2">
                 <span className="text-muted-foreground">Modelo</span>
-                <Badge variant="outline" className="font-mono text-xs">Grok-3-fast</Badge>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={localModelo}
+                    onChange={(event) => {
+                      setLocalModelo(event.target.value);
+                      setModeloSaveError(null);
+                      setModeloSaveSuccess(false);
+                    }}
+                    placeholder="Ex: gpt-4.1-mini"
+                    disabled={isLoading || isSaving || isSavingModel}
+                    className="h-8 flex-1 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3 text-xs"
+                    onClick={handleSaveModel}
+                    disabled={
+                      isLoading ||
+                      isSaving ||
+                      isSavingModel ||
+                      !localModelo.trim() ||
+                      localModelo.trim() === originalModelo.trim()
+                    }
+                  >
+                    {isSavingModel ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : modeloSaveSuccess ? (
+                      <Check className="h-3.5 w-3.5 text-green-600" />
+                    ) : (
+                      "Salvar"
+                    )}
+                  </Button>
+                </div>
+                {modeloSaveError && (
+                  <p className="text-[11px] text-destructive">{modeloSaveError}</p>
+                )}
+                {modeloSaveSuccess && (
+                  <p className="text-[11px] text-green-600">Modelo salvo com sucesso.</p>
+                )}
+                <Collapsible
+                  open={modeloSuggestionsOpen}
+                  onOpenChange={setModeloSuggestionsOpen}
+                >
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-2 rounded-md border border-dashed border-border px-3 py-2 text-left text-[11px] text-muted-foreground transition-colors hover:bg-muted/30"
+                    >
+                      <span>Modelos sugeridos</span>
+                      {modeloSuggestionsOpen ? (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="space-y-3 pt-3">
+                      {MODEL_SUGGESTIONS.map((section) => (
+                        <div key={section.label} className="space-y-2">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {section.label}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {section.items.map((item) => (
+                              <button
+                                key={item}
+                                type="button"
+                                className="rounded-full border border-border bg-background px-3 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                onClick={() => {
+                                  setLocalModelo(item);
+                                  setModeloSaveError(null);
+                                  setModeloSaveSuccess(false);
+                                }}
+                              >
+                                {item}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
               <div className="flex flex-col gap-1.5 pb-2">
-                <span className="text-muted-foreground">Acúmulo de msgs (espera)</span>
-                <select 
+                <span className="text-muted-foreground">
+                  Acúmulo de msgs
+                </span>
+                <select
                   id="acumulo"
                   className="flex h-8 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                   value={localAcumulo}
-                  onChange={(e) => handleAcumuloChange(e.target.value)}
+                  onChange={(event) => handleAcumuloChange(event.target.value)}
                   disabled={isLoading || isSaving}
                 >
-                  <option value="15" className="bg-background text-foreground">15 s</option>
-                  <option value="30" className="bg-background text-foreground">30 s</option>
-                  <option value="45" className="bg-background text-foreground">45 s</option>
-                  <option value="60" className="bg-background text-foreground">60 s</option>
-                  <option value="90" className="bg-background text-foreground">90 s</option>
-                  <option value="120" className="bg-background text-foreground">120 s</option>
+                  <option value="15" className="bg-background text-foreground">
+                    15 s
+                  </option>
+                  <option value="30" className="bg-background text-foreground">
+                    30 s
+                  </option>
+                  <option value="45" className="bg-background text-foreground">
+                    45 s
+                  </option>
+                  <option value="60" className="bg-background text-foreground">
+                    60 s
+                  </option>
+                  <option value="90" className="bg-background text-foreground">
+                    90 s
+                  </option>
+                  <option value="120" className="bg-background text-foreground">
+                    120 s
+                  </option>
                 </select>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Delay entre msgs</span>
-                <Badge variant="outline" className="font-mono text-xs">2-3s</Badge>
+                <Badge variant="outline" className="font-mono text-xs">
+                  2-3s
+                </Badge>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Transcrição áudio</span>
-                <Badge variant="outline" className="font-mono text-xs text-green-600">Whisper ✓</Badge>
+                <Badge
+                  variant="outline"
+                  className="font-mono text-xs text-green-600"
+                >
+                  Whisper ✓
+                </Badge>
               </div>
             </div>
           </Card>
 
-          {/* Tools disponíveis */}
-          <Card className="p-4 border-sidebar-border shadow-sm">
-            <div className="flex items-center gap-2 mb-3">
+          <Card className="border-sidebar-border p-4 shadow-sm">
+            <div className="mb-3 flex items-center gap-2">
               <Wrench className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-sm">Ferramentas do Agente</span>
+              <span className="text-sm font-semibold">Ferramentas do Agente</span>
             </div>
-            <p className="text-xs text-muted-foreground mb-3">
+            <p className="mb-3 text-xs text-muted-foreground">
               O agente usa estas tools automaticamente durante a conversa:
             </p>
             <div className="space-y-3">
               {AI_TOOLS.map((tool) => (
                 <div key={tool.name} className={`rounded-lg p-3 ${tool.bg}`}>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="mb-1 flex items-center gap-2">
                     <tool.icon className={`h-3.5 w-3.5 ${tool.color}`} />
-                    <span className={`text-xs font-semibold ${tool.color}`}>{tool.label}</span>
+                    <span className={`text-xs font-semibold ${tool.color}`}>
+                      {tool.label}
+                    </span>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
                     {tool.description}
                   </p>
                 </div>
@@ -332,18 +1511,16 @@ export default function AiSettings() {
             </div>
           </Card>
 
-          {/* Dica do prompt */}
-          <Card className="p-4 border-sidebar-border shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
+          <Card className="border-sidebar-border p-4 shadow-sm">
+            <div className="mb-2 flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-sm">Dicas do Prompt</span>
+              <span className="text-sm font-semibold">Dicas do Prompt</span>
             </div>
-            <ul className="text-xs text-muted-foreground space-y-1.5 list-disc list-inside">
-              <li>Use <code className="bg-muted px-1 rounded text-[10px]"># Seção</code> para organizar</li>
-              <li>Defina claramente quando acionar a equipe</li>
-              <li>Mencione os produtos/serviços que oferece</li>
-              <li>Inclua restrições do que a IA <em>não</em> deve fazer</li>
-              <li>O agente já conhece a data/hora atual automaticamente</li>
+            <ul className="list-inside list-disc space-y-1.5 text-xs text-muted-foreground">
+              <li>Preencha o nome do agente e da clínica</li>
+              <li>Liste todos os procedimentos com uma breve descrição</li>
+              <li>Inclua o link completo do Instagram</li>
+              <li>NÃO adicione regras de comportamento — já estão no sistema</li>
             </ul>
           </Card>
         </div>

@@ -1,16 +1,79 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+﻿import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import OpenAI from "npm:openai@4";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const XAI_API_KEY = Deno.env.get("XAI_API_KEY") ?? "";
+const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") ?? "";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? XAI_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
+const PROMPT_BASE_CACHE_TTL_MS = 5 * 60 * 1000;
+const PROMPT_BASE_MINIMO = `
+# AGENTE DE PRÉ-ATENDIMENTO — DESCOMPLIQUEI
+
+Você é o agente de pré-atendimento da clínica.
+Fale de forma humana, acolhedora e profissional.
+Use as informações personalizadas da clínica quando existirem.
+Nunca informe preços, nunca invente dados e nunca tente agendar.
+Sempre responda ao lead com clareza e uma pergunta por vez.
+A IA não fecha, não negocia e não agenda.
+`;
+
+let promptBaseCache: { valor: string; carregadoEm: number } | null = null;
 const grok = new OpenAI({ apiKey: XAI_API_KEY, baseURL: "https://api.x.ai/v1" });
+const openrouter = new OpenAI({ apiKey: OPENROUTER_API_KEY, baseURL: "https://openrouter.ai/api/v1" });
 const openaiWhisper = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+function resolveLlmClient(model: string): { client: OpenAI; provider: "openrouter" | "xai" } {
+  if (model.startsWith("openrouter/")) {
+    if (!OPENROUTER_API_KEY) {
+      throw new Error("OPENROUTER_API_KEY nao configurada no Supabase Secrets.");
+    }
+    return { client: openrouter, provider: "openrouter" };
+  }
+
+  if (!XAI_API_KEY) {
+    throw new Error("XAI_API_KEY nao configurada no Supabase Secrets.");
+  }
+
+  return { client: grok, provider: "xai" };
+}
+
+async function loadPromptBase(): Promise<string> {
+  const agora = Date.now();
+
+  if (promptBaseCache && agora - promptBaseCache.carregadoEm < PROMPT_BASE_CACHE_TTL_MS) {
+    return promptBaseCache.valor;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("system_ai_config")
+      .select("valor")
+      .eq("chave", "prompt_base_agente")
+      .maybeSingle();
+
+    const valor = typeof data?.valor === "string" ? data.valor.trim() : "";
+
+    if (error || !valor) {
+      if (error) {
+        console.error("[AI-Agent] Falha ao carregar prompt base:", error.message);
+      }
+      promptBaseCache = { valor: PROMPT_BASE_MINIMO, carregadoEm: agora };
+      return PROMPT_BASE_MINIMO;
+    }
+
+    promptBaseCache = { valor, carregadoEm: agora };
+    return valor;
+  } catch (error) {
+    console.error("[AI-Agent] Erro inesperado ao carregar prompt base:", error);
+    promptBaseCache = { valor: PROMPT_BASE_MINIMO, carregadoEm: agora };
+    return PROMPT_BASE_MINIMO;
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,23 +127,29 @@ async function updateLog(logId: string, patch: Partial<LogEntry>): Promise<void>
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function humanizeAndSplit(rawText: string): string[] {
+function normalizeOutgoingMessage(value: string): string {
+  return value
+    .trim()
+    .replace(/[ \t]+/g, " ")
+    .replace(/\.+$/g, "");
+}
+
+function humanizeAndSplitLegacy(rawText: string): string[] {
   if (!rawText || !rawText.trim()) return [];
 
   const MAX = 500;
-  const MIN_STANDALONE = 60; // sentença mais curta que isso é mesclada com a próxima
+  const MIN_MSG = 120;
 
-  // ── 1. Formatação WhatsApp e Tratamento de Abreviações ───────────────
+  // 1. Formatação WhatsApp + abreviações
   let text = rawText
-    .replace(/\*\*(.*?)\*\*/gs, "*$1*")           // **bold** → *bold*
-    .replace(/\bPrazer\b/g, "feliz em conhecer")  // substituição lexical
-    // Evitar quebra de sentenças nas abreviações comuns
+    .replace(/\*\*(.*?)\*\*/gs, "*$1*")
+    .replace(/\bPrazer\b/g, "feliz em conhecer")
     .replace(/\bDra\.\s+/gi, "Dra ")
     .replace(/\bDr\.\s+/gi, "Dr ")
     .replace(/\bSr\.\s+/gi, "Sr ")
     .replace(/\bSra\.\s+/gi, "Sra ");
 
-  // ── 2. Separar em blocos por parágrafo (dupla quebra de linha) ───────────
+  // 2. Separar por parágrafo
   const blocks = text.split(/\n{2,}/);
   const messages: string[] = [];
 
@@ -88,49 +157,55 @@ function humanizeAndSplit(rawText: string): string[] {
     const b = block.trim();
     if (!b) continue;
 
-    // ── 3. Detectar lista bullet: manter como bloco único ─────────────────
+    // 3. Listas bullet: manter como bloco
     const lines = b.split("\n");
-    const isBulletList = lines.some((l) => l.trim().startsWith("- "));
-    if (isBulletList) {
+    if (lines.some((l) => l.trim().startsWith("- "))) {
       messages.push(b);
       continue;
     }
 
-    // ── 4. Dividir em sentenças individuais por . ! ? ou \n ───────────────
-    // Lookbehind mantém a pontuação junto à sentença anterior
+    // 4. Separar em sentenças
+    // Regex: quebra em . ! ? seguido de espaço,
+    // MAS NÃO quebra se o próximo char é emoji ou minúscula
+    // (evita quebrar no meio de 'Dr ' ou após emoji)
     const sentences = b
-      .split(/(?<=[.!?])\s+|\n+/)
+      .split(/(?<=[.!?])\s+(?=[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ])/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
-    // ── 5. Agrupar: cada sentença = 1 mensagem (merge se for curta demais) ─
+    // 5. Agrupar com lógica anti-fragmentação
     let current = "";
 
-    for (const sentence of sentences) {
-      const isQuestion = sentence.endsWith("?") || sentence.endsWith("?!") || sentence.endsWith("!?");
+    for (let i = 0; i < sentences.length; i++) {
+      const sentence = sentences[i];
+      const isQuestion = /[?]\s*$/.test(sentence);
+      const candidate = current
+        ? `${current} ${sentence}`
+        : sentence;
 
-      // O usuário solicitou que as perguntas sejam SEMPRE isoladas para clareza
-      if (isQuestion) {
-         if (current.trim()) {
-           messages.push(current.trim()); // Envia o que já estava acumulado antes
-           current = "";
-         }
-         messages.push(sentence.trim()); // Envia a pergunta isolada no seu próprio balão
-         continue; // Vai para a próxima sentença (o current fica vazio)
-      }
-
-      const candidate = current ? `${current} ${sentence}` : sentence;
-
+      // Se a candidata estoura o MAX, envia current e
+      // começa nova com a sentença atual
       if (candidate.length > MAX && current.length > 0) {
-        // Teto de 500 chars: força divisão
         messages.push(current.trim());
         current = sentence;
-      } else if (current.length >= MIN_STANDALONE) {
-        // Sentença atual já é grande o suficiente: envia e começa nova
+        continue;
+      }
+
+      // Pergunta: só isola se current já tem conteúdo
+      // suficiente para ficar sozinha (>= MIN_MSG)
+      if (isQuestion && current.length >= MIN_MSG) {
+        messages.push(current.trim());
+        current = sentence;
+        continue;
+      }
+
+      // Sentença normal: acumula até ter conteúdo
+      // suficiente
+      if (current.length >= MIN_MSG
+          && sentence.length >= MIN_MSG) {
         messages.push(current.trim());
         current = sentence;
       } else {
-        // Sentença atual ainda muito curta: mescla com a próxima
         current = candidate;
       }
     }
@@ -138,10 +213,275 @@ function humanizeAndSplit(rawText: string): string[] {
     if (current.trim()) messages.push(current.trim());
   }
 
-  // ── 6. Limpeza: remove ponto no final, filtra vazios ─────────────────────
-  return messages
-    .map((m) => m.trim().replace(/\.+$/, "")) // remove só o ponto (.) final, mantém interrogação etc.
+  // 6. Pós-processamento: merge mensagens muito curtas
+  const final: string[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i].trim();
+    if (!msg) continue;
+
+    // Se a mensagem é APENAS emoji(s) ou muito curta (<20
+    // chars), merge com a anterior ou próxima
+    const isOnlyEmoji = /^[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]+$/u.test(msg);
+    const isTooShort = msg.length < 20 && !msg.endsWith("?");
+
+    if ((isOnlyEmoji || isTooShort) && final.length > 0) {
+      // Merge com a mensagem anterior
+      final[final.length - 1] += ` ${msg}`;
+    } else if ((isOnlyEmoji || isTooShort)
+               && i + 1 < messages.length) {
+      // Merge com a próxima
+      messages[i + 1] = `${msg} ${messages[i + 1]}`;
+    } else {
+      final.push(msg);
+    }
+  }
+
+  // 7. Limpeza final
+  return final
+    .map((m) => m.trim().replace(/\.+$/, ""))
     .filter((m) => m.length > 0);
+}
+
+function humanizeAndSplit(rawText: string): string[] {
+  if (!rawText || !rawText.trim()) return [];
+
+  const IDEAL_MIN = 80;
+  const IDEAL_MAX = 280;
+  const HARD_MAX = 320;
+  const SHORT_SENTENCE = 60;
+  const MAX_MESSAGES = 4;
+
+  const text = rawText
+    .replace(/\*\*(.*?)\*\*/gs, "*$1*")
+    .replace(/\bPrazer\b/g, "feliz em conhecer")
+    .replace(/\bDra\.\s+/gi, "Dra ")
+    .replace(/\bDr\.\s+/gi, "Dr ")
+    .replace(/\bSr\.\s+/gi, "Sr ")
+    .replace(/\bSra\.\s+/gi, "Sra ");
+
+  const blocks = text
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter((block) => block.length > 0);
+
+  const isQuestion = (value: string) => /[?]\s*$/.test(value.trim());
+  const isOnlyEmoji = (value: string) => {
+    const trimmed = value.trim();
+    const lettersOnly = trimmed.replace(/[^\p{L}]/gu, "");
+    return trimmed.length < 5 && lettersOnly.length === 0;
+  };
+  const startsWithEmoji = (value: string) => /^\p{Extended_Pictographic}/u.test(value.trim());
+  const extractLeadingEmoji = (value: string) => {
+    const trimmed = value.trim();
+    const match = trimmed.match(/^((?:\p{Extended_Pictographic}\uFE0F?[\u200D\p{Extended_Pictographic}\uFE0F?]*)+)/u);
+    if (!match) return null;
+    return match[1];
+  };
+  const removeLeadingEmoji = (value: string) => {
+    const trimmed = value.trim();
+    const leadingEmoji = extractLeadingEmoji(trimmed);
+    if (!leadingEmoji) return trimmed;
+    return trimmed.slice(leadingEmoji.length).trim();
+  };
+  const cleanMessage = (value: string) => value.trim().replace(/[ \t]+/g, " ");
+  const splitSentences = (value: string) =>
+    value
+      .split(/(?<=[.!?])\s+/)
+      .map((sentence) => sentence.trim())
+      .filter((sentence) => sentence.length > 0);
+  const attachLeadingEmoji = (sentences: string[]) => {
+    const result: string[] = [];
+    for (const sentence of sentences) {
+      if (!result.length) {
+        result.push(sentence);
+        continue;
+      }
+
+      if (isOnlyEmoji(sentence)) {
+        result[result.length - 1] = `${result[result.length - 1]} ${sentence}`.trim();
+        continue;
+      }
+
+      if (startsWithEmoji(sentence)) {
+        const withoutEmoji = removeLeadingEmoji(sentence);
+        if (withoutEmoji) {
+          result[result.length - 1] = `${result[result.length - 1]} ${extractLeadingEmoji(sentence)}`.trim();
+          result.push(withoutEmoji);
+          continue;
+        }
+      }
+
+      result.push(sentence);
+    }
+    return result;
+  };
+  const splitNearMiddle = (value: string) => {
+    const sentences = attachLeadingEmoji(splitSentences(value));
+    if (sentences.length <= 1) return [value.trim()];
+
+    const totalLength = sentences.reduce((sum, sentence) => sum + sentence.length, 0);
+    const middle = totalLength / 2;
+    let running = 0;
+    let bestIndex = 1;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (let i = 1; i < sentences.length; i++) {
+      running += sentences[i - 1].length;
+      const distance = Math.abs(middle - running);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
+      }
+    }
+
+    return [
+      sentences.slice(0, bestIndex).join(" ").trim(),
+      sentences.slice(bestIndex).join(" ").trim(),
+    ].filter((part) => part.length > 0);
+  };
+
+  const messages: string[] = [];
+  const pushWithLimit = (value: string) => {
+    const trimmed = cleanMessage(value);
+    if (!trimmed) return;
+    if (trimmed.length > HARD_MAX) {
+      for (const part of splitNearMiddle(trimmed)) {
+        pushWithLimit(part);
+      }
+      return;
+    }
+    messages.push(trimmed);
+  };
+
+  for (const block of blocks) {
+    const lines = block.split("\n");
+    if (lines.some((line) => line.trim().startsWith("- "))) {
+      pushWithLimit(block);
+      continue;
+    }
+
+    const sentences = attachLeadingEmoji(splitSentences(block));
+    if (sentences.length === 0) continue;
+
+    let current = "";
+
+    for (let i = 0; i < sentences.length; i++) {
+      const sentence = sentences[i];
+
+      if (isQuestion(sentence)) {
+        if (current.trim().length >= SHORT_SENTENCE) {
+          pushWithLimit(current);
+          current = "";
+        } else if (current.trim()) {
+          current = `${current} ${sentence}`.trim();
+          continue;
+        }
+
+        pushWithLimit(sentence);
+        continue;
+      }
+
+      if (!current) {
+        current = sentence;
+        continue;
+      }
+
+      const candidate = `${current} ${sentence}`.trim();
+      const shouldJoinShortSentence = sentence.length < SHORT_SENTENCE
+        && i + 1 < sentences.length
+        && !isQuestion(sentences[i + 1]);
+
+      if (candidate.length > HARD_MAX) {
+        pushWithLimit(current);
+        current = sentence;
+        continue;
+      }
+
+      if (current.length < IDEAL_MIN || shouldJoinShortSentence) {
+        current = candidate;
+        continue;
+      }
+
+      if (current.length >= IDEAL_MIN && current.length <= IDEAL_MAX) {
+        pushWithLimit(current);
+        current = sentence;
+        continue;
+      }
+
+      current = candidate;
+    }
+
+    if (current.trim()) pushWithLimit(current);
+  }
+
+  const normalized: string[] = [];
+  for (const message of messages) {
+    if (isOnlyEmoji(message)) {
+      if (normalized.length > 0) {
+        normalized[normalized.length - 1] = `${normalized[normalized.length - 1]} ${message}`.trim();
+      }
+      continue;
+    }
+
+    if (startsWithEmoji(message) && normalized.length > 0) {
+      const emoji = extractLeadingEmoji(message);
+      const rest = removeLeadingEmoji(message);
+      normalized[normalized.length - 1] = `${normalized[normalized.length - 1]} ${emoji}`.trim();
+      if (!rest) {
+        continue;
+      }
+      if (isOnlyEmoji(rest)) {
+        normalized[normalized.length - 1] = `${normalized[normalized.length - 1]} ${rest}`.trim();
+        continue;
+      }
+      if (rest.length < SHORT_SENTENCE && !isQuestion(rest)) {
+        normalized[normalized.length - 1] = `${normalized[normalized.length - 1]} ${rest}`.trim();
+        continue;
+      }
+      normalized.push(rest);
+      continue;
+    }
+
+    if (
+      normalized.length > 0
+      && normalized[normalized.length - 1].length < SHORT_SENTENCE
+      && !isQuestion(normalized[normalized.length - 1])
+    ) {
+      normalized[normalized.length - 1] = `${normalized[normalized.length - 1]} ${message}`.trim();
+      continue;
+    }
+
+    normalized.push(message);
+  }
+
+  while (normalized.length > MAX_MESSAGES) {
+    let bestIndex = -1;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    for (let i = 0; i < normalized.length - 1; i++) {
+      if (isQuestion(normalized[i]) || isQuestion(normalized[i + 1])) continue;
+
+      const combinedLength = normalized[i].length + normalized[i + 1].length + 1;
+      if (combinedLength > HARD_MAX) continue;
+
+      const distanceFromIdeal = Math.abs(IDEAL_MAX - combinedLength);
+      if (distanceFromIdeal < bestScore) {
+        bestScore = distanceFromIdeal;
+        bestIndex = i;
+      }
+    }
+
+    if (bestIndex === -1) {
+      bestIndex = 0;
+    }
+
+    normalized[bestIndex] = `${normalized[bestIndex]} ${normalized[bestIndex + 1]}`.trim();
+    normalized.splice(bestIndex + 1, 1);
+  }
+
+  return normalized
+    .map((message) => normalizeOutgoingMessage(cleanMessage(message)))
+    .filter((message) => message.length > 0 && !isOnlyEmoji(message));
 }
 
 // Alias para compatibilidade
@@ -257,15 +597,45 @@ async function executeCrm(args: any, leadId: string): Promise<string> {
   });
 }
 
-async function executeNotificacao(args: any, leadId: string, orgId: string): Promise<string> {
-  const nomeStr = args.nome_lead ? ` | Lead: ${args.nome_lead}` : "";
-  const mensagem = `🚨 Lead qualificado${nomeStr}\n\n${args.resumo}`;
+async function executeNotificacao(
+  args: any, leadId: string, orgId: string
+): Promise<string> {
+  const nome = args.nome_lead || "Não informado";
+  const resumo = args.resumo || "Sem resumo";
 
-  await supabase.from("notificacoes").insert({ lead_id: leadId, organization_id: orgId, mensagem, status: "pendente" });
-  await supabase.from("leads").update({ ia_ativa: false, ia_paused_until: null }).eq("id", leadId);
+  // Formatar notificação limpa e estruturada
+  const mensagem = [
+    `🚨 *LEAD PRONTO PARA ATENDIMENTO*`,
+    ``,
+    `👤 *Nome:* ${nome}`,
+    `📱 *Origem:* Marketing (IA)`,
+    ``,
+    `📋 *Resumo do Atendimento:*`,
+    resumo,
+    ``,
+    `⚡ *Ação:* Entrar em contato o mais rápido possível.`,
+    `O lead está aquecido e pronto para o fechamento.`,
+  ].join("\n");
 
-  console.log(`[AI-Agent] Equipe notificada. IA bloqueada para lead ${leadId}`);
-  return JSON.stringify({ ok: true, message: "Equipe notificada. IA desativada para este lead." });
+  await supabase.from("notificacoes").insert({
+    lead_id: leadId,
+    organization_id: orgId,
+    mensagem,
+    status: "pendente",
+  });
+
+  await supabase.from("leads").update({
+    ia_ativa: false,
+    ia_paused_until: null,
+  }).eq("id", leadId);
+
+  console.log(
+    `[AI-Agent] Equipe notificada. IA bloqueada: ${leadId}`
+  );
+  return JSON.stringify({
+    ok: true,
+    message: "Equipe notificada. IA desativada.",
+  });
 }
 
 async function processToolCalls(
@@ -366,6 +736,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const modelo = aiConfig.modelo_ia || "grok-3-fast";
+    const { client: llmClient, provider: llmProvider } = resolveLlmClient(modelo);
     const delayMs = aiConfig.delay_entre_mensagens || 2000;
     const acumuloSeg = (aiConfig.acumulo_mensagens || 45) * 1000;
     const crmToolsDynamic = getTools(aiConfig.prompt_crm);
@@ -451,16 +822,45 @@ Deno.serve(async (req: Request) => {
     if (execLogId) await updateLog(execLogId, { status: "running", etapa: "carregando_memoria", detalhe: "Carregando histórico de conversa..." });
     const memoria = await loadMemory(sessionId, orgId);
 
-    const promptReforcado = (aiConfig.prompt ?? "") + `
+    const dadosCliente = (aiConfig.prompt ?? "").trim();
+    const promptBaseAgente = await loadPromptBase();
 
-=== REGRAS ESTRITAS E INEGOCIÁVEIS ===
-1. NUNCA diga ao lead coisas como 'dados atualizados no CRM', 'notifiquei a equipe', 'salvei no sistema' ou qualquer aviso interno. As ferramentas (CRM e Notificação) funcionam de forma invisível nos bastidores.
-2. Aja 100% do tempo como o atendente humano da clínica. Se você chamar a ferramenta de notificação, simplesmente se despeça educadamente ou diga que alguém já vai falar com ele. Jamais explique o processo interno.
-3. SEMPRE RESPONDA AO LEAD. NUNCA, em hipótese alguma, acione uma ferramenta e deixe de enviar uma mensagem de texto junto. Você DEVE dar continuidade à conversa com o lead normalmente MESMO que esteja atualizando o CRM nos bastidores. O lead NUNCA pode ficar sem resposta.`;
+    const promptReforcado = promptBaseAgente
+      + (dadosCliente
+          ? `\n\n=== DADOS PERSONALIZADOS DA CLÍNICA ===\n${dadosCliente}`
+          : "")
+      + `\n\n=== REGRAS ESTRITAS E INEGOCIÁVEIS ===
+1. NUNCA diga ao lead coisas como 'dados atualizados no CRM',
+   'notifiquei a equipe', 'salvei no sistema' ou qualquer aviso
+   interno. As ferramentas funcionam de forma invisível.
+2. Aja 100% como o atendente humano da clínica. Nunca explique
+   processos internos ao lead.
+3. SEMPRE RESPONDA AO LEAD. Nunca acione ferramenta sem enviar
+   mensagem de texto junto. O lead NUNCA pode ficar sem resposta.`;
+
+    const agora = new Date();
+    const dataAtual = new Intl.DateTimeFormat("pt-BR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "America/Sao_Paulo",
+    }).format(agora);
+    const horaAtual = new Intl.DateTimeFormat("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "America/Sao_Paulo",
+    }).format(agora);
+    const promptReforcadoComDataHora = `${promptReforcado}
+
+=== DATA E HORA ATUAL ===
+Data: ${dataAtual}
+Hora: ${horaAtual} (horário de Brasília)`;
 
     // Montar array de mensagens: system prompt + histórico + mensagem atual
     const messages: Array<{ role: string; content: string | null }> = [
-      { role: "system", content: promptReforcado },
+      { role: "system", content: promptReforcadoComDataHora },
       ...memoria,
       { role: "user", content: sanitizedMessage },
     ];
@@ -477,7 +877,7 @@ Deno.serve(async (req: Request) => {
 
     while (retries < maxRetries) {
       try {
-        response = await grok.chat.completions.create({
+        response = await llmClient.chat.completions.create({
           model: modelo,
           messages,
           tools: crmToolsDynamic,
@@ -495,8 +895,8 @@ Deno.serve(async (req: Request) => {
         if (isImageError) {
           if (execLogId) await updateLog(execLogId, {
             status: "error",
-            etapa: "erro_grok_imagem",
-            erro_detalhe: `Grok não suporta imagens: ${errorMsg}`,
+            etapa: "erro_ia_imagem",
+            erro_detalhe: `Erro de imagem no provedor ${llmProvider}: ${errorMsg}`,
             duracao_ms: Date.now() - globalStart,
           });
           return jsonResponse({ 
@@ -510,8 +910,8 @@ Deno.serve(async (req: Request) => {
         if (retries >= maxRetries || !errorMsg.includes("503")) {
            if (execLogId) await updateLog(execLogId, {
              status: "error",
-             etapa: "erro_grok",
-             erro_detalhe: `Erro Grok final: ${errorMsg}`,
+             etapa: "erro_ia",
+             erro_detalhe: `Erro IA final (${llmProvider}): ${errorMsg}`,
              duracao_ms: Date.now() - globalStart,
            });
            return jsonResponse({ 
@@ -637,7 +1037,7 @@ Deno.serve(async (req: Request) => {
               : `55${telefoneDigits}`;
 
             const uazapiUrl = connNotif.uazapi_url.replace(/\/$/, "");
-            const partes = splitMessage(mensagemFinalParaLead);
+            const partes = splitMessage(mensagemFinalParaLead).map(normalizeOutgoingMessage).filter((parte) => parte.length > 0);
 
             for (let pi = 0; pi < partes.length; pi++) {
               const parte = partes[pi];
@@ -695,7 +1095,7 @@ Deno.serve(async (req: Request) => {
         tool_calls: toolCallsSummary,
       });
 
-      response = await grok.chat.completions.create({
+      response = await llmClient.chat.completions.create({
         model: modelo,
         messages: [...messages, ...toolMessages],
         tools: crmToolsDynamic,
@@ -767,7 +1167,7 @@ Deno.serve(async (req: Request) => {
     const uazapiUrl = conn.uazapi_url.replace(/\/$/, ""); // remove trailing slash
     const uazapiToken = conn.uazapi_token;
 
-    const partes = splitMessage(textoFinal);
+    const partes = splitMessage(textoFinal).map(normalizeOutgoingMessage).filter((parte) => parte.length > 0);
 
     if (execLogId) await updateLog(execLogId, {
       status: "running",
@@ -887,3 +1287,4 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "internal_error", detail: String(err?.message ?? err) }, 500);
   }
 });
+

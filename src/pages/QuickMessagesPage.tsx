@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { useQuickMessages, QuickMessage } from "@/hooks/useQuickMessages";
 import { useQuickMessageFolders, QuickMessageFolder } from "@/hooks/useQuickMessageFolders";
-import { Plus, Trash2, MessageSquare, Mic, Image as ImageIcon, Video, FileText, Upload, Zap, FolderPlus, Folder, Calendar, Clock } from "lucide-react";
+import { Plus, Trash2, MessageSquare, Mic, Image as ImageIcon, Video, FileText, Upload, Zap, FolderPlus, Folder } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SortableFolder } from "@/components/quick-messages/SortableFolder";
@@ -40,21 +40,21 @@ export default function QuickMessagesPage() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
-  const [msgFormData, setMsgFormData] = useState({ titulo: "", conteudo: "", tipo: "texto", folder_id: "none", delay_seconds: 5 });
+  const [msgFormData, setMsgFormData] = useState({ titulo: "", conteudo: "", tipo: "texto", folder_id: "none" });
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [folderFormData, setFolderFormData] = useState({ name: "", color: "#3b82f6" });
 
   const handleOpenCreateMsg = () => {
     setEditingMessage(null);
-    setMsgFormData({ titulo: "", conteudo: "", tipo: "texto", folder_id: "none", delay_seconds: 5 });
+    setMsgFormData({ titulo: "", conteudo: "", tipo: "texto", folder_id: "none" });
     setFile(null);
     setIsMsgModalOpen(true);
   };
 
   const handleEditMessage = (message: QuickMessage) => {
     setEditingMessage(message);
-    setMsgFormData({ titulo: message.titulo, conteudo: message.conteudo || "", tipo: message.tipo, folder_id: message.folder_id || "none", delay_seconds: message.delay_seconds || 5 });
+    setMsgFormData({ titulo: message.titulo, conteudo: message.conteudo || "", tipo: message.tipo, folder_id: message.folder_id || "none" });
     setFile(null);
     setIsMsgModalOpen(true);
   };
@@ -144,7 +144,7 @@ export default function QuickMessagesPage() {
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
             <Zap className="h-8 w-8 text-primary" /> Mensagens Rápidas
           </h1>
-          <p className="text-muted-foreground mt-1">Configure o tempo de resposta e organize por pastas.</p>
+          <p className="text-muted-foreground mt-1">Crie e organize suas mensagens rápidas por pastas.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setIsFolderModalOpen(true)} className="gap-2"><FolderPlus className="h-4 w-4" /> Nova Pasta</Button>
@@ -156,18 +156,12 @@ export default function QuickMessagesPage() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>{editingMessage ? "Editar" : "Criar"} Mensagem Rápida</DialogTitle>
-            <DialogDescription>Ajuste o título, conteúdo e o tempo de espera na sequência.</DialogDescription>
+            <DialogDescription>Ajuste o título, tipo e conteúdo da mensagem.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleMsgSubmit} className="space-y-4 py-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label>Título do Botão</Label>
-                    <Input value={msgFormData.titulo} onChange={e => setMsgFormData({...msgFormData, titulo: e.target.value})} required placeholder="Ex: Boas-vindas" />
-                </div>
-                <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-primary" /> Intervalo (segundos)</Label>
-                    <Input type="number" min="1" max="600" value={msgFormData.delay_seconds} onChange={e => setMsgFormData({...msgFormData, delay_seconds: parseInt(e.target.value) || 1})} />
-                </div>
+            <div className="space-y-2">
+                <Label>Título do Botão</Label>
+                <Input value={msgFormData.titulo} onChange={e => setMsgFormData({...msgFormData, titulo: e.target.value})} required placeholder="Ex: Boas-vindas" />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

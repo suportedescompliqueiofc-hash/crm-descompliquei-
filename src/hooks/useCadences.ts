@@ -107,7 +107,7 @@ export function useCadences() {
 
   const bulkStartCadence = useMutation({
     mutationFn: async ({ cadenceId, leadIds, minDelay, maxDelay }: { cadenceId: string, leadIds: string[], minDelay: number, maxDelay: number }) => {
-        if (!orgId) throw new Error("Não autorizado");
+        if (!orgId || !user) throw new Error("Não autorizado");
 
         // 1. Buscar primeiro passo da cadência
         const { data: firstStep } = await supabase
@@ -120,10 +120,24 @@ export function useCadences() {
 
         if (!firstStep) throw new Error("Esta cadência não possui passos configurados.");
 
+        // 2. Criar registro do disparo em massa para rastreamento
+        const { data: dispatch, error: dispatchError } = await supabase
+            .from('cadence_dispatches' as any)
+            .insert({
+                organization_id: orgId,
+                cadencia_id: cadenceId,
+                total_leads: leadIds.length,
+                criado_por: user.id,
+            })
+            .select('id')
+            .single();
+
+        if (dispatchError) throw dispatchError;
+
         const inserts = leadIds.map(leadId => {
             const randomDelay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
             let executionDate = new Date();
-            
+
             if (firstStep.unidade_tempo === 'minutos') executionDate = addMinutes(executionDate, firstStep.tempo_espera + (randomDelay / 60));
             else if (firstStep.unidade_tempo === 'horas') executionDate = addHours(executionDate, firstStep.tempo_espera + (randomDelay / 3600));
             else executionDate = addDays(executionDate, firstStep.tempo_espera + (randomDelay / 86400));
@@ -134,7 +148,8 @@ export function useCadences() {
                 cadencia_id: cadenceId,
                 passo_atual_ordem: 0,
                 status: 'ativo',
-                proxima_execucao: executionDate.toISOString()
+                proxima_execucao: executionDate.toISOString(),
+                dispatch_id: (dispatch as any).id,
             };
         });
 
@@ -147,6 +162,7 @@ export function useCadences() {
     },
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['lead_cadence_active'] });
+        queryClient.invalidateQueries({ queryKey: ['cadence_dispatches'] });
         toast.success("Disparo em massa iniciado!");
     }
   });

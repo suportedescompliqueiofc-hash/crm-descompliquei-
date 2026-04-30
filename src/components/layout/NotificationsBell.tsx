@@ -26,7 +26,7 @@ export function NotificationsBell() {
   const pendingNotifications = notifications.filter(n => n.status === 'pendente');
 
   const handleNotificationClick = (leadId: string) => {
-    navigate(`/conversas/${leadId}`);
+    navigate(`/crm/conversas/${leadId}`);
   };
 
   const handleResolve = (e: React.MouseEvent, notificationId: string) => {

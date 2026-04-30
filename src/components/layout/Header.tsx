@@ -12,8 +12,27 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { NotificationsBell } from "./NotificationsBell";
 
+import { useLocation } from "react-router-dom";
+import { usePlataforma } from "@/contexts/PlataformaContext";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 export function Header({ onMenuClick, isSidebarCollapsed }: { onMenuClick: () => void; isSidebarCollapsed: boolean }) {
   const { user, signOut } = useAuth();
+  const location = useLocation();
+  const isPlatformMode = ['/plataforma', '/trilha', '/cerebro', '/ia-comercial', '/sessoes-taticas', '/materiais'].some(path => location.pathname.startsWith(path));
+  
+  // Conditionally hook into PlataformaContext (prevent error if outside provider)
+  let progressPercent = 0;
+  let completedModules = 0;
+  let totalModules = 0;
+  try {
+     const platformData = usePlataforma();
+     progressPercent = platformData?.progressPercent || 0;
+     completedModules = platformData?.completedModules || 0;
+     totalModules = platformData?.totalModules || 0;
+  } catch (e) {
+     // Safe fallback
+  }
 
   const getInitials = (email: string) => {
     return email.substring(0, 2).toUpperCase();
@@ -57,6 +76,27 @@ export function Header({ onMenuClick, isSidebarCollapsed }: { onMenuClick: () =>
           </DropdownMenu>
         </div>
       </div>
+      
+      {/* GLOBAL PLATFORM PROGRESS BAR */}
+      {isPlatformMode && (
+        <TooltipProvider>
+          <Tooltip>
+             <TooltipTrigger asChild>
+                <div className="absolute bottom-0 left-0 w-full h-[3px] bg-secondary/30 cursor-pointer overflow-hidden group">
+                  <div 
+                    className="h-full bg-gradient-to-r from-[#E85D24]/80 to-[#E85D24] transition-all duration-1000 ease-out relative"
+                    style={{ width: `${progressPercent}%` }}
+                  >
+                     <div className="absolute top-0 right-0 bottom-0 w-10 bg-white/20 blur-sm translate-x-full group-hover:translate-x-0 transition-transform duration-700" />
+                  </div>
+                </div>
+             </TooltipTrigger>
+             <TooltipContent className="bg-card text-foreground border-border text-xs font-bold">
+               {progressPercent}% concluído — {completedModules} módulos de {totalModules} entregues
+             </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </header>
   );
 }

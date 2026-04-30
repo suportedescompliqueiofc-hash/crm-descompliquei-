@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, GitMerge, MoreVertical, Trash2, Calendar as CalendarIcon, Layout, MessageSquare, ArrowRight, Activity, Zap, BarChart2 } from "lucide-react";
+import { Plus, GitMerge, MoreVertical, Trash2, Calendar as CalendarIcon, Layout, ArrowRight, Activity, Zap, BarChart2, BarChart3 } from "lucide-react";
 import { CadenceModal } from "@/components/cadences/CadenceModal";
 import { BulkCadenceDispatchModal } from "@/components/cadences/BulkCadenceDispatchModal";
 import { CadenceDispatchMonitorModal } from "@/components/cadences/CadenceDispatchMonitorModal";
@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/reports/DateRangePicker";
 import { CadenceMonitoringTab } from "@/components/cadences/CadenceMonitoringTab";
+import { CadenceDispatchReportTab } from "@/components/cadences/CadenceDispatchReportTab";
 
 export default function Cadences() {
   const today = new Date();
@@ -88,11 +89,14 @@ export default function Cadences() {
           <TabsTrigger value="monitoramento" className="gap-2">
             <Activity className="h-4 w-4" /> Monitoramento de Envios
           </TabsTrigger>
+          <TabsTrigger value="relatorio" className="gap-2">
+            <BarChart3 className="h-4 w-4" /> Relatório de Disparos
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="fluxos">
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {[1, 2, 3].map(i => <Skeleton key={i} className="h-48 w-full rounded-xl" />)}
             </div>
           ) : cadences.length === 0 ? (
@@ -104,9 +108,9 @@ export default function Cadences() {
               <Button variant="link" onClick={handleOpenCreate} className="text-primary font-bold underline-offset-4">Criar a primeira</Button>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {cadences.map(cadence => (
-                <Card key={cadence.id} className="group hover:border-primary/50 transition-all duration-300 shadow-sm relative overflow-hidden h-full flex flex-col">
+                <Card key={cadence.id} className="group hover:border-primary/50 transition-all duration-300 shadow-sm relative h-full flex flex-col">
                   <div className="absolute top-0 right-0 p-2">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -138,7 +142,7 @@ export default function Cadences() {
                         </div>
                     </div>
 
-                    <div className="bg-muted/30 rounded-lg p-3 flex items-center justify-between group/path cursor-default">
+                    <div className="bg-muted/30 rounded-lg p-3 flex flex-col gap-2 group/path cursor-default">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-background border flex items-center justify-center text-[10px] font-bold shadow-sm">1</div>
                             <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
@@ -146,27 +150,27 @@ export default function Cadences() {
                             <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
                             <div className="w-8 h-8 rounded-full bg-background border flex items-center justify-center text-[10px] font-bold shadow-sm opacity-30">...</div>
                         </div>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
                             onClick={() => { setCadenceToMonitor(cadence); setIsMonitorOpen(true); }}
                             title="Monitorar envios"
                           >
                              <BarChart2 className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             className="h-8 text-xs font-semibold text-primary hover:bg-primary/10"
                             onClick={() => { setCadenceToDispatch(cadence); setIsBulkDispatchOpen(true); }}
                           >
                             <Zap className="h-3 w-3 mr-1" /> Disparar
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             className="h-8 text-xs font-semibold text-primary hover:bg-primary/10"
                             onClick={() => handleOpenDetails(cadence)}
                           >
@@ -183,6 +187,10 @@ export default function Cadences() {
 
         <TabsContent value="monitoramento">
           <CadenceMonitoringTab dateRange={dateRange} />
+        </TabsContent>
+
+        <TabsContent value="relatorio">
+          <CadenceDispatchReportTab />
         </TabsContent>
       </Tabs>
 

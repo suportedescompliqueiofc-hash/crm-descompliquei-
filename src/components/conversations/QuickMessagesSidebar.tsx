@@ -56,7 +56,6 @@ function SortableMessageItem({
           <div className="mt-0.5 flex-shrink-0 bg-muted rounded p-1 group-hover/btn:bg-background transition-colors">{getIcon(msg.tipo)}</div>
           <div className="flex-1 min-w-0 pr-14">
             <div className="font-medium text-xs leading-tight truncate">{msg.titulo}</div>
-            <div className="flex items-center gap-1 text-[9px] text-primary/70 font-bold mt-1"><Clock className="h-2.5 w-2.5" /> {msg.delay_seconds || 5}s de intervalo</div>
           </div>
           <div className="opacity-0 group-hover/btn:opacity-100 absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 transition-opacity">
             <div className="bg-primary text-primary-foreground p-1.5 rounded-full shadow-sm"><Send className="h-3 w-3" /></div>

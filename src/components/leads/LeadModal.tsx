@@ -373,7 +373,7 @@ export function LeadModal({ open, onOpenChange, lead, mode = 'create' }: LeadMod
   
   const handleOpenConversation = () => {
     if (lead?.id) {
-      navigate(`/conversas/${lead.id}`);
+      navigate(`/crm/conversas/${lead.id}`);
       onOpenChange(false);
     }
   };

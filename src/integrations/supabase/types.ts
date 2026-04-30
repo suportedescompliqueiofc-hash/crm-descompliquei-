@@ -304,6 +304,54 @@ export type Database = {
           }
         ]
       }
+      lead_blacklist: {
+        Row: {
+          blocked_by: string | null
+          created_at: string
+          id: string
+          motivo: string | null
+          organization_id: string
+          telefone: string
+          telefone_normalizado: string
+          updated_at: string
+        }
+        Insert: {
+          blocked_by?: string | null
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          organization_id: string
+          telefone: string
+          telefone_normalizado?: string
+          updated_at?: string
+        }
+        Update: {
+          blocked_by?: string | null
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          organization_id?: string
+          telefone?: string
+          telefone_normalizado?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_blacklist_blocked_by_fkey"
+            columns: ["blocked_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_blacklist_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       configuracoes_clinica: {
         Row: {
           endereco: Json | null
@@ -438,6 +486,7 @@ export type Database = {
           atualizado_em: string
           usuario_id: string
           valor: number | null
+          excluir_metricas: boolean
         }
         Insert: {
           endereco?: string | null
@@ -458,6 +507,7 @@ export type Database = {
           atualizado_em?: string
           usuario_id: string
           valor?: number | null
+          excluir_metricas?: boolean
         }
         Update: {
           endereco?: string | null
@@ -478,6 +528,7 @@ export type Database = {
           atualizado_em?: string
           usuario_id?: string
           valor?: number | null
+          excluir_metricas?: boolean
         }
         Relationships: [
           {
@@ -659,6 +710,10 @@ export type Database = {
         Args: { "": number[] }
         Returns: unknown
       }
+      blacklist_lead_permanently: {
+        Args: { p_lead_id: string; p_reason?: string }
+        Returns: undefined
+      }
       halfvec_out: {
         Args: { "": unknown }
         Returns: unknown
@@ -713,6 +768,10 @@ export type Database = {
       l2_normalize: {
         Args: { "": string } | { "": unknown } | { "": unknown }
         Returns: unknown
+      }
+      normalize_crm_phone: {
+        Args: { phone_input: string }
+        Returns: string
       }
       match_documents: {
         Args: { filter?: Json; match_count?: number; query_embedding: string }

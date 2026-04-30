@@ -8,6 +8,14 @@ import { useProfile } from './useProfile';
 import { Tag } from './useTags';
 import { useEffect } from 'react';
 
+const normalizePhoneNumber = (phone: string) => {
+  let cleaned = (phone || '').replace(/\D/g, '');
+  if ((cleaned.length === 10 || cleaned.length === 11) && !cleaned.startsWith('55')) {
+    cleaned = `55${cleaned}`;
+  }
+  return cleaned;
+};
+
 export interface Lead {
   id: string;
   usuario_id: string;
@@ -24,7 +32,7 @@ export interface Lead {
   resumo?: string;
   origem?: string;
   fonte?: string;
-  criativo_id?: string; 
+  criativo_id?: string;
   status: string;
   posicao_pipeline: number;
   ultimo_contato?: string;
@@ -36,6 +44,9 @@ export interface Lead {
   leads_tags?: { tags: Tag }[];
   agendamento?: string;
   is_qualified?: boolean;
+  is_scheduled?: boolean;
+  is_closed?: boolean;
+  excluir_metricas?: boolean;
 }
 
 export function useLeads(dateRange?: DateRange) {
@@ -44,7 +55,44 @@ export function useLeads(dateRange?: DateRange) {
   const queryClient = useQueryClient();
   const orgId = profile?.organization_id;
 
-  // Realtime Subscription com Injeção Direta de Cache
+  const isPhoneBlacklisted = async (phone: string) => {
+    if (!orgId) return false;
+
+    const normalizedPhone = normalizePhoneNumber(phone);
+    if (!normalizedPhone) return false;
+
+    const { data, error } = await supabase
+      .from('lead_blacklist')
+      .select('id')
+      .eq('organization_id', orgId)
+      .eq('telefone_normalizado', normalizedPhone)
+      .maybeSingle();
+
+    if (error) throw error;
+    return !!data;
+  };
+
+  const removeLeadDependencies = async (id: string) => {
+    const { data: msgs } = await supabase.from('mensagens').select('id').eq('lead_id', id);
+    const msgIds = msgs?.map(m => m.id) || [];
+
+    if (msgIds.length > 0) {
+      await supabase.from('message_attachments').delete().in('message_id', msgIds);
+    }
+
+    await Promise.all([
+      supabase.from('mensagens').delete().eq('lead_id', id),
+      supabase.from('leads_tags').delete().eq('lead_id', id),
+      supabase.from('lead_stage_history').delete().eq('lead_id', id),
+      supabase.from('notificacoes').delete().eq('lead_id', id),
+      supabase.from('vendas').delete().eq('lead_id', id),
+      supabase.from('atividades').delete().eq('lead_id', id),
+      supabase.from('scheduled_quick_messages').delete().eq('lead_id', id),
+      supabase.from('lead_cadencias').delete().eq('lead_id', id),
+      supabase.from('cadencia_logs').delete().eq('lead_id', id),
+    ]);
+  };
+
   useEffect(() => {
     if (!orgId) return;
 
@@ -54,32 +102,30 @@ export function useLeads(dateRange?: DateRange) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads', filter: `organization_id=eq.${orgId}` },
         (payload) => {
-          // Atualiza o lead individual (singular) - Indiferente de filtros
           const leadId = (payload.new as any)?.id || (payload.old as any)?.id;
           if (leadId) {
             queryClient.setQueryData(['lead', leadId, orgId], payload.new);
           }
 
-          // Busca todas as queries de lista de leads para esta organização (independente do dateRange)
           queryClient.getQueriesData({ queryKey: ['leads', orgId] }).forEach(([queryKey]) => {
             queryClient.setQueryData<Lead[]>(queryKey, (old) => {
               const current = old || [];
-              
+
               if (payload.eventType === 'INSERT') {
                 const newLead = payload.new as Lead;
-                if (current.find(l => l.id === newLead.id)) return current;
+                if (current.find((lead) => lead.id === newLead.id)) return current;
                 return [newLead, ...current];
-              } 
-              
+              }
+
               if (payload.eventType === 'UPDATE') {
                 const updatedLead = payload.new as Lead;
-                return current.map(lead => lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead);
+                return current.map((lead) => lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead);
               }
-              
+
               if (payload.eventType === 'DELETE') {
-                return current.filter(lead => lead.id !== payload.old.id);
+                return current.filter((lead) => lead.id !== (payload.old as any).id);
               }
-              
+
               return current;
             });
           });
@@ -96,7 +142,7 @@ export function useLeads(dateRange?: DateRange) {
     queryKey: ['leads', orgId, dateRange],
     queryFn: async () => {
       if (!user || !orgId) return [];
-      
+
       let query = supabase
         .from('leads')
         .select(`
@@ -113,13 +159,12 @@ export function useLeads(dateRange?: DateRange) {
       if (dateRange?.from && dateRange?.to) {
         const startDate = format(startOfDay(dateRange.from), 'yyyy-MM-dd HH:mm:ss');
         const endDate = format(endOfDay(dateRange.to), 'yyyy-MM-dd HH:mm:ss');
-        // Filtro aprimorado: Criado OU Agendado OU Atualizado (movimentado) no período
         query = query.or(`and(criado_em.gte.${startDate},criado_em.lte.${endDate}),and(agendamento.gte.${startDate},agendamento.lte.${endDate}),and(atualizado_em.gte.${startDate},atualizado_em.lte.${endDate})`);
       }
 
       const { data, error } = await query;
       if (error) throw error;
-      
+
       return data as Lead[];
     },
     enabled: !!user && !!orgId,
@@ -128,12 +173,18 @@ export function useLeads(dateRange?: DateRange) {
 
   const createLead = useMutation({
     mutationFn: async (lead: Omit<Lead, 'id' | 'usuario_id' | 'organization_id' | 'criado_em' | 'atualizado_em'>) => {
-      if (!user || !orgId) throw new Error("Usuário/Organização não autenticado");
+      if (!user || !orgId) throw new Error('Usuário/Organização não autenticado');
+
+      if (await isPhoneBlacklisted(lead.telefone)) {
+        throw new Error('Este número está bloqueado permanentemente na blacklist do CRM.');
+      }
+
       const { data, error } = await supabase
         .from('leads')
         .insert([{ ...lead, usuario_id: user.id, organization_id: orgId }])
         .select()
         .single();
+
       if (error) throw error;
       return data;
     },
@@ -142,6 +193,11 @@ export function useLeads(dateRange?: DateRange) {
       toast.success('Lead criado com sucesso!');
     },
     onError: (error: any) => {
+      if (error?.message?.toLowerCase().includes('blacklist')) {
+        toast.error('Este número está bloqueado permanentemente e não pode voltar para o CRM.');
+        return;
+      }
+
       toast.error(error.code === '23505' ? 'Telefone já cadastrado.' : error.message);
     },
   });
@@ -155,14 +211,18 @@ export function useLeads(dateRange?: DateRange) {
       if (!orgId) {
         throw new Error('Usuário sem organização associada');
       }
-      
+
+      if (updates.telefone && await isPhoneBlacklisted(updates.telefone)) {
+        throw new Error('Este número está bloqueado permanentemente na blacklist do CRM.');
+      }
+
       const allowedFields: (keyof Lead)[] = [
         'nome', 'telefone', 'email', 'cpf', 'idade', 'genero', 'endereco',
         'queixa_principal', 'procedimento_interesse', 'resumo', 'origem', 'fonte',
         'criativo_id', 'status', 'posicao_pipeline', 'ultimo_contato', 'agendamento',
-        'data_nascimento', 'ia_ativa', 'ia_paused_until', 'is_qualified'
+        'data_nascimento', 'ia_ativa', 'ia_paused_until', 'is_qualified', 'is_scheduled', 'is_closed', 'excluir_metricas',
       ];
-      
+
       const cleanUpdates: Record<string, unknown> = {};
       for (const key of allowedFields) {
         if (key in updates && updates[key] !== undefined) {
@@ -183,10 +243,12 @@ export function useLeads(dateRange?: DateRange) {
         .from('leads')
         .update(cleanUpdates)
         .eq('id', id);
+
       if (error) {
         console.error('[updateLead] Erro ao atualizar lead:', error);
         throw new Error(`Erro ao atualizar lead: ${error.message} (código: ${error.code})`);
       }
+
       return { id, ...cleanUpdates } as Lead;
     },
     onMutate: async (variables) => {
@@ -198,15 +260,15 @@ export function useLeads(dateRange?: DateRange) {
 
       const previousLeads = queryClient.getQueryData<Lead[]>(listQueryKey);
       const previousLead = queryClient.getQueryData<Lead>(singleQueryKey);
-      
+
       queryClient.setQueryData<Lead[]>(listQueryKey, (old) => {
-        return (old || []).map(lead => lead.id === variables.id ? { ...lead, ...variables } : lead);
+        return (old || []).map((lead) => lead.id === variables.id ? { ...lead, ...variables } : lead);
       });
 
       if (previousLead) {
         queryClient.setQueryData<Lead>(singleQueryKey, { ...previousLead, ...variables });
       }
-      
+
       return { previousLeads, previousLead };
     },
     onError: (err: any, variables, context) => {
@@ -219,52 +281,67 @@ export function useLeads(dateRange?: DateRange) {
       }
       toast.error('Erro ao atualizar lead: ' + (err?.message || 'Tente novamente.'));
     },
-    onSettled: (data, error, variables) => {
-        queryClient.invalidateQueries({ queryKey: ['leads', orgId] });
-        queryClient.invalidateQueries({ queryKey: ['lead', variables.id, orgId] });
-    }
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['leads', orgId] });
+      queryClient.invalidateQueries({ queryKey: ['lead', variables.id, orgId] });
+    },
   });
 
   const deleteLead = useMutation({
     mutationFn: async (id: string) => {
-      const { data: msgs } = await supabase.from('mensagens').select('id').eq('lead_id', id);
-      const msgIds = msgs?.map(m => m.id) || [];
-
-      if (msgIds.length > 0) {
-        await supabase.from('message_attachments').delete().in('message_id', msgIds);
-      }
-
-      await Promise.all([
-        supabase.from('mensagens').delete().eq('lead_id', id),
-        supabase.from('leads_tags').delete().eq('lead_id', id),
-        supabase.from('lead_stage_history').delete().eq('lead_id', id),
-        supabase.from('notificacoes').delete().eq('lead_id', id),
-        supabase.from('vendas').delete().eq('lead_id', id),
-        supabase.from('atividades').delete().eq('lead_id', id),
-        supabase.from('scheduled_quick_messages').delete().eq('lead_id', id),
-        supabase.from('lead_cadencias').delete().eq('lead_id', id),
-        supabase.from('cadencia_logs').delete().eq('lead_id', id),
-      ]);
+      await removeLeadDependencies(id);
 
       const { error } = await supabase.from('leads').delete().eq('id', id);
       if (error) throw error;
-      
+
       return id;
     },
     onMutate: async (id) => {
       const queryKey = ['leads', orgId, dateRange];
       await queryClient.cancelQueries({ queryKey });
       const previousLeads = queryClient.getQueryData<Lead[]>(queryKey);
-      queryClient.setQueryData<Lead[]>(queryKey, (old) => (old || []).filter(lead => lead.id !== id));
+      queryClient.setQueryData<Lead[]>(queryKey, (old) => (old || []).filter((lead) => lead.id !== id));
       return { previousLeads };
     },
-    onError: (err: any, id, context) => {
+    onError: (err: any, _id, context) => {
       if (context?.previousLeads) {
         const queryKey = ['leads', orgId, dateRange];
         queryClient.setQueryData(queryKey, context.previousLeads);
       }
       toast.error(`Falha ao excluir lead: ${err.message}`);
-    }
+    },
+  });
+
+  const blacklistLead = useMutation({
+    mutationFn: async (lead: Pick<Lead, 'id' | 'nome' | 'telefone'>) => {
+      const { error } = await supabase.rpc('blacklist_lead_permanently', {
+        p_lead_id: lead.id,
+        p_reason: 'Bloqueado manualmente pelo CRM.',
+      });
+
+      if (error) throw error;
+      return lead.id;
+    },
+    onMutate: async (lead) => {
+      const queryKey = ['leads', orgId, dateRange];
+      await queryClient.cancelQueries({ queryKey });
+      const previousLeads = queryClient.getQueryData<Lead[]>(queryKey);
+      queryClient.setQueryData<Lead[]>(queryKey, (old) => (old || []).filter((item) => item.id !== lead.id));
+      return { previousLeads };
+    },
+    onError: (err: any, lead, context) => {
+      if (context?.previousLeads) {
+        const queryKey = ['leads', orgId, dateRange];
+        queryClient.setQueryData(queryKey, context.previousLeads);
+      }
+      toast.error(`Falha ao bloquear ${lead.nome || lead.telefone}: ${err.message}`);
+    },
+    onSuccess: () => {
+      toast.success('Número bloqueado permanentemente. Ele não voltará mais para o CRM.');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads', orgId] });
+    },
   });
 
   return {
@@ -273,6 +350,7 @@ export function useLeads(dateRange?: DateRange) {
     createLead: createLead.mutate,
     updateLead: updateLead.mutate,
     deleteLead: deleteLead.mutateAsync,
+    blacklistLead: blacklistLead.mutateAsync,
   };
 }
 

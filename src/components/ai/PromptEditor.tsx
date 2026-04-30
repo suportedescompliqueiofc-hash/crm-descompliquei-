@@ -5,9 +5,10 @@ interface PromptEditorProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  placeholder?: string;
 }
 
-export function PromptEditor({ value, onChange, disabled }: PromptEditorProps) {
+export function PromptEditor({ value, onChange, disabled, placeholder }: PromptEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [lineCount, setLineCount] = useState(1);
 
@@ -77,7 +78,7 @@ export function PromptEditor({ value, onChange, disabled }: PromptEditorProps) {
           "focus:ring-0 border-0"
         )}
         spellCheck={false}
-        placeholder="# Digite o prompt do sistema aqui..."
+        placeholder={placeholder ?? "# Digite o prompt do sistema aqui..."}
       />
     </div>
   );

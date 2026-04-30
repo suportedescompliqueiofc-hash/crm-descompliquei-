@@ -166,6 +166,24 @@ serve(async (req) => {
        }
     }
 
+    if (orgId) {
+      const { data: blockedNumber, error: blacklistError } = await supabaseAdmin
+        .from('lead_blacklist')
+        .select('id')
+        .eq('organization_id', orgId)
+        .eq('telefone_normalizado', phoneWithCountryCode)
+        .maybeSingle();
+
+      if (blacklistError) {
+        console.error('[receive-message] Erro ao consultar blacklist:', blacklistError);
+      }
+
+      if (blockedNumber) {
+        console.log(`[receive-message] Número bloqueado ignorado: ${phoneWithCountryCode}`);
+        return new Response(JSON.stringify({ ok: true, skipped: 'blacklisted_number' }), { status: 200, headers: corsHeaders });
+      }
+    }
+
     // ── Detecção de Origem (Marketing vs Orgânico) ───────────────────────────
     let detectedOrigem = 'organico';
     try {
@@ -198,7 +216,7 @@ serve(async (req) => {
     // ── Encontrar ou Criar Lead ──────────────────────────────────────────────
     let leadQuery = supabaseAdmin
       .from('leads')
-      .select('id, organization_id, usuario_id, nome, ia_ativa, origem')
+      .select('id, organization_id, usuario_id, nome, telefone, ia_ativa, origem')
       .or(`telefone.eq.${phoneWithCountryCode},telefone.eq.${phoneWithCountryCode.substring(2)}`);
       
     if (orgId) {
@@ -225,7 +243,7 @@ serve(async (req) => {
           posicao_pipeline: 1,
           origem: detectedOrigem
         })
-        .select('id, organization_id, usuario_id, nome, ia_ativa, origem')
+        .select('id, organization_id, usuario_id, nome, telefone, ia_ativa, origem')
         .single();
 
       if (createLeadError) {
@@ -435,6 +453,48 @@ serve(async (req) => {
         }
     } else {
         console.log(`[receive-message] Mensagem (ID ${externalId}) de ${remetente} salva com sucesso no BD.`);
+    }
+
+    // ── Pausa cadência ativa quando lead responde ─────────────────────────────
+    if (direcao === 'entrada' && lead?.id) {
+      try {
+        const { data: activeCadence } = await supabaseAdmin
+          .from('lead_cadencias')
+          .select('id, cadencia_id')
+          .eq('lead_id', lead.id)
+          .eq('status', 'ativo')
+          .maybeSingle();
+
+        if (activeCadence) {
+          await supabaseAdmin
+            .from('lead_cadencias')
+            .update({ status: 'pausado', proxima_execucao: null })
+            .eq('id', activeCadence.id);
+
+          let cadenceName = 'cadência ativa';
+          if (activeCadence.cadencia_id) {
+            const { data: cadencia } = await supabaseAdmin
+              .from('cadencias')
+              .select('nome')
+              .eq('id', activeCadence.cadencia_id)
+              .maybeSingle();
+            if (cadencia?.nome) cadenceName = cadencia.nome;
+          }
+
+          const leadName = lead.nome || lead.telefone;
+
+          await supabaseAdmin.from('notificacoes').insert({
+            lead_id: lead.id,
+            organization_id: lead.organization_id,
+            mensagem: `📩 ${leadName} respondeu à cadência "${cadenceName}". O fluxo foi pausado automaticamente.`,
+            status: 'pendente',
+          });
+
+          console.log(`[receive-message] Cadência "${cadenceName}" pausada para lead ${lead.id} após resposta.`);
+        }
+      } catch (e) {
+        console.error('[receive-message] Erro ao pausar cadência após resposta do lead:', e);
+      }
     }
 
     // ── Dispara IA ──────────────────────────────────────────────────────────

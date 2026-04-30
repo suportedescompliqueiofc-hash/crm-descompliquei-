@@ -6,7 +6,9 @@ import { DateRange } from 'react-day-picker';
 import { format, startOfDay, eachDayOfInterval, endOfDay } from 'date-fns';
 import { useEffect } from 'react';
 
-export function useDashboard(dateRange: DateRange | undefined) {
+export type OrigemFilter = 'geral' | 'marketing' | 'organico';
+
+export function useDashboard(dateRange: DateRange | undefined, origemFilter: OrigemFilter = 'geral') {
   const { user } = useAuth();
   const { profile } = useProfile();
   const orgId = profile?.organization_id;
@@ -14,8 +16,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
 
   useEffect(() => {
     if (!orgId) return;
-    
-    // Canal único para múltiplas tabelas para economizar conexões
+
     const channel = supabase.channel('dashboard_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `organization_id=eq.${orgId}` }, () => {
         queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
@@ -32,7 +33,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
   }, [orgId, queryClient]);
 
   const { data: metrics, isLoading, error, refetch } = useQuery({
-    queryKey: ['dashboard-metrics', orgId, dateRange],
+    queryKey: ['dashboard-metrics', orgId, dateRange, origemFilter],
     queryFn: async () => {
       if (!user || !orgId || !dateRange?.from || !dateRange?.to) return null;
 
@@ -56,7 +57,8 @@ export function useDashboard(dateRange: DateRange | undefined) {
 
         if (leadsRes.error?.status === 401) throw new Error("Sessão expirada.");
 
-        const leads = leadsRes.data || [];
+        // Exclui leads marcados como "fora das métricas" (testes, spam, etc.)
+        const leads = (leadsRes.data || []).filter(l => !l.excluir_metricas);
         const allStages = stagesRes.data || [];
         const vendas = vendasRes.data || [];
         const expenses = expensesRes.data || [];
@@ -68,35 +70,178 @@ export function useDashboard(dateRange: DateRange | undefined) {
         const convertedPos = convertedStage?.posicao_ordem || 6;
 
         const isLeadInFunnel = (lead: any) => {
-            const leadStage = allStages.find(s => s.posicao_ordem === lead.posicao_pipeline);
-            return !!leadStage?.em_funil;
+          const leadStage = allStages.find(s => s.posicao_ordem === lead.posicao_pipeline);
+          return !!leadStage?.em_funil;
         };
 
-        const isLeadConvertedInPeriod = (lead: any) => 
+        const isLeadConvertedInPeriod = (lead: any) =>
           isLeadInFunnel(lead) &&
-          lead.posicao_pipeline >= convertedPos && 
+          lead.posicao_pipeline >= convertedPos &&
           lead.posicao_pipeline < lostPos &&
-          lead.atualizado_em >= startDate && 
+          lead.atualizado_em >= startDate &&
           lead.atualizado_em <= endDate;
 
         const faturamentoTotal = vendas.reduce((sum, v) => sum + Number(v.valor_fechado || 0), 0);
-        
+
         const totalInvestment = expenses.reduce((a, c) => a + Number(c.amount || 0), 0) + criativos.reduce((a, c) => {
           const m = c.platform_metrics as any;
           return (m?.included_in_dashboard) ? a + Number(m.spend || 0) : a;
         }, 0);
 
-        const conversionCount = leads.filter(isLeadConvertedInPeriod).length;
+        const filterByOrigem = (l: any) => {
+          if (origemFilter === 'marketing') return l.origem === 'marketing';
+          if (origemFilter === 'organico') return l.origem !== 'marketing';
+          return true;
+        };
 
-        const leadsCreatedInPeriod = leads.filter(l => l.criado_em >= startDate && l.criado_em <= endDate);
+        const leadsCreatedInPeriod = leads
+          .filter(l => l.criado_em >= startDate && l.criado_em <= endDate)
+          .filter(filterByOrigem);
+        const filteredAllLeads = leads.filter(filterByOrigem);
+
         const mqlCount = leadsCreatedInPeriod.filter(l => l.is_qualified).length;
+        const scheduledCount = leadsCreatedInPeriod.filter(l => l.is_scheduled).length;
+        const closedCount = leadsCreatedInPeriod.filter(l => l.is_closed).length;
+
+        // --- Funil passo-a-passo ---
+        const sortedFunnelStages = [...funnelStages].sort((a, b) => a.posicao_ordem - b.posicao_ordem);
+        const funnelConversion = sortedFunnelStages.slice(0, -1).map((stage, i) => {
+          const nextStage = sortedFunnelStages[i + 1];
+          const fromCount = leadsCreatedInPeriod.filter(
+            l => l.posicao_pipeline >= stage.posicao_ordem && l.posicao_pipeline < lostPos
+          ).length;
+          const toCount = leadsCreatedInPeriod.filter(
+            l => l.posicao_pipeline >= nextStage.posicao_ordem && l.posicao_pipeline < lostPos
+          ).length;
+          return {
+            from: stage.nome,
+            to: nextStage.nome,
+            fromCount,
+            toCount,
+            rate: fromCount > 0 ? parseFloat(((toCount / fromCount) * 100).toFixed(1)) : 0
+          };
+        });
+
+        // --- Distribuição do pipeline para gráfico de barras ---
+        const PIPE_COLORS = ['#6366f1', '#3b82f6', '#f59e0b', '#f97316', '#10b981', '#22c55e'];
+        const pipelineDistribution = sortedFunnelStages.map((stage, i) => ({
+          name: stage.nome,
+          value: filteredAllLeads.filter(l => l.posicao_pipeline === stage.posicao_ordem).length,
+          color: (stage.cor as string | null) || PIPE_COLORS[i % PIPE_COLORS.length]
+        }));
+
+        // --- Taxas de performance ---
+        // Quando filtro é 'marketing', leadsCreatedInPeriod JÁ é só marketing
+        const mktLeads = origemFilter === 'marketing'
+          ? leadsCreatedInPeriod
+          : origemFilter === 'organico'
+            ? []
+            : leadsCreatedInPeriod.filter(l => l.origem === 'marketing');
+        const mktQualified = mktLeads.filter(l => l.is_qualified);
+        const mktClosed = mktLeads.filter(l => l.is_closed);
+
+        const taxaMQL = mktLeads.length > 0
+          ? parseFloat(((mktQualified.length / mktLeads.length) * 100).toFixed(1))
+          : 0;
+        const taxaAgendamento = mqlCount > 0
+          ? parseFloat(((scheduledCount / mqlCount) * 100).toFixed(1))
+          : 0;
+        const taxaFechamento = scheduledCount > 0
+          ? parseFloat(((closedCount / scheduledCount) * 100).toFixed(1))
+          : 0;
+        const taxaConversaoGlobal = mktLeads.length > 0
+          ? parseFloat(((mktClosed.length / mktLeads.length) * 100).toFixed(1))
+          : 0;
+        const ticketMedio = closedCount > 0 ? faturamentoTotal / closedCount : 0;
+        const custoPerLead = mktLeads.length > 0 ? totalInvestment / mktLeads.length : 0;
+
+        // --- Performance da IA ---
+        const handoffStage = allStages.find(s =>
+          s.nome.toLowerCase().includes('handoff') ||
+          s.nome.toLowerCase().includes('humano')
+        );
+        const handoffPos = handoffStage?.posicao_ordem || 4;
+
+        let leadsAtendidosIA = 0;
+        let taxaHandoffIA = 0;
+        let tempoMedioIA = 0;
+
+        try {
+          // Busca logs de sucesso da IA no período
+          // A tabela usa 'atualizado_em' como timestamp (não tem created_at garantido)
+          const { data: aiLogs } = await (supabase as any)
+            .from('ai_execution_logs')
+            .select('lead_id, duracao_ms, status')
+            .eq('organization_id', orgId)
+            .gte('atualizado_em', startDate)
+            .lte('atualizado_em', endDate)
+            .limit(1000);
+
+          if (Array.isArray(aiLogs) && aiLogs.length > 0) {
+            const logs = aiLogs as { lead_id: string | null; duracao_ms: number | null; status: string }[];
+
+            // Leads únicos atendidos pela IA no período (qualquer status — conta o atendimento)
+            const uniqueLeadIds = [...new Set(logs.map(l => l.lead_id).filter(Boolean))] as string[];
+            leadsAtendidosIA = uniqueLeadIds.length;
+
+            // Tempo médio de atendimento só dos logs de sucesso (duracao_ms → segundos)
+            const successLogs = logs.filter(l => l.status === 'success');
+            const durations = successLogs.map(l => Number(l.duracao_ms || 0)).filter(d => d > 0);
+            if (durations.length > 0) {
+              tempoMedioIA = Math.round(durations.reduce((s, d) => s + d, 0) / durations.length / 1000);
+            }
+
+            // Taxa de handoff: dos leads atendidos, quantos chegaram ao estágio de handoff
+            if (uniqueLeadIds.length > 0) {
+              const handoffCount = leads.filter(l =>
+                uniqueLeadIds.includes(l.id) &&
+                l.posicao_pipeline >= handoffPos &&
+                l.posicao_pipeline < lostPos
+              ).length;
+              taxaHandoffIA = parseFloat(((handoffCount / uniqueLeadIds.length) * 100).toFixed(1));
+            }
+          }
+        } catch (_) { /* tabela opcional */ }
+
+        // Aguardando contato humano: snapshot atual de todos os leads da org em handoff sem IA
+        let aguardandoContatoHumano = 0;
+        try {
+          const { count } = await supabase
+            .from('leads')
+            .select('id', { count: 'exact', head: true })
+            .eq('organization_id', orgId)
+            .eq('posicao_pipeline', handoffPos)
+            .eq('ia_ativa', false);
+          aguardandoContatoHumano = count ?? 0;
+        } catch (_) {
+          // fallback para os leads já buscados
+          aguardandoContatoHumano = filteredAllLeads.filter(
+            l => l.posicao_pipeline === handoffPos && l.ia_ativa === false
+          ).length;
+        }
+
+        // --- Top procedimentos ---
+        const procedimentoMap: Record<string, number> = {};
+        leadsCreatedInPeriod.forEach(l => {
+          const proc = (l.procedimento_interesse as string | undefined)?.trim();
+          if (proc) procedimentoMap[proc] = (procedimentoMap[proc] || 0) + 1;
+        });
+        const topProcedimentos = Object.entries(procedimentoMap)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 8)
+          .map(([name, count]) => ({ name, count }));
 
         return {
+          // Campos existentes (mantidos para compatibilidade)
           totalContatos: leadsCreatedInPeriod.length,
-          marketingLeads: leadsCreatedInPeriod.filter(l => l.origem === 'marketing').length,
+          marketingLeads: mktLeads.length,
           organicLeads: leadsCreatedInPeriod.filter(l => l.origem === 'organico').length,
           mqlCount,
           mqlRate: leadsCreatedInPeriod.length > 0 ? ((mqlCount / leadsCreatedInPeriod.length) * 100).toFixed(1) : "0",
+          scheduledCount,
+          scheduledRate: leadsCreatedInPeriod.length > 0 ? ((scheduledCount / leadsCreatedInPeriod.length) * 100).toFixed(1) : "0",
+          closedCount,
+          closedRate: leadsCreatedInPeriod.length > 0 ? ((closedCount / leadsCreatedInPeriod.length) * 100).toFixed(1) : "0",
           conversionRate: leadsCreatedInPeriod.length > 0 ? ((vendas.length / leadsCreatedInPeriod.length) * 100).toFixed(1) : "0",
           faturamentoTotal,
           cac: vendas.length > 0 ? totalInvestment / vendas.length : 0,
@@ -105,15 +250,29 @@ export function useDashboard(dateRange: DateRange | undefined) {
             const dayStr = format(d, 'yyyy-MM-dd');
             return {
               day: format(d, 'dd/MM'),
-              captados: leads.filter(l => l.criado_em.startsWith(dayStr)).length,
-              convertidos: leads.filter(l => 
+              captados: filteredAllLeads.filter(l => l.criado_em.startsWith(dayStr)).length,
+              convertidos: filteredAllLeads.filter(l =>
                 isLeadInFunnel(l) &&
-                l.posicao_pipeline >= convertedPos && 
-                l.posicao_pipeline < lostPos && 
+                l.posicao_pipeline >= convertedPos &&
+                l.posicao_pipeline < lostPos &&
                 l.atualizado_em?.startsWith(dayStr)
               ).length
             };
-          })
+          }),
+          // Novos campos
+          funnelConversion,
+          pipelineDistribution,
+          taxaMQL,
+          taxaAgendamento,
+          taxaFechamento,
+          taxaConversaoGlobal,
+          ticketMedio,
+          custoPerLead,
+          leadsAtendidosIA,
+          taxaHandoffIA,
+          tempoMedioIA,
+          aguardandoContatoHumano,
+          topProcedimentos,
         };
       } catch (err: any) {
         console.error("Erro no painel:", err);
@@ -121,7 +280,7 @@ export function useDashboard(dateRange: DateRange | undefined) {
       }
     },
     enabled: !!user && !!orgId && !!dateRange?.from,
-    staleTime: 1000 * 60 * 5, // OTIMIZAÇÃO: 5 Minutos de cache, o realtime lida com as mudanças
+    staleTime: 1000 * 60 * 5,
     retry: 1,
   });
 

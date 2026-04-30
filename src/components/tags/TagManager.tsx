@@ -182,9 +182,8 @@ export function TagManager({ leadId }: TagManagerProps) {
                     >
                       <div className="flex items-center gap-2">
                         <div 
-                          className="w-2 h-2 rounded-full border" 
+                          className={cn("w-2 h-2 rounded-full border", tag.color.startsWith('#') ? "" : TAG_COLORS.find(c => c.name === tag.color)?.selector)}
                           style={{ backgroundColor: tag.color.startsWith('#') ? tag.color : undefined }}
-                          className={cn(tag.color.startsWith('#') ? "" : TAG_COLORS.find(c => c.name === tag.color)?.selector)}
                         />
                         <span>{tag.name}</span>
                       </div>

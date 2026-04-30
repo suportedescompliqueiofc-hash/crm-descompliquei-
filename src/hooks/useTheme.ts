@@ -5,7 +5,9 @@ type Theme = 'light' | 'dark';
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('theme') as Theme) || 'light';
+      // Suporte a ambas as chaves por compatibilidade
+      const saved = localStorage.getItem('theme') || localStorage.getItem('vite-ui-theme');
+      return (saved as Theme) || 'light';
     }
     return 'light';
   });

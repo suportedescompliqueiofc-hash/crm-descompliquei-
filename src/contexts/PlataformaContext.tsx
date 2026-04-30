@@ -1,0 +1,240 @@
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "./AuthContext";
+
+export type AcessoProduto = {
+  pilares_liberados: string[];
+  ias_liberadas: string[];
+  acesso_cerebro: boolean;
+  acesso_crm: boolean;
+  acesso_sessoes_taticas: boolean;
+  acesso_materiais: boolean;
+  acesso_ia_comercial: boolean;
+  max_leads: number;
+  max_usuarios_crm: number;
+};
+
+const ACESSO_TOTAL: AcessoProduto = {
+  pilares_liberados: [],
+  ias_liberadas: [],
+  acesso_cerebro: true,
+  acesso_crm: true,
+  acesso_sessoes_taticas: true,
+  acesso_materiais: true,
+  acesso_ia_comercial: true,
+  max_leads: 999999,
+  max_usuarios_crm: 999,
+};
+
+// Usado quando o usuário não tem registro em platform_tenants — acessa só o CRM
+const ACESSO_CRM_ONLY: AcessoProduto = {
+  pilares_liberados: [],
+  ias_liberadas: [],
+  acesso_cerebro: false,
+  acesso_crm: true,
+  acesso_sessoes_taticas: false,
+  acesso_materiais: false,
+  acesso_ia_comercial: false,
+  max_leads: 999999,
+  max_usuarios_crm: 999,
+};
+
+type PlataformaContextType = {
+  plataformaUser: any;
+  plan: 'gca' | 'pca' | null;
+  progress: any[];
+  cerebro: any;
+  cerebroPercent: number;
+  isCerebroComplete: boolean;
+  totalModules: number;
+  completedModules: number;
+  progressPercent: number;
+  isContextLoading: boolean;
+  tenant: any | null;
+  diasRestantes: number | null;
+  acesso: AcessoProduto;
+  markModuleComplete: (moduleId: string) => Promise<void>;
+  refreshProgress: () => Promise<void>;
+};
+
+const PlataformaContext = createContext<PlataformaContextType | undefined>(undefined);
+
+export function PlataformaProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
+  const [plataformaUser, setPlataformaUser] = useState<any>(null);
+  const [progress, setProgress] = useState<any[]>([]);
+  const [cerebro, setCerebro] = useState<any>(null);
+  const [totalModules, setTotalModules] = useState(0);
+  const [isContextLoading, setIsContextLoading] = useState(true);
+  const [tenant, setTenant] = useState<any>(null);
+  const [diasRestantes, setDiasRestantes] = useState<number | null>(null);
+  const [acesso, setAcesso] = useState<AcessoProduto>(ACESSO_TOTAL);
+
+  const refreshProgress = async () => {
+    if (!user) return;
+    const { data: prog } = await supabase.from('platform_progress').select('*').eq('user_id', user.id);
+    if (prog) setProgress(prog);
+  };
+
+  useEffect(() => {
+    // Enquanto auth ainda está carregando, aguarda
+    if (authLoading) return;
+
+    if (!user) {
+      setPlataformaUser(null);
+      setTenant(null);
+      setAcesso(ACESSO_CRM_ONLY);
+      setDiasRestantes(null);
+      // NÃO seta isContextLoading = false aqui.
+      // Todos os guards usam (user && isContextLoading), então
+      // isContextLoading = true sem user não bloqueia nada.
+      // Quando o user faz login, isContextLoading permanece true
+      // até loadPlatformData() completar — evitando race condition.
+      return;
+    }
+
+    async function loadPlatformData() {
+      setIsContextLoading(true);
+      try {
+        // Load user — filtrar explicitamente pelo id do usuário logado
+        let { data: pUser, error: userError } = await supabase
+          .from('platform_users')
+          .select('*')
+          .eq('id', user!.id)
+          .maybeSingle();
+
+        // Só cria se realmente não existe (sem erro de RLS)
+        if (!pUser && !userError) {
+          const { data: newUser, error } = await supabase.from('platform_users').insert({
+            id: user!.id,
+            plan: 'pca',
+            crm_user_id: user!.id
+          }).select().single();
+          if (!error && newUser) pUser = newUser;
+        }
+        setPlataformaUser(pUser);
+
+        // REDIRECT LOGIC FOR ONBOARDING
+        if (pUser && pUser.onboarding_complete === false) {
+          const path = window.location.pathname;
+          const isPlatformRoute = path.startsWith('/plataforma');
+
+          if (isPlatformRoute && !path.startsWith('/plataforma/onboarding')) {
+            window.location.href = '/plataforma/onboarding';
+            return;
+          }
+        }
+
+        // Carrega tenant + acesso via RPC (SECURITY DEFINER — ignora RLS cross-table)
+        const { data: platformAccess, error: rpcError } = await supabase.rpc('get_my_platform_access');
+
+        const tenantData = platformAccess?.tenant ?? null;
+        const acessoData = platformAccess?.acesso ?? null;
+
+        setTenant(tenantData);
+
+        if (!tenantData) {
+          // Sem registro na plataforma → apenas CRM
+          setAcesso(ACESSO_CRM_ONLY);
+        } else if (acessoData) {
+          // Produto vinculado → usa permissões retornadas
+          setAcesso({
+            pilares_liberados: acessoData.pilares_liberados ?? [],
+            ias_liberadas: acessoData.ias_liberadas ?? [],
+            acesso_cerebro: acessoData.acesso_cerebro ?? false,
+            acesso_crm: acessoData.acesso_crm ?? false,
+            acesso_sessoes_taticas: acessoData.acesso_sessoes_taticas ?? false,
+            acesso_materiais: acessoData.acesso_materiais ?? false,
+            acesso_ia_comercial: acessoData.acesso_ia_comercial ?? false,
+            max_leads: acessoData.max_leads ?? 999999,
+            max_usuarios_crm: acessoData.max_usuarios_crm ?? 999,
+          });
+        } else {
+          // Tenant existe mas sem produto atribuído → acesso total
+          setAcesso(ACESSO_TOTAL);
+        }
+
+        if (tenantData?.trial_ends_at) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const trialEnd = new Date(tenantData.trial_ends_at);
+          trialEnd.setHours(0, 0, 0, 0);
+          const dias = Math.ceil((trialEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          setDiasRestantes(dias);
+        } else {
+          setDiasRestantes(null);
+        }
+
+        // Carregar em paralelo
+        const [cerebroRes, modulesRes] = await Promise.all([
+          supabase.from('platform_cerebro').select('*').eq('user_id', user!.id).maybeSingle(),
+          supabase.from('platform_modules').select('id', { count: 'exact', head: true }).eq('active', true),
+        ]);
+
+        setCerebro(cerebroRes.data);
+        setTotalModules(modulesRes.count || 0);
+        await refreshProgress();
+      } catch (err) {
+        console.error('PlataformaContext load error:', err);
+      } finally {
+        setIsContextLoading(false);
+      }
+    }
+
+    loadPlatformData();
+  }, [user, authLoading]);
+
+  const markModuleComplete = async (moduleId: string) => {
+    if (!user) return;
+    const existing = progress.find(p => p.module_id === moduleId);
+    if (existing) {
+      await supabase.from('platform_progress').update({ completed: true, completed_at: new Date().toISOString() }).eq('id', existing.id);
+    } else {
+      await supabase.from('platform_progress').insert({
+        user_id: user.id,
+        module_id: moduleId,
+        completed: true,
+        completed_at: new Date().toISOString()
+      });
+    }
+    await refreshProgress();
+  };
+
+  const completedModules = progress.filter(p => p.completed).length;
+  const progressPercent = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+
+  let cerebroPercent = 0;
+  if (cerebro) {
+     const fields = ['clinic_name', 'specialty_preset', 'anchor_procedure', 'voice_tone', 'differentials', 'working_hours', 'icp'];
+     const filled = fields.filter(f => cerebro[f] !== null && cerebro[f] !== undefined && cerebro[f] !== '' && Object.keys(cerebro[f] || {}).length > 0).length;
+     cerebroPercent = Math.round((filled / fields.length) * 100);
+  }
+
+  return (
+    <PlataformaContext.Provider value={{
+      plataformaUser,
+      plan: plataformaUser?.plan || null,
+      progress,
+      cerebro,
+      cerebroPercent,
+      isCerebroComplete: plataformaUser?.cerebro_complete || cerebroPercent === 100,
+      totalModules,
+      completedModules,
+      progressPercent,
+      isContextLoading,
+      tenant,
+      diasRestantes,
+      acesso,
+      markModuleComplete,
+      refreshProgress
+    }}>
+      {children}
+    </PlataformaContext.Provider>
+  );
+}
+
+export function usePlataforma() {
+  const context = useContext(PlataformaContext);
+  if (context === undefined) throw new Error("usePlataforma must be used within a PlataformaProvider");
+  return context;
+}
