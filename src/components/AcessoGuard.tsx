@@ -1,4 +1,5 @@
 import { usePlataforma } from '@/contexts/PlataformaContext';
+import { useProfile } from '@/hooks/useProfile';
 import { SemAcesso } from './SemAcesso';
 import type { AcessoProduto } from '@/contexts/PlataformaContext';
 
@@ -13,6 +14,9 @@ interface AcessoGuardProps {
 
 export function AcessoGuard({ children, accessKey, arrayKey }: AcessoGuardProps) {
   const { acesso } = usePlataforma();
+  const { role } = useProfile();
+
+  if (role === 'superadmin') return <>{children}</>;
 
   // Se tem accessKey, checa o boolean
   if (accessKey && !acesso[accessKey]) {

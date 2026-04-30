@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
+import { useProfile } from "@/hooks/useProfile";
 
 export type AcessoProduto = {
   pilares_liberados: string[];
@@ -75,6 +76,8 @@ export function PlataformaProvider({ children }: { children: ReactNode }) {
     const { data: prog } = await supabase.from('platform_progress').select('*').eq('user_id', user.id);
     if (prog) setProgress(prog);
   };
+
+  const { role } = useProfile();
 
   useEffect(() => {
     // Enquanto auth ainda está carregando, aguarda
@@ -154,6 +157,20 @@ export function PlataformaProvider({ children }: { children: ReactNode }) {
           setAcesso(ACESSO_TOTAL);
         }
 
+        // Superadmin sempre tem acesso total a tudo
+        if (role === 'superadmin') {
+          const { data: allPilares } = await supabase
+            .from('platform_modules')
+            .select('pilar_id')
+            .eq('active', true);
+          const uniquePilares = [...new Set((allPilares || []).map((m: any) => m.pilar_id).filter(Boolean))];
+          setAcesso({
+            ...ACESSO_TOTAL,
+            pilares_liberados: uniquePilares,
+            ias_liberadas: ['preattendance', 'objections', 'remarketing', 'analysis', 'copywriter', 'scripts', 'strategy', 'reporting', 'followup'],
+          });
+        }
+
         if (tenantData?.trial_ends_at) {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -182,7 +199,7 @@ export function PlataformaProvider({ children }: { children: ReactNode }) {
     }
 
     loadPlatformData();
-  }, [user, authLoading]);
+  }, [user, authLoading, role]);
 
   const markModuleComplete = async (moduleId: string) => {
     if (!user) return;
