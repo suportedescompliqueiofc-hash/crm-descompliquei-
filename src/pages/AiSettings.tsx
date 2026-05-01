@@ -20,6 +20,7 @@ import {
   Trash2,
   Undo2,
   Wrench,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -28,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -458,6 +460,24 @@ function validateFormData(data: AgentPromptFormData): FormErrors {
   return errors;
 }
 
+type HorarioAtendimento = {
+  weekday_open: string;
+  weekday_close: string;
+  saturday_open: string;
+  saturday_close: string;
+  saturday_closed: boolean;
+  sunday_closed: boolean;
+};
+
+type FormasPagamento = {
+  pix: boolean;
+  dinheiro: boolean;
+  credito: boolean;
+  debito: boolean;
+  parcelamento: string;
+  observacoes: string;
+};
+
 type AgentPromptFormFieldsProps = {
   data: AgentPromptFormData;
   disabled: boolean;
@@ -465,10 +485,18 @@ type AgentPromptFormFieldsProps = {
   errors: FormErrors;
   previewMarkdown: string;
   previewOpen: boolean;
+  horarioAtendimento: HorarioAtendimento;
+  formasPagamento: FormasPagamento;
+  contraindicacoes: string;
+  palavrasProibidas: string[];
   onFieldChange: <K extends keyof AgentPromptFormData>(
     field: K,
     value: AgentPromptFormData[K],
   ) => void;
+  onHorarioChange: (horario: HorarioAtendimento) => void;
+  onFormasChange: (formas: FormasPagamento) => void;
+  onContraindicacoesChange: (value: string) => void;
+  onPalavrasProibidasChange: (value: string[]) => void;
   onProcedureChange: (
     id: string,
     field: keyof Omit<ProcedureItem, "id">,
@@ -494,7 +522,15 @@ function AgentPromptFormFields({
   errors,
   previewMarkdown,
   previewOpen,
+  horarioAtendimento,
+  formasPagamento,
+  contraindicacoes,
+  palavrasProibidas,
   onFieldChange,
+  onHorarioChange,
+  onFormasChange,
+  onContraindicacoesChange,
+  onPalavrasProibidasChange,
   onProcedureChange,
   onAddProcedure,
   onRemoveProcedure,
@@ -504,6 +540,7 @@ function AgentPromptFormFields({
   onResetToStructuredForm,
   onPreviewOpenChange,
 }: AgentPromptFormFieldsProps) {
+  const [palavraInput, setPalavraInput] = useState("");
   const fieldInputClass =
     "border-border bg-muted/40 text-foreground shadow-sm placeholder:text-muted-foreground/70 focus-visible:border-primary/50 focus-visible:ring-primary/20";
   const fieldTextareaClass =
@@ -826,6 +863,196 @@ function AgentPromptFormFields({
             />
           </div>
 
+          {/* HORÁRIO DE ATENDIMENTO HUMANO */}
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Horário de atendimento humano</Label>
+              <p className="text-xs text-muted-foreground">
+                A IA usa para informar ao lead quando a equipe humana estará disponível.
+              </p>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+              <div className="flex items-center gap-3">
+                <span className="w-28 shrink-0 text-sm font-medium text-foreground">Segunda a Sexta</span>
+                <Input
+                  type="time"
+                  value={horarioAtendimento.weekday_open}
+                  onChange={(e) => onHorarioChange({ ...horarioAtendimento, weekday_open: e.target.value })}
+                  disabled={disabled}
+                  className={`${fieldInputClass} w-32`}
+                />
+                <span className="text-xs text-muted-foreground">até</span>
+                <Input
+                  type="time"
+                  value={horarioAtendimento.weekday_close}
+                  onChange={(e) => onHorarioChange({ ...horarioAtendimento, weekday_close: e.target.value })}
+                  disabled={disabled}
+                  className={`${fieldInputClass} w-32`}
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="w-28 shrink-0 text-sm font-medium text-foreground">Sábado</span>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={horarioAtendimento.saturday_closed}
+                    onCheckedChange={(checked) => onHorarioChange({ ...horarioAtendimento, saturday_closed: checked === true })}
+                    disabled={disabled}
+                  />
+                  <span className="text-xs text-muted-foreground">Fechado</span>
+                </div>
+                {!horarioAtendimento.saturday_closed && (
+                  <>
+                    <Input
+                      type="time"
+                      value={horarioAtendimento.saturday_open}
+                      onChange={(e) => onHorarioChange({ ...horarioAtendimento, saturday_open: e.target.value })}
+                      disabled={disabled}
+                      className={`${fieldInputClass} w-32`}
+                    />
+                    <span className="text-xs text-muted-foreground">até</span>
+                    <Input
+                      type="time"
+                      value={horarioAtendimento.saturday_close}
+                      onChange={(e) => onHorarioChange({ ...horarioAtendimento, saturday_close: e.target.value })}
+                      disabled={disabled}
+                      className={`${fieldInputClass} w-32`}
+                    />
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="w-28 shrink-0 text-sm font-medium text-foreground">Domingo</span>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={horarioAtendimento.sunday_closed}
+                    onCheckedChange={(checked) => onHorarioChange({ ...horarioAtendimento, sunday_closed: checked === true })}
+                    disabled={disabled}
+                  />
+                  <span className="text-xs text-muted-foreground">Fechado</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* FORMAS DE PAGAMENTO */}
+          <div className="space-y-3">
+            <Label>Quais formas de pagamento a clínica aceita?</Label>
+
+            <div className="flex flex-wrap items-center gap-4">
+              {(["pix", "dinheiro", "credito", "debito"] as const).map((key) => (
+                <div key={key} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`pagamento-${key}`}
+                    checked={formasPagamento[key]}
+                    onCheckedChange={(checked) => onFormasChange({ ...formasPagamento, [key]: checked === true })}
+                    disabled={disabled}
+                  />
+                  <Label htmlFor={`pagamento-${key}`} className="cursor-pointer text-sm font-normal">
+                    {key === "pix" ? "Pix" : key === "dinheiro" ? "Dinheiro" : key === "credito" ? "Crédito" : "Débito"}
+                  </Label>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="parcelamento" className="text-xs font-normal text-muted-foreground">
+                Condições de parcelamento (opcional)
+              </Label>
+              <Input
+                id="parcelamento"
+                value={formasPagamento.parcelamento}
+                onChange={(e) => onFormasChange({ ...formasPagamento, parcelamento: e.target.value })}
+                placeholder="Ex: Até 10x com juros no cartão"
+                disabled={disabled}
+                className={fieldInputClass}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="obs-pagamento" className="text-xs font-normal text-muted-foreground">
+                Observações sobre pagamento (opcional)
+              </Label>
+              <Input
+                id="obs-pagamento"
+                value={formasPagamento.observacoes}
+                onChange={(e) => onFormasChange({ ...formasPagamento, observacoes: e.target.value })}
+                placeholder="Ex: 5% desconto para pagamento à vista"
+                disabled={disabled}
+                className={fieldInputClass}
+              />
+            </div>
+          </div>
+
+          {/* CONTRAINDICAÇÕES */}
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label htmlFor="contraindicacoes">
+                Contraindicações ou situações em que a IA não deve prosseguir
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                A IA passará para a equipe humana.
+              </p>
+            </div>
+            <Textarea
+              id="contraindicacoes"
+              value={contraindicacoes}
+              onChange={(e) => onContraindicacoesChange(e.target.value)}
+              className={`${fieldTextareaClass} min-h-[80px] resize-y`}
+              disabled={disabled}
+              rows={3}
+              placeholder="Ex: Gestantes, lactantes, menores sem responsável, doenças autoimunes descompensadas"
+            />
+          </div>
+
+          {/* PALAVRAS PROIBIDAS */}
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label>Palavras ou expressões que a IA nunca deve usar</Label>
+              <p className="text-xs text-muted-foreground">
+                Digite e pressione Enter para adicionar.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {palavrasProibidas.map((palavra, idx) => (
+                <Badge
+                  key={idx}
+                  variant="secondary"
+                  className="gap-1 pl-2.5 pr-1 py-1 text-xs"
+                >
+                  {palavra}
+                  <button
+                    type="button"
+                    onClick={() => onPalavrasProibidasChange(palavrasProibidas.filter((_, i) => i !== idx))}
+                    disabled={disabled}
+                    className="ml-0.5 rounded-full p-0.5 hover:bg-muted-foreground/20"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+            <Input
+              value={palavraInput}
+              onChange={(e) => setPalavraInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const trimmed = palavraInput.trim();
+                  if (trimmed && !palavrasProibidas.includes(trimmed)) {
+                    onPalavrasProibidasChange([...palavrasProibidas, trimmed]);
+                  }
+                  setPalavraInput("");
+                }
+              }}
+              placeholder="Ex: baratinho, desconto, amiga"
+              disabled={disabled}
+              className={fieldInputClass}
+            />
+          </div>
+
           <div className="space-y-2">
             <div className="space-y-1">
               <Label htmlFor="instructions">
@@ -884,6 +1111,10 @@ export default function AiSettings() {
     modeloIa: modeloIaBanco,
     iaAtiva,
     acumuloMensagens,
+    horarioAtendimento: horarioAtendimentoBanco,
+    formasPagamento: formasPagamentoBanco,
+    contraindicacoes: contraindicacoesBanco,
+    palavrasProibidas: palavrasProibidasBanco,
     lastUpdated,
     isLoading,
     savePrompt,
@@ -919,6 +1150,18 @@ export default function AiSettings() {
   const [modeloSaveSuccess, setModeloSaveSuccess] = useState(false);
   const [modeloSaveError, setModeloSaveError] = useState<string | null>(null);
   const [modeloSuggestionsOpen, setModeloSuggestionsOpen] = useState(false);
+
+  const defaultHorario: HorarioAtendimento = { weekday_open: "09:00", weekday_close: "18:00", saturday_open: "", saturday_close: "", saturday_closed: true, sunday_closed: true };
+  const defaultFormas: FormasPagamento = { pix: false, dinheiro: false, credito: false, debito: false, parcelamento: "", observacoes: "" };
+
+  const [localHorario, setLocalHorario] = useState<HorarioAtendimento>(defaultHorario);
+  const [originalHorario, setOriginalHorario] = useState<HorarioAtendimento>(defaultHorario);
+  const [localFormas, setLocalFormas] = useState<FormasPagamento>(defaultFormas);
+  const [originalFormas, setOriginalFormas] = useState<FormasPagamento>(defaultFormas);
+  const [localContraindicacoes, setLocalContraindicacoes] = useState("");
+  const [originalContraindicacoes, setOriginalContraindicacoes] = useState("");
+  const [localPalavras, setLocalPalavras] = useState<string[]>([]);
+  const [originalPalavras, setOriginalPalavras] = useState<string[]>([]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -957,14 +1200,30 @@ export default function AiSettings() {
     setModeloSaveSuccess(false);
     setModeloSaveError(null);
     setModeloSuggestionsOpen(false);
-  }, [prompt, acumuloMensagens, isLoading, modeloIaBanco]);
+
+    const h = { ...defaultHorario, ...horarioAtendimentoBanco };
+    setLocalHorario(h);
+    setOriginalHorario(h);
+    const f = { ...defaultFormas, ...formasPagamentoBanco };
+    setLocalFormas(f);
+    setOriginalFormas(f);
+    setLocalContraindicacoes(contraindicacoesBanco || "");
+    setOriginalContraindicacoes(contraindicacoesBanco || "");
+    setLocalPalavras(palavrasProibidasBanco || []);
+    setOriginalPalavras(palavrasProibidasBanco || []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompt, acumuloMensagens, isLoading, modeloIaBanco, JSON.stringify(horarioAtendimentoBanco), JSON.stringify(formasPagamentoBanco), contraindicacoesBanco, JSON.stringify(palavrasProibidasBanco)]);
 
   const currentPrompt = buildPromptMarkdown(localForm);
   const hasChanges =
     !requiresReset &&
     (currentPrompt !== originalPrompt ||
       localAcumulo !== originalAcumulo ||
-      localModelo !== originalModelo);
+      localModelo !== originalModelo ||
+      JSON.stringify(localHorario) !== JSON.stringify(originalHorario) ||
+      JSON.stringify(localFormas) !== JSON.stringify(originalFormas) ||
+      localContraindicacoes !== originalContraindicacoes ||
+      JSON.stringify(localPalavras) !== JSON.stringify(originalPalavras));
   const formDisabled = isLoading || isSaving || isSavingModel || requiresReset;
 
   const handleFieldChange = <K extends keyof AgentPromptFormData>(
@@ -1088,8 +1347,12 @@ export default function AiSettings() {
         setRequiresReset(false);
         setOriginalRequiresReset(false);
         setErrors({});
+        setOriginalHorario(localHorario);
+        setOriginalFormas(localFormas);
+        setOriginalContraindicacoes(localContraindicacoes);
+        setOriginalPalavras(localPalavras);
       },
-    }, localModelo);
+    }, localModelo, localHorario as unknown as Record<string, unknown>, localFormas as unknown as Record<string, unknown>, localContraindicacoes, localPalavras);
   };
 
   const handleRevert = () => {
@@ -1101,7 +1364,11 @@ export default function AiSettings() {
     setErrors({});
     setModeloSaveError(null);
     setModeloSaveSuccess(false);
-    toast.info("Altera????es descartadas.");
+    setLocalHorario(originalHorario);
+    setLocalFormas(originalFormas);
+    setLocalContraindicacoes(originalContraindicacoes);
+    setLocalPalavras(originalPalavras);
+    toast.info("Alterações descartadas.");
   };
   const handleResetToStructuredForm = () => {
     setLocalForm(createEmptyFormData());
@@ -1121,7 +1388,15 @@ export default function AiSettings() {
       errors={errors}
       previewMarkdown={currentPrompt}
       previewOpen={previewOpen}
+      horarioAtendimento={localHorario}
+      formasPagamento={localFormas}
+      contraindicacoes={localContraindicacoes}
+      palavrasProibidas={localPalavras}
       onFieldChange={handleFieldChange}
+      onHorarioChange={setLocalHorario}
+      onFormasChange={setLocalFormas}
+      onContraindicacoesChange={setLocalContraindicacoes}
+      onPalavrasProibidasChange={setLocalPalavras}
       onProcedureChange={handleProcedureChange}
       onAddProcedure={handleAddProcedure}
       onRemoveProcedure={handleRemoveProcedure}

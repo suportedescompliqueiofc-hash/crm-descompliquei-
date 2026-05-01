@@ -4,6 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { toast } from 'sonner';
 
+const DEFAULT_HORARIO = { weekday_open: "09:00", weekday_close: "18:00", saturday_open: "", saturday_close: "", saturday_closed: true, sunday_closed: true };
+const DEFAULT_FORMAS = { pix: false, dinheiro: false, credito: false, debito: false, parcelamento: "", observacoes: "" };
+const DEFAULT_PALAVRAS: string[] = [];
+
 export function useAiPrompt() {
   const defaultModel = 'grok-4-1-fast-non-reasoning';
   const { user } = useAuth();
@@ -27,7 +31,7 @@ export function useAiPrompt() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async ({ prompt: newPrompt, promptCrm, iaAtiva, acumulo_mensagens, modeloIa }: { prompt: string; promptCrm?: string; iaAtiva?: boolean; acumulo_mensagens?: number; modeloIa?: string }) => {
+    mutationFn: async ({ prompt: newPrompt, promptCrm, iaAtiva, acumulo_mensagens, modeloIa, horario_atendimento, formas_pagamento, contraindicacoes, palavras_proibidas }: { prompt: string; promptCrm?: string; iaAtiva?: boolean; acumulo_mensagens?: number; modeloIa?: string; horario_atendimento?: Record<string, unknown>; formas_pagamento?: Record<string, unknown>; contraindicacoes?: string; palavras_proibidas?: string[] }) => {
       if (!user || !orgId) throw new Error("Usuário não autenticado");
       const timestamp = new Date().toISOString();
       const payload: Record<string, unknown> = {
@@ -42,6 +46,18 @@ export function useAiPrompt() {
       }
       if (acumulo_mensagens !== undefined) {
         payload.acumulo_mensagens = acumulo_mensagens;
+      }
+      if (horario_atendimento !== undefined) {
+        payload.horario_atendimento = horario_atendimento;
+      }
+      if (formas_pagamento !== undefined) {
+        payload.formas_pagamento = formas_pagamento;
+      }
+      if (contraindicacoes !== undefined) {
+        payload.contraindicacoes = contraindicacoes;
+      }
+      if (palavras_proibidas !== undefined) {
+        payload.palavras_proibidas = palavras_proibidas;
       }
       
       let resultData;
@@ -129,10 +145,14 @@ export function useAiPrompt() {
     modeloIa: promptData?.modelo_ia || defaultModel,
     iaAtiva: promptData?.ia_ativa ?? false,
     acumuloMensagens: promptData?.acumulo_mensagens ?? 45,
+    horarioAtendimento: (promptData as any)?.horario_atendimento ?? DEFAULT_HORARIO,
+    formasPagamento: (promptData as any)?.formas_pagamento ?? DEFAULT_FORMAS,
+    contraindicacoes: (promptData as any)?.contraindicacoes ?? '',
+    palavrasProibidas: (promptData as any)?.palavras_proibidas ?? DEFAULT_PALAVRAS,
     lastUpdated: promptData?.updated_at,
     isLoading,
-    savePrompt: (prompt: string, promptCrm?: string, acumulo_mensagens?: number, callbacks?: { onSuccess?: () => void }, modeloIa?: string) => {
-      saveMutation.mutate({ prompt, promptCrm, iaAtiva: true, acumulo_mensagens, modeloIa }, { onSuccess: callbacks?.onSuccess });
+    savePrompt: (prompt: string, promptCrm?: string, acumulo_mensagens?: number, callbacks?: { onSuccess?: () => void }, modeloIa?: string, horario_atendimento?: Record<string, unknown>, formas_pagamento?: Record<string, unknown>, contraindicacoes?: string, palavras_proibidas?: string[]) => {
+      saveMutation.mutate({ prompt, promptCrm, iaAtiva: true, acumulo_mensagens, modeloIa, horario_atendimento, formas_pagamento, contraindicacoes, palavras_proibidas }, { onSuccess: callbacks?.onSuccess });
     },
     saveModel: saveModelMutation.mutate,
     isSavingModel: saveModelMutation.isPending,

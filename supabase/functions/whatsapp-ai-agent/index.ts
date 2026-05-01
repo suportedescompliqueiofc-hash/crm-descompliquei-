@@ -726,7 +726,7 @@ Deno.serve(async (req: Request) => {
     // 2. Config IA
     const { data: aiConfig } = await supabase
       .from("organization_ai_prompts")
-      .select("prompt, prompt_crm, ia_ativa, modelo_ia, delay_entre_mensagens, acumulo_mensagens")
+      .select("prompt, prompt_crm, ia_ativa, modelo_ia, delay_entre_mensagens, acumulo_mensagens, horario_atendimento, formas_pagamento, contraindicacoes, palavras_proibidas")
       .eq("organization_id", orgId)
       .maybeSingle();
 
@@ -735,8 +735,9 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ ok: false, reason: "ia_nao_configurada" });
     }
 
-    const modelo = aiConfig.modelo_ia || "grok-3-fast";
-    const { client: llmClient, provider: llmProvider } = resolveLlmClient(modelo);
+    const modeloRaw = aiConfig.modelo_ia || "grok-3-fast";
+    const { client: llmClient, provider: llmProvider } = resolveLlmClient(modeloRaw);
+    const modelo = modeloRaw.startsWith("openrouter/") ? modeloRaw.slice("openrouter/".length) : modeloRaw;
     const delayMs = aiConfig.delay_entre_mensagens || 2000;
     const acumuloSeg = (aiConfig.acumulo_mensagens || 45) * 1000;
     const crmToolsDynamic = getTools(aiConfig.prompt_crm);
@@ -825,18 +826,48 @@ Deno.serve(async (req: Request) => {
     const dadosCliente = (aiConfig.prompt ?? "").trim();
     const promptBaseAgente = await loadPromptBase();
 
-    const promptReforcado = promptBaseAgente
-      + (dadosCliente
-          ? `\n\n=== DADOS PERSONALIZADOS DA CLÍNICA ===\n${dadosCliente}`
-          : "")
-      + `\n\n=== REGRAS ESTRITAS E INEGOCIÁVEIS ===
-1. NUNCA diga ao lead coisas como 'dados atualizados no CRM',
-   'notifiquei a equipe', 'salvei no sistema' ou qualquer aviso
-   interno. As ferramentas funcionam de forma invisível.
-2. Aja 100% como o atendente humano da clínica. Nunca explique
-   processos internos ao lead.
-3. SEMPRE RESPONDA AO LEAD. Nunca acione ferramenta sem enviar
-   mensagem de texto junto. O lead NUNCA pode ficar sem resposta.`;
+    // --- Montar secoes dos novos campos ---
+    const horario = aiConfig.horario_atendimento;
+    let horarioStr = '';
+    if (horario) {
+      const parts: string[] = [];
+      if (horario.weekday_open && horario.weekday_close)
+        parts.push(`Segunda a Sexta: ${horario.weekday_open} as ${horario.weekday_close}`);
+      if (!horario.saturday_closed && horario.saturday_open && horario.saturday_close)
+        parts.push(`Sabado: ${horario.saturday_open} as ${horario.saturday_close}`);
+      else parts.push('Sabado: Fechado');
+      if (horario.sunday_closed !== false)
+        parts.push('Domingo: Fechado');
+      if (parts.length > 0)
+        horarioStr = `\n\n## HORARIO DE ATENDIMENTO HUMANO\n${parts.join('\n')}`;
+    }
+
+    const pgto = aiConfig.formas_pagamento;
+    let pgtoStr = '';
+    if (pgto) {
+      const metodos: string[] = [];
+      if (pgto.pix) metodos.push('Pix');
+      if (pgto.dinheiro) metodos.push('Dinheiro');
+      if (pgto.credito) metodos.push('Cartao de credito');
+      if (pgto.debito) metodos.push('Cartao de debito');
+      if (metodos.length > 0) {
+        pgtoStr = `\n\n## FORMAS DE PAGAMENTO\n${metodos.join(', ')}`;
+        if (pgto.parcelamento)
+          pgtoStr += `\nParcelamento: ${pgto.parcelamento}`;
+        if (pgto.observacoes)
+          pgtoStr += `\n${pgto.observacoes}`;
+      }
+    }
+
+    const contra = (aiConfig.contraindicacoes || '').trim();
+    let contraStr = '';
+    if (contra)
+      contraStr = `\n\n## CONTRAINDICACOES\n${contra}`;
+
+    const palavras = aiConfig.palavras_proibidas || [];
+    let palavrasStr = '';
+    if (palavras.length > 0)
+      palavrasStr = `\n\n## PALAVRAS PROIBIDAS\nNunca use: ${palavras.join(', ')}`;
 
     const agora = new Date();
     const dataAtual = new Intl.DateTimeFormat("pt-BR", {
@@ -852,11 +883,26 @@ Deno.serve(async (req: Request) => {
       hour12: false,
       timeZone: "America/Sao_Paulo",
     }).format(agora);
-    const promptReforcadoComDataHora = `${promptReforcado}
 
-=== DATA E HORA ATUAL ===
-Data: ${dataAtual}
-Hora: ${horaAtual} (horário de Brasília)`;
+    // --- promptFinal com os novos campos ---
+    const promptFinal = promptBaseAgente
+      + (dadosCliente
+        ? `\n\n=== DADOS PERSONALIZADOS DA CLINICA ===\n${dadosCliente}`
+        : '')
+      + horarioStr
+      + pgtoStr
+      + contraStr
+      + palavrasStr
+      + `\n\n=== REGRAS ESTRITAS E INEGOCIAVEIS ===\n`
+      + `1. Use a tool 'crm' em TODA interacao com informacao relevante do lead.\n`
+      + `2. NUNCA pule o CRM. Mesmo em respostas simples, registre o resumo.\n`
+      + `3. NUNCA diga ao lead 'dados atualizados', 'notifiquei a equipe', 'salvei no sistema'. Ferramentas sao invisiveis.\n`
+      + `4. Aja 100% como atendente humano da clinica.\n`
+      + `5. SEMPRE responda ao lead com mensagem de texto apos usar qualquer ferramenta.`
+      + `\n\n=== DATA E HORA ATUAL ===\n`
+      + `Data: ${dataAtual}\nHora: ${horaAtual} (horario de Brasilia)`;
+
+    const promptReforcadoComDataHora = promptFinal;
 
     // Montar array de mensagens: system prompt + histórico + mensagem atual
     const messages: Array<{ role: string; content: string | null }> = [
@@ -977,15 +1023,43 @@ Hora: ${horaAtual} (horário de Brasília)`;
     // Agora o textoFinal sempre terá o conteúdo filtrado
     let textoFinal = textoFinalPosFiltro;
     
-    if (!textoFinal.trim() && toolCallsSummary.length === 0) {
+    if (!textoFinal.trim() && (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0)) {
+      // Retry: forçar o modelo a responder ao lead
       if (execLogId) await updateLog(execLogId, {
-        status: "error",
-        etapa: "resposta_vazia",
-        erro_detalhe: "O modelo retornou uma resposta vazia e não utilizou ferramentas.",
-        model: modelo,
-        duracao_ms: Date.now() - globalStart,
+        status: "running",
+        etapa: "retry_resposta_vazia",
+        detalhe: "Resposta vazia detectada. Forçando retry com instrução explícita...",
       });
-      return jsonResponse({ ok: true, reason: "resposta_vazia" });
+      try {
+        const retryResponse = await llmClient.chat.completions.create({
+          model: modelo,
+          messages: [
+            ...messages,
+            { role: "assistant", content: "" },
+            { role: "user", content: "[SISTEMA] Sua última resposta chegou vazia. Responda ao lead agora com uma mensagem de texto. Releia o histórico e continue o atendimento normalmente." },
+          ],
+          tools: crmToolsDynamic,
+          tool_choice: "auto",
+        });
+        const retryContent = sanitizarRespostaIA(retryResponse.choices[0]?.message?.content);
+        if (retryContent?.trim()) {
+          textoFinal = retryContent;
+          aiResponse = retryResponse.choices[0].message;
+        }
+      } catch (retryErr: any) {
+        console.error("[AI-Agent] Retry resposta vazia falhou:", retryErr?.message);
+      }
+
+      if (!textoFinal.trim()) {
+        if (execLogId) await updateLog(execLogId, {
+          status: "error",
+          etapa: "resposta_vazia",
+          erro_detalhe: "O modelo retornou resposta vazia mesmo após retry.",
+          model: modelo,
+          duracao_ms: Date.now() - globalStart,
+        });
+        return jsonResponse({ ok: true, reason: "resposta_vazia" });
+      }
     }
 
     // 7. Tool calls
@@ -1106,21 +1180,42 @@ Hora: ${horaAtual} (horário de Brasília)`;
 
     textoFinal = sanitizarRespostaIA(aiResponse.content);
     if (!textoFinal.trim()) {
-      // Se não tem texto final, mas teve toolCalls, nós não falhamos,
-      // a IA só atualizou CRM silenciosamente.
-      if (toolCallsSummary.length > 0) {
-        if (execLogId) await updateLog(execLogId, { status: "success", etapa: "atualizacao_silenciosa", detalhe: "A IA apenas utilizou as ferramentas do CRM, sem resposta para o lead.", duracao_ms: Date.now() - globalStart });
-        return jsonResponse({ ok: true, reason: "atualizacao_silenciosa" });
+      // Retry: forçar resposta ao lead após tool calls
+      if (execLogId) await updateLog(execLogId, {
+        status: "running",
+        etapa: "retry_resposta_vazia_pos_tools",
+        detalhe: "Resposta vazia após ferramentas. Forçando retry...",
+      });
+      try {
+        const allMsgs = [...messages, ...toolMessages];
+        allMsgs.push({ role: "user", content: "[SISTEMA] Sua última resposta chegou vazia. O lead está aguardando. Responda ao lead agora com uma mensagem de texto. Continue o atendimento normalmente." });
+        const retryResponse = await llmClient.chat.completions.create({
+          model: modelo,
+          messages: allMsgs,
+        });
+        const retryContent = sanitizarRespostaIA(retryResponse.choices[0]?.message?.content);
+        if (retryContent?.trim()) {
+          textoFinal = retryContent;
+        }
+      } catch (retryErr: any) {
+        console.error("[AI-Agent] Retry pós-tools falhou:", retryErr?.message);
       }
 
-      if (execLogId) await updateLog(execLogId, {
-        status: "error",
-        etapa: "resposta_vazia",
-        erro_detalhe: "O modelo retornou uma resposta vazia e não utilizou ferramentas.",
-        model: modelo,
-        duracao_ms: Date.now() - globalStart,
-      });
-      return jsonResponse({ ok: true, reason: "resposta_vazia" });
+      if (!textoFinal.trim()) {
+        if (toolCallsSummary.length > 0) {
+          if (execLogId) await updateLog(execLogId, { status: "success", etapa: "atualizacao_silenciosa", detalhe: "A IA utilizou ferramentas do CRM mas não gerou resposta mesmo após retry.", duracao_ms: Date.now() - globalStart });
+          return jsonResponse({ ok: true, reason: "atualizacao_silenciosa" });
+        }
+
+        if (execLogId) await updateLog(execLogId, {
+          status: "error",
+          etapa: "resposta_vazia",
+          erro_detalhe: "O modelo retornou resposta vazia mesmo após retry.",
+          model: modelo,
+          duracao_ms: Date.now() - globalStart,
+        });
+        return jsonResponse({ ok: true, reason: "resposta_vazia" });
+      }
     }
 
     // 8. Memória
