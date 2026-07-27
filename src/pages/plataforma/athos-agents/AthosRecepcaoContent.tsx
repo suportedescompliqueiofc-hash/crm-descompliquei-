@@ -220,6 +220,31 @@ function extractLabeledValue(section: string, label: string): string | null {
   return match ? match[1].trim() : null;
 }
 
+// Rótulos possíveis da seção "PERSONALIZAÇÃO DO FLUXO" — usados como delimitador
+// para valores que ocupam mais de uma linha. São fonte de regex, não texto literal.
+const FLOW_LABEL_PATTERNS = [
+  "Mensagem de boas-vindas personalizada",
+  "Número de perguntas no diagnóstico",
+  "Pergunta \\d+ personalizada",
+  "Enviar Instagram na apresentação",
+  "Tom da apresentação",
+  "Frase de handoff personalizada",
+];
+
+// Igual ao extractLabeledValue, mas preserva valores de VÁRIAS linhas (ex: uma
+// mensagem de boas-vindas com parágrafos). Lê do rótulo até o próximo rótulo
+// conhecido da seção, ou até o fim dela. Sem isto, tudo depois da primeira linha
+// era descartado silenciosamente ao reabrir e salvar o formulário.
+function extractLabeledBlock(section: string, label: string): string | null {
+  const stop = FLOW_LABEL_PATTERNS.map((pattern) => `${pattern}:`).join("|");
+  const regex = new RegExp(
+    `(?:^|\\n)${escapeRegex(label)}:[ \\t]*([\\s\\S]*?)(?=\\n(?:${stop})|$)`,
+    "i",
+  );
+  const match = section.match(regex);
+  return match ? match[1].trim() : null;
+}
+
 function parsePromptMarkdown(markdown: string): ParsedPromptResult {
   const normalized = markdown.replace(/\r\n/g, "\n").trim();
   if (!normalized) return { ok: true, data: createEmptyFormData() };
@@ -284,7 +309,7 @@ function parsePromptMarkdown(markdown: string): ParsedPromptResult {
       instagram,
       address,
       instructions: instructionsSection ?? "",
-      customGreeting: flowSection ? (extractLabeledValue(flowSection, "Mensagem de boas-vindas personalizada") ?? "").replace(/^\(usar padrão\)$/, "") : "",
+      customGreeting: flowSection ? (extractLabeledBlock(flowSection, "Mensagem de boas-vindas personalizada") ?? "").replace(/^\(usar padrão\)$/, "") : "",
       diagnosticQuestions: (() => {
         const raw = flowSection ? extractLabeledValue(flowSection, "Número de perguntas no diagnóstico") : null;
         const n = raw ? parseInt(raw, 10) : NaN;
@@ -296,13 +321,13 @@ function parsePromptMarkdown(markdown: string): ParsedPromptResult {
         const n = raw ? parseInt(raw, 10) : 3;
         const count = Number.isFinite(n) && n > 0 ? n : 3;
         return Array.from({ length: count }, (_, i) => {
-          const v = (extractLabeledValue(flowSection, `Pergunta ${i + 1} personalizada`) ?? "").replace(/^\(usar padrão\)$|^\(desativada\)$/, "");
+          const v = (extractLabeledBlock(flowSection, `Pergunta ${i + 1} personalizada`) ?? "").replace(/^\(usar padrão\)$|^\(desativada\)$/, "");
           return v;
         });
       })(),
       sendInstagram: flowSection ? parseYesNo(extractLabeledValue(flowSection, "Enviar Instagram na apresentação")) : true,
       presentationTone: (flowSection ? extractLabeledValue(flowSection, "Tom da apresentação") ?? "equilibrado" : "equilibrado") as "emocional" | "equilibrado" | "direto",
-      customHandoff: flowSection ? (extractLabeledValue(flowSection, "Frase de handoff personalizada") ?? "").replace(/^\(usar padrão\)$/, "") : "",
+      customHandoff: flowSection ? (extractLabeledBlock(flowSection, "Frase de handoff personalizada") ?? "").replace(/^\(usar padrão\)$/, "") : "",
     },
   };
 }

@@ -593,7 +593,14 @@ function humanizeAndSplit(rawText: string): string[] {
 
 // ── Divisão inteligente via GPT-4.1-mini ────────────────────────────────────
 
-async function humanizeAndSplitWithAI(texto: string): Promise<string[]> {
+async function humanizeAndSplitWithAI(texto: string, dividir = true): Promise<string[]> {
+  // dividir = false → texto sai inteiro, em uma única mensagem.
+  // Hoje só a abertura usa isso (org com abertura_mensagem_unica = true).
+  if (!dividir) {
+    const unica = normalizeOutgoingMessage(texto.trim());
+    return unica ? [unica] : [];
+  }
+
   if (texto.length < 60) return [texto];
 
   const openaiKey = Deno.env.get("OPENAI_API_KEY");
@@ -970,7 +977,7 @@ Deno.serve(async (req: Request) => {
     // 2. Config IA
     const { data: aiConfig } = await supabase
       .from("organization_ai_prompts")
-      .select("prompt, prompt_crm, ia_ativa, modelo_ia, delay_entre_mensagens, acumulo_mensagens, horario_atendimento, formas_pagamento, contraindicacoes, palavras_proibidas, numeros_teste, origens_permitidas")
+      .select("prompt, prompt_crm, ia_ativa, modelo_ia, delay_entre_mensagens, acumulo_mensagens, horario_atendimento, formas_pagamento, contraindicacoes, palavras_proibidas, numeros_teste, origens_permitidas, abertura_mensagem_unica")
       .eq("organization_id", orgId)
       .maybeSingle();
 
@@ -1005,6 +1012,22 @@ Deno.serve(async (req: Request) => {
     const delayMs = aiConfig.delay_entre_mensagens || 2000;
     const acumuloSeg = (aiConfig.acumulo_mensagens || 45) * 1000;
     const crmToolsDynamic = getTools(aiConfig.prompt_crm);
+
+    // Abertura em bloco único (flag por org). Vale SÓ para a primeira mensagem que a
+    // IA envia a este lead — da segunda em diante a resposta é dividida normalmente.
+    // Checado aqui, antes de qualquer insert de mensagem desta execução.
+    let ehAberturaSemDivisao = false;
+    if (aiConfig.abertura_mensagem_unica === true) {
+      const { count: botMsgCount, error: botMsgErr } = await supabase
+        .from("mensagens")
+        .select("id", { count: "exact", head: true })
+        .eq("lead_id", lead_id)
+        .eq("organization_id", orgId)
+        .eq("remetente", "bot");
+      // Em caso de erro na contagem, mantém o comportamento padrão (dividir)
+      ehAberturaSemDivisao = !botMsgErr && (botMsgCount ?? 0) === 0;
+      if (ehAberturaSemDivisao) console.log(`[AI-Agent] Abertura do lead ${lead_id}: enviando em mensagem única.`);
+    }
 
     // 3. Acúmulo
     const pendingSince = new Date().toISOString();
@@ -1538,7 +1561,7 @@ Deno.serve(async (req: Request) => {
               : `55${telefoneDigits}`;
 
             const uazapiUrl = connNotif.uazapi_url.replace(/\/$/, "");
-            const partes = (await splitMessage(mensagemFinalParaLead)).map(normalizeOutgoingMessage).filter((parte) => parte.length > 0);
+            const partes = (await splitMessage(mensagemFinalParaLead, !ehAberturaSemDivisao)).map(normalizeOutgoingMessage).filter((parte) => parte.length > 0);
 
             for (let pi = 0; pi < partes.length; pi++) {
               const parte = partes[pi];
@@ -1703,7 +1726,7 @@ Deno.serve(async (req: Request) => {
     const uazapiUrl = conn.uazapi_url.replace(/\/$/, ""); // remove trailing slash
     const uazapiToken = conn.uazapi_token;
 
-    const partes = (await splitMessage(textoFinal)).map(normalizeOutgoingMessage).filter((parte) => parte.length > 0);
+    const partes = (await splitMessage(textoFinal, !ehAberturaSemDivisao)).map(normalizeOutgoingMessage).filter((parte) => parte.length > 0);
 
     if (execLogId) await updateLog(execLogId, {
       status: "running",
