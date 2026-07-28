@@ -17,21 +17,52 @@ interface FollowupStatusBarProps {
   iaAtiva?: boolean;
 }
 
-function CountdownToNext({ targetDate }: { targetDate: Date }) {
+// O cron `ia-followup-agent` roda `*/5 * * * *` — nos minutos cheios múltiplos de 5.
+// Quando o lead já venceu o tempo da tentativa, quem manda no envio é a próxima
+// batida do cron, então é ela que a barra passa a contar.
+const CRON_INTERVALO_MIN = 5;
+
+function proximaBatidaCron(agora: number): number {
+  const d = new Date(agora);
+  d.setSeconds(0, 0);
+  d.setMinutes(d.getMinutes() + (CRON_INTERVALO_MIN - (d.getMinutes() % CRON_INTERVALO_MIN)));
+  return d.getTime();
+}
+
+function useTick() {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(iv);
   }, []);
+  return now;
+}
+
+function CountdownToCron() {
+  const now = useTick();
+  const restante = Math.max(0, proximaBatidaCron(now) - now);
+  const totalSeg = Math.ceil(restante / 1000);
+  const m = Math.floor(totalSeg / 60);
+  const s = totalSeg % 60;
+  return <span className="font-display tabular-nums">{m}:{String(s).padStart(2, "0")}</span>;
+}
+
+function CountdownToNext({ targetDate }: { targetDate: Date }) {
+  const now = useTick();
 
   const diff = targetDate.getTime() - now;
-  if (diff <= 0) return <span className="font-display tabular-nums">aguardando cron</span>;
+  // Tempo da tentativa já venceu: o que falta agora é o cron passar.
+  if (diff <= 0) return <CountdownToCron />;
 
   const totalMin = Math.floor(diff / 60000);
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
   if (h > 0) return <span className="font-display tabular-nums">{h}h {m}min</span>;
-  return <span className="font-display tabular-nums">{m}min</span>;
+  if (m > 0) return <span className="font-display tabular-nums">{m}min</span>;
+
+  // Menos de 1 minuto: mostrar o segundo a segundo em vez de "0min".
+  const totalSeg = Math.ceil(diff / 1000);
+  return <span className="font-display tabular-nums">{totalSeg}s</span>;
 }
 
 export function FollowupStatusBar({
@@ -221,7 +252,7 @@ export function FollowupStatusBar({
         {nextAt && !overdue ? (
           <span>próximo em <CountdownToNext targetDate={nextAt} /></span>
         ) : overdue ? (
-          <span>pendente — aguardando próximo cron</span>
+          <span>disparo em <CountdownToCron /></span>
         ) : (
           <span>configurando...</span>
         )}
