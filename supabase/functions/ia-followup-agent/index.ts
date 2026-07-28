@@ -3,7 +3,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
+const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY") ?? "";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -53,22 +54,22 @@ function dentroDoHorario(horario: any): boolean {
 }
 
 async function callFollowupAI(systemPrompt: string, userPrompt: string): Promise<any> {
-  if (!OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY não configurada");
+  if (!OPENROUTER_API_KEY) {
+    throw new Error("OPENROUTER_API_KEY não configurada");
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch(OPENROUTER_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4.1-mini",
+        model: "openai/gpt-4.1-mini",
         max_tokens: 512,
         temperature: 0.4,
         messages: [
@@ -83,11 +84,11 @@ async function callFollowupAI(systemPrompt: string, userPrompt: string): Promise
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`OpenAI API ${response.status}: ${errText}`);
+      throw new Error(`OpenRouter ${response.status}: ${errText}`);
     }
 
     const data = await response.json();
-    console.log("[FOLLOWUP] OpenAI response:", JSON.stringify({
+    console.log("[FOLLOWUP] OpenRouter response:", JSON.stringify({
       id: data.id,
       model: data.model,
       finish_reason: data.choices?.[0]?.finish_reason,
