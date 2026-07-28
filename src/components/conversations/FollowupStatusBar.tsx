@@ -136,7 +136,9 @@ export function FollowupStatusBar({
         .maybeSingle();
       return data;
     },
-    enabled: !!leadId && showBar && !followupPausado,
+    // No follow-up MANUAL o atendimento é humano por definição — não faz sentido
+    // checar quem mandou a última mensagem de saída (o backend também não checa).
+    enabled: !!leadId && showBar && !followupPausado && !isManualFollow,
     refetchInterval: 30000,
   });
 
@@ -160,7 +162,9 @@ export function FollowupStatusBar({
     );
   }
 
-  const humanManaging = !followupPausado && !!lastOutbound && lastOutbound.remetente !== "bot";
+  // Só o follow AUTOMÁTICO recua diante de atendimento humano. O manual foi ligado
+  // pela própria equipe — travar por "tem humano na conversa" anularia a feature.
+  const humanManaging = !isManualFollow && !followupPausado && !!lastOutbound && lastOutbound.remetente !== "bot";
 
   if (humanManaging) {
     return (
