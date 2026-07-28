@@ -298,23 +298,52 @@ serve(async (req) => {
       console.error('[receive-message] Erro na detecção de marketing:', e);
     }
 
-    // ── Detecção por mensagem padrão do Instagram (Dra Tayane) ──────────────
+    // ── Detecção por mensagem padrão do Instagram (Dra Tayane / Dr. Derek) ──
     // Leads que clicam em anúncios do Instagram recebem uma mensagem pré-preenchida,
     // mas podem adicionar texto extra ao final (ex: "...por favor Valor da perfiloplastia .").
     // Usamos startsWith com a frase base (sem ponto final) para capturar todas as variantes.
     const DRA_TAYANE_ORG_ID = '2780f688-e00d-4d22-a8c5-67cbaea77d24';
+    const DR_DEREK_ORG_ID = 'f1015744-992f-4db5-aac3-566e4cbd8d18';
+    const INSTAGRAM_MARKETING_ORG_IDS = [DRA_TAYANE_ORG_ID, DR_DEREK_ORG_ID];
     const INSTAGRAM_BASE_PHRASE = 'Olá! Tenho interesse e gostaria de mais informações, por favor';
 
-    if (orgId === DRA_TAYANE_ORG_ID) {
+    if (INSTAGRAM_MARKETING_ORG_IDS.includes(orgId)) {
       const textTrimmed = (text || '').trim().normalize('NFC');
       const baseNorm = INSTAGRAM_BASE_PHRASE.normalize('NFC');
       const textMatch = textTrimmed.startsWith(baseNorm);
-      console.log(`[INSTAGRAM-DRA-TAYANE] orgId match: true | fromMe: ${fromMe} | detectedOrigem: ${detectedOrigem} | textMatch: ${textMatch} | text: "${textTrimmed.substring(0, 100)}"`);
+      console.log(`[INSTAGRAM-MARKETING] orgId match: true | fromMe: ${fromMe} | detectedOrigem: ${detectedOrigem} | textMatch: ${textMatch} | text: "${textTrimmed.substring(0, 100)}"`);
 
       if (detectedOrigem === 'organico' && !fromMe && textMatch) {
         detectedOrigem = 'marketing';
         detectedFonte = 'instagram';
-        console.log(`[INSTAGRAM-DRA-TAYANE] ✅ Lead classificado como MARKETING (mensagem padrão Instagram — startsWith match)`);
+        console.log(`[INSTAGRAM-MARKETING] ✅ Lead classificado como MARKETING (mensagem padrão Instagram — startsWith match)`);
+      }
+    }
+
+    // ── Detecção por mensagem padrão do Instagram — Mentoria (Dr. Derek) ────
+    // Exclusiva do Dr. Derek: candidatos a aluno da mentoria clicam num anúncio
+    // diferente do de leads de estética e chegam com esta frase pré-preenchida.
+    // Mesma técnica de normalização/comparação (NFC + startsWith) da regra acima,
+    // para não quebrar com acento composto vindo do WhatsApp.
+    //
+    // IMPORTANTE: a origem aqui é 'mentoria', NUNCA 'marketing'. A linha ~413
+    // (`ia_ativa: detectedOrigem === 'marketing' ? true : null`) usa detectedOrigem
+    // para decidir se a IA de pré-atendimento é acionada automaticamente. Um
+    // candidato a aluno da mentoria não deve cair na IA de pré-atendimento —
+    // por isso 'mentoria' fica de fora desse gatilho e ia_ativa permanece null.
+    // Não "corrija" isso para 'marketing' sem entender esse acoplamento.
+    const MENTORIA_BASE_PHRASE = 'Olá! Quero ser um aluno do doutor';
+
+    if (orgId === DR_DEREK_ORG_ID) {
+      const textTrimmed = (text || '').trim().normalize('NFC');
+      const mentoriaNorm = MENTORIA_BASE_PHRASE.normalize('NFC');
+      const mentoriaMatch = textTrimmed.startsWith(mentoriaNorm);
+      console.log(`[INSTAGRAM-MENTORIA-DR-DEREK] orgId match: true | fromMe: ${fromMe} | detectedOrigem: ${detectedOrigem} | mentoriaMatch: ${mentoriaMatch} | text: "${textTrimmed.substring(0, 100)}"`);
+
+      if (detectedOrigem === 'organico' && !fromMe && mentoriaMatch) {
+        detectedOrigem = 'mentoria';
+        detectedFonte = 'instagram';
+        console.log(`[INSTAGRAM-MENTORIA-DR-DEREK] ✅ Lead classificado como MENTORIA (mensagem padrão Instagram — startsWith match)`);
       }
     }
 
