@@ -927,7 +927,13 @@ serve(async (req) => {
 
           // Triagem de IA para novos leads não-marketing (primeira mensagem apenas)
           // Se a IA de triagem decidir ativar, ela própria dispara o whatsapp-ai-agent
-          if (isNewLead && lead.ia_ativa === null && !fromMe) {
+          //
+          // 'mentoria' fica FORA daqui de propósito. Deixar ia_ativa = null não basta
+          // para manter a IA longe do candidato a aluno: este bloco dispara justamente
+          // quando ia_ativa === null, e a triagem pode decidir ativar a IA por conta
+          // própria. Candidato a aluno da mentoria não é pré-atendimento — nunca entra
+          // na triagem, independente de os agentes Athos estarem ligados ou não na org.
+          if (isNewLead && lead.ia_ativa === null && !fromMe && detectedOrigem !== 'mentoria') {
             const triageRequest = supabaseAdmin.functions.invoke('triage-lead-ia', {
               body: {
                 lead_id: lead.id,
