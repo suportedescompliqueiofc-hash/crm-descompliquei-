@@ -30,6 +30,7 @@ COMMENT ON TABLE public.cs_tarefas IS 'Tarefas do CS (João/Claude). Tabela inte
 CREATE INDEX idx_cs_tarefas_organization_id ON public.cs_tarefas(organization_id);
 CREATE INDEX idx_cs_tarefas_concluida ON public.cs_tarefas(concluida);
 CREATE INDEX idx_cs_tarefas_prazo ON public.cs_tarefas(prazo);
+CREATE INDEX idx_cs_tarefas_jornada_id ON public.cs_tarefas(jornada_id);
 
 ALTER TABLE public.cs_tarefas ENABLE ROW LEVEL SECURITY;
 
@@ -57,6 +58,7 @@ CREATE TABLE public.cs_aderencia_snapshot (
 COMMENT ON TABLE public.cs_aderencia_snapshot IS 'Aderência ao plano do mês, congelada no fechamento mensal (/cs-mes). Não muda retroativamente mesmo se jornada_passos for editado depois. Tabela interna.';
 
 CREATE INDEX idx_cs_aderencia_snapshot_org ON public.cs_aderencia_snapshot(organization_id);
+CREATE INDEX idx_cs_aderencia_snapshot_jornada_id ON public.cs_aderencia_snapshot(jornada_id);
 
 ALTER TABLE public.cs_aderencia_snapshot ENABLE ROW LEVEL SECURITY;
 

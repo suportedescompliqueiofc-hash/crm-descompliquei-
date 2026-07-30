@@ -1,45 +1,104 @@
-// PLACEHOLDER — rota "/cliente/:orgId" do app de CS.
-// Esqueleto mínimo (PageHero + estado vazio canônico). Conteúdo real (série
-// histórica, cadeia dos 5 elos, aderência do plano — via get_cs_client_crm_detail
-// / get_cs_client_crm_trend / get_cs_client_crm_period) é de outro agente.
+// Ficha do Cliente — rota "/cliente/:orgId" do app de CS.
+// A tela mais importante do sistema: é onde o João se prepara antes de falar
+// com um cliente. Segue o protocolo de 05-operacoes-e-cs/sistema/02-diagnostico.md:
+// (1) Camada 0 como portão, (2) a cadeia dos 8 elos por camada, (3) série
+// histórica desde o cadastro, (4) aderência ao plano corrente, (5) relógio do
+// contrato de 180 dias. Todo dado de cliente vem exclusivamente dos hooks de
+// `src/hooks/cs/` — nunca consulta de tabela direta.
+import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Stethoscope, Inbox } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Stethoscope } from 'lucide-react';
 import { PageHero } from '@/components/PageHero';
+import { cn } from '@/lib/utils';
+import { useAderencia, useCarteira, useClienteAdocao, useClienteElos, useClienteSerie } from '@/hooks/cs';
+import { CamadaZeroPortao } from '@/components/cs/cliente/CamadaZeroPortao';
+import { CadeiaElos } from '@/components/cs/cliente/CadeiaElos';
+import { SerieHistorica } from '@/components/cs/cliente/SerieHistorica';
+import { AderenciaPlano } from '@/components/cs/cliente/AderenciaPlano';
+import { RelogioContrato } from '@/components/cs/cliente/RelogioContrato';
+
+const NIVEL_RISCO_LABEL: Record<string, string> = {
+  baixo: 'Risco baixo',
+  medio: 'Risco médio',
+  alto: 'Risco alto',
+};
 
 export default function ClienteDetalhe() {
   const { orgId } = useParams<{ orgId: string }>();
+  const mesAtual = useMemo(() => format(new Date(), 'yyyy-MM'), []);
+
+  // Nome, tempo de casa e o veredito da Camada 0 vêm de `useCarteira` — é a
+  // única RPC do contrato que expõe esses campos por cliente (cs_carteira).
+  const { data: carteira, isLoading: carteiraLoading } = useCarteira();
+  const cliente = useMemo(() => carteira?.find((c) => c.organization_id === orgId), [carteira, orgId]);
+
+  const { data: adocao = [], isLoading: adocaoLoading } = useClienteAdocao(orgId);
+  const { data: elos = [], isLoading: elosLoading } = useClienteElos(orgId, mesAtual);
+  const { data: serie = [], isLoading: serieLoading } = useClienteSerie(orgId);
+  const { data: aderencia, isLoading: aderenciaLoading } = useAderencia(orgId, mesAtual);
+
+  // Veredito do portão: prioriza o campo já calculado no backend
+  // (cs_carteira.camada_0_ok). Só cai para o cálculo local (todo item ligado)
+  // se o cliente não estiver na carteira retornada — nunca duplica a regra de
+  // negócio de "quais itens são críticos", que é do backend.
+  const camada0Passa: boolean | null = carteiraLoading
+    ? null
+    : cliente
+      ? cliente.camada_0_ok
+      : adocao.length > 0
+        ? adocao.every((i) => i.ligado)
+        : null;
+
+  const nomeCliente = cliente?.nome ?? (carteiraLoading ? 'Carregando…' : orgId ? 'Cliente' : '—');
+  const clienteDesdeLabel = cliente?.cliente_desde
+    ? format(parseISO(cliente.cliente_desde), "'cliente desde' d 'de' MMMM 'de' yyyy", { locale: ptBR })
+    : undefined;
+  const nivelRisco = cliente?.nivel_risco ? NIVEL_RISCO_LABEL[cliente.nivel_risco] ?? cliente.nivel_risco : null;
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-8 pb-12">
       <PageHero
         dataTutorial="cs-cliente-header"
         icon={Stethoscope}
-        title="Cliente"
-        subtitle={`Mesa de trabalho do cliente (org ${orgId ?? '—'}).`}
+        title={nomeCliente}
+        subtitle={clienteDesdeLabel ?? 'Mesa de trabalho do cliente PCA — números, cadeia e aderência ao plano.'}
+        right={
+          nivelRisco && (
+            <span
+              className={cn(
+                'inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-semibold border backdrop-blur-sm',
+                cliente?.nivel_risco === 'alto' && 'bg-red-500/15 text-red-200 border-red-400/30',
+                cliente?.nivel_risco === 'medio' && 'bg-amber-500/15 text-amber-200 border-amber-400/30',
+                cliente?.nivel_risco === 'baixo' && 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30',
+                !cliente?.nivel_risco && 'bg-white/10 text-white/80 border-white/15',
+              )}
+            >
+              {nivelRisco}
+            </span>
+          )
+        }
       />
 
-      <div className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        <div className="px-5 py-4 border-b border-border/40 bg-muted/[0.03]">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-muted">
-              <Stethoscope className="h-3.5 w-3.5 text-muted-foreground" />
-            </span>
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">CADEIA E CONTINUIDADE</p>
-              <p className="text-[10px] text-muted-foreground/50 mt-0.5">Os 5 elos, o elo-restrição e a continuidade do cliente</p>
-            </div>
-          </div>
-        </div>
+      {/* 1 — Camada 0 como portão, antes de qualquer número de elo */}
+      <CamadaZeroPortao items={adocao} isLoading={adocaoLoading || carteiraLoading} passa={camada0Passa} />
 
-        <div className="p-4">
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="p-3 rounded-xl bg-muted/40 mb-3">
-              <Inbox className="h-6 w-6 text-muted-foreground/40" />
-            </div>
-            <p className="text-sm font-medium text-muted-foreground">Nada por aqui ainda</p>
-            <p className="text-[11px] text-muted-foreground/50 mt-0.5">Assim que os dados do cliente forem carregados, eles aparecem aqui.</p>
-          </div>
-        </div>
+      {/* 2 — A cadeia, por camada, com o elo-restrição destacado */}
+      <CadeiaElos elos={elos} isLoading={elosLoading} eloRestricao={cliente?.elo_restricao ?? null} camada0Passa={camada0Passa} />
+
+      {/* 3 — Série histórica desde o cadastro, elo selecionável */}
+      <SerieHistorica
+        serie={serie}
+        isLoading={serieLoading}
+        clienteDesde={cliente?.cliente_desde}
+        eloInicial={cliente?.elo_restricao}
+      />
+
+      {/* 4 — Aderência ao plano corrente · 5 — Relógio do contrato */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <AderenciaPlano aderencia={aderencia} isLoading={aderenciaLoading} />
+        <RelogioContrato diasDeCiclo={cliente?.dias_de_ciclo} pctContrato={cliente?.pct_contrato} isLoading={carteiraLoading} />
       </div>
     </div>
   );

@@ -307,6 +307,233 @@ $function$;
 COMMENT ON FUNCTION public.cs_aderencia(uuid, date) IS 'Aderência ao plano mensal (jornadas tipo=mensal, status ativa/concluida) no período informado, com quebra por semana (estágio; semana = jornada_estagios.ordem + 1). por_semana: array de {semana int, total int, concluidos int}. Retorna zeros/[] quando não há jornada — nunca erro.';
 
 -- ═══════════════════════════════════════════════════════════════════
+-- cs_cliente_ganho_simulado — o critério real de elo-restrição
+--
+-- Correção 2026-07-30 (revisão do CEO): elo-restrição NÃO é a pior taxa —
+-- é o elo cuja melhoria realista produz o MAIOR GANHO DE RECEITA SIMULADO,
+-- comparando a clínica com ela mesma (nunca com outra clínica da carteira).
+-- Método exato de 05-operacoes-e-cs/sistema/01-a-cadeia.md, seção "O
+-- critério de elo-restrição": receita = Demanda x tx_Agendamento x
+-- tx_Comparecimento x tx_Fechamento x Ticket. Simula-se, um de cada vez,
+-- "se este elo subisse até um patamar realista, quanto isso geraria a mais,
+-- mantendo os outros fixos" — e escolhe-se o de maior ganho.
+--
+-- Patamar realista, em ordem de preferência (fixada pelo CEO):
+--   (a) o melhor mês da própria clínica na série histórica dela (nunca de
+--       outra clínica);
+--   (b) só quando (a) não existe: a faixa de referência de mercado, e
+--       SOMENTE quando ela é de fato comparável (só Comparecimento tem uma
+--       comparável — no-show ~7,4%, Planet DDS 2025 — os benchmarks de
+--       Fechamento/Ticket em proposta-novos-elos.md são explicitamente
+--       declarados não-comparáveis à métrica medida aqui);
+--   (c) se não houver nenhum dos dois, o elo é marcado não simulável e
+--       excluído da disputa — não se chuta patamar.
+--
+-- Resgate de Lead Frio entra simulando leads recuperados (denominador do
+-- elo x ganho de taxa) re-injetados no mesmo funil (tx_Agendamento x
+-- tx_Comparecimento x tx_Fechamento x Ticket atuais).
+--
+-- Ciclo de Venda é excluído (simulavel=false): é métrica de velocidade
+-- (dias), não de volume/taxa, e a fonte não define fórmula de conversão em
+-- receita para ele — incluir um número aqui seria chutar, o que foi
+-- explicitamente vetado.
+--
+-- Recompra (Camada 3) fica fora desta função por desenho: o próprio
+-- critério ("01-a-cadeia.md") só a torna elo-restrição quando os 6 elos
+-- comerciais já estão saudáveis — decisão de capstone, não uma alternativa
+-- que compete no mesmo ganho simulado desde o primeiro mês.
+-- ═══════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION public.cs_cliente_ganho_simulado(p_org_id uuid)
+RETURNS TABLE(
+  elo text,
+  valor_atual numeric,
+  patamar_realista numeric,
+  origem_patamar text,
+  ganho_simulado numeric,
+  simulavel boolean
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+#variable_conflict use_column
+BEGIN
+  IF NOT (is_super_admin() OR is_admin()) THEN
+    RAISE EXCEPTION 'not authorized';
+  END IF;
+
+  RETURN QUERY
+  WITH serie AS (
+    SELECT * FROM cs_cliente_serie(p_org_id)
+    WHERE elo IN ('Demanda', 'Agendamento', 'Comparecimento', 'Fechamento', 'Ticket', 'Resgate de Lead Frio')
+  ),
+  -- "estado atual": valor do mês mais recente que TEM valor (mesmo que a amostra
+  -- daquele mês seja pequena) — representa onde o cliente está agora.
+  atual AS (
+    SELECT DISTINCT ON (s.elo) s.elo, s.valor, s.denominador
+    FROM serie s
+    WHERE s.valor IS NOT NULL
+    ORDER BY s.elo, s.mes DESC
+  ),
+  -- "melhor mês próprio": só entre meses com amostra_suficiente=true — não
+  -- promove um mês de sorte com 1-2 eventos a "patamar realista".
+  melhor AS (
+    SELECT elo, max(valor) AS valor_melhor
+    FROM serie
+    WHERE amostra_suficiente
+    GROUP BY elo
+  ),
+  -- Fallback só para Demanda: quando Fechamento nunca teve valor definido em
+  -- NENHUM mês (ex.: clínica cujas vendas nunca se ligam a um agendamento
+  -- marcado 'realizado' — ver comparecimento-e-fechamento.md), a cadeia
+  -- multiplicativa de receita quebra e nada em Camada 2 fica simulável,
+  -- inclusive a própria Demanda. Nesse caso específico, usa-se receita/lead
+  -- EMPÍRICA (histórico completo de vendas e leads da própria clínica — nunca
+  -- de outra clínica, nunca mercado) como base alternativa só para simular
+  -- Demanda, que é exatamente a exceção de Camada 1 descrita em
+  -- 01-a-cadeia.md ("quando a base é pequena demais para qualquer leitura
+  -- comercial pesar mais que 'não há gente suficiente entrando no funil'").
+  historico_geral AS (
+    SELECT
+      (SELECT count(*) FROM leads WHERE organization_id = p_org_id) AS leads_totais,
+      (SELECT sum(valor_fechado) FROM vendas WHERE organization_id = p_org_id AND valor_fechado IS NOT NULL) AS receita_totais
+  ),
+  base AS (
+    SELECT
+      (SELECT valor FROM atual WHERE elo = 'Demanda') AS demanda_atual,
+      (SELECT valor FROM atual WHERE elo = 'Agendamento') AS agendamento_atual,
+      (SELECT valor FROM atual WHERE elo = 'Comparecimento') AS comparecimento_atual,
+      (SELECT valor FROM atual WHERE elo = 'Fechamento') AS fechamento_atual,
+      (SELECT valor FROM atual WHERE elo = 'Ticket') AS ticket_atual,
+      (SELECT valor FROM atual WHERE elo = 'Resgate de Lead Frio') AS resgate_atual,
+      (SELECT denominador FROM atual WHERE elo = 'Resgate de Lead Frio') AS resgate_den_atual,
+      (SELECT valor_melhor FROM melhor WHERE elo = 'Demanda') AS demanda_melhor,
+      (SELECT valor_melhor FROM melhor WHERE elo = 'Agendamento') AS agendamento_melhor,
+      (SELECT valor_melhor FROM melhor WHERE elo = 'Comparecimento') AS comparecimento_melhor,
+      (SELECT valor_melhor FROM melhor WHERE elo = 'Fechamento') AS fechamento_melhor,
+      (SELECT valor_melhor FROM melhor WHERE elo = 'Ticket') AS ticket_melhor,
+      (SELECT valor_melhor FROM melhor WHERE elo = 'Resgate de Lead Frio') AS resgate_melhor
+  ),
+  calc AS (
+    SELECT b.*,
+      -- receita mensal simulada (modelo do exemplo ilustrativo de 01-a-cadeia.md):
+      -- Demanda x tx_Agendamento x tx_Comparecimento x tx_Fechamento x Ticket.
+      -- É uma aproximação didática (as fórmulas reais de cada elo usam recortes
+      -- de coorte um pouco diferentes entre si) — usada de forma CONSISTENTE
+      -- na baseline e em cada simulação, então a comparação relativa entre
+      -- elos continua válida mesmo que o valor absoluto não bata 1:1 com
+      -- sum(vendas.valor_fechado) do mês.
+      CASE WHEN demanda_atual IS NOT NULL AND agendamento_atual IS NOT NULL
+             AND comparecimento_atual IS NOT NULL AND fechamento_atual IS NOT NULL AND ticket_atual IS NOT NULL
+        THEN demanda_atual * (agendamento_atual / 100.0) * (comparecimento_atual / 100.0) * (fechamento_atual / 100.0) * ticket_atual
+        ELSE NULL
+      END AS receita_atual,
+      demanda_melhor AS demanda_patamar,
+      'historico_proprio'::text AS demanda_origem,
+      -- Cap em 100: Agendamento, Comparecimento, Fechamento e Resgate são taxas
+      -- de conversão logicamente limitadas a 100%. Fechamento em particular
+      -- pode LER acima de 100% num mês real (vendas.agendamento_id quase
+      -- sempre NULL — venda registrada não depende de um agendamento
+      -- 'realizado' no mesmo mês, ver comparecimento-e-fechamento.md) — isso é
+      -- artefato de medição, não headroom real de melhoria, e não pode virar
+      -- "patamar realista".
+      LEAST(agendamento_melhor, 100) AS agendamento_patamar,
+      'historico_proprio'::text AS agendamento_origem,
+      -- Comparecimento: único elo com faixa de mercado comparável declarada
+      -- (proposta-novos-elos.md: no-show 7,4%, Planet DDS 2025, 3.400
+      -- consultórios -> comparecimento equivalente 92,6%). Só usada quando
+      -- não há mês próprio confiável.
+      LEAST(COALESCE(comparecimento_melhor, CASE WHEN comparecimento_atual IS NOT NULL THEN 92.6 END), 100) AS comparecimento_patamar,
+      CASE WHEN comparecimento_melhor IS NOT NULL THEN 'historico_proprio'
+           WHEN comparecimento_atual IS NOT NULL THEN 'mercado_no_show_planet_dds_2025'
+      END AS comparecimento_origem,
+      LEAST(fechamento_melhor, 100) AS fechamento_patamar,
+      'historico_proprio'::text AS fechamento_origem,
+      ticket_melhor AS ticket_patamar,
+      'historico_proprio'::text AS ticket_origem,
+      LEAST(resgate_melhor, 100) AS resgate_patamar,
+      'historico_proprio'::text AS resgate_origem,
+      hg.leads_totais,
+      hg.receita_totais,
+      CASE WHEN hg.leads_totais > 0 AND hg.receita_totais IS NOT NULL AND hg.receita_totais > 0
+        THEN hg.receita_totais / hg.leads_totais
+      END AS receita_por_lead_historica
+    FROM base b
+    CROSS JOIN historico_geral hg
+  )
+  SELECT 'Demanda'::text, c.demanda_atual, c.demanda_patamar,
+    CASE WHEN c.receita_atual IS NOT NULL THEN c.demanda_origem
+         WHEN c.receita_por_lead_historica IS NOT NULL THEN 'historico_proprio_receita_empirica'
+         ELSE c.demanda_origem
+    END,
+    CASE
+      WHEN c.receita_atual IS NOT NULL AND c.demanda_patamar IS NOT NULL THEN
+        GREATEST(c.demanda_patamar, c.demanda_atual) * (c.agendamento_atual / 100.0) * (c.comparecimento_atual / 100.0) * (c.fechamento_atual / 100.0) * c.ticket_atual - c.receita_atual
+      WHEN c.receita_atual IS NULL AND c.demanda_patamar IS NOT NULL AND c.demanda_atual IS NOT NULL AND c.receita_por_lead_historica IS NOT NULL THEN
+        (GREATEST(c.demanda_patamar, c.demanda_atual) - c.demanda_atual) * c.receita_por_lead_historica
+      ELSE NULL
+    END,
+    (c.demanda_patamar IS NOT NULL AND (c.receita_atual IS NOT NULL OR c.receita_por_lead_historica IS NOT NULL))
+  FROM calc c
+  UNION ALL
+  SELECT 'Agendamento', c.agendamento_atual, c.agendamento_patamar, c.agendamento_origem,
+    CASE WHEN c.receita_atual IS NULL OR c.agendamento_patamar IS NULL THEN NULL
+      ELSE c.demanda_atual * (GREATEST(c.agendamento_patamar, c.agendamento_atual) / 100.0) * (c.comparecimento_atual / 100.0) * (c.fechamento_atual / 100.0) * c.ticket_atual - c.receita_atual
+    END,
+    (c.receita_atual IS NOT NULL AND c.agendamento_patamar IS NOT NULL)
+  FROM calc c
+  UNION ALL
+  SELECT 'Comparecimento', c.comparecimento_atual, c.comparecimento_patamar, c.comparecimento_origem,
+    CASE WHEN c.receita_atual IS NULL OR c.comparecimento_patamar IS NULL THEN NULL
+      ELSE c.demanda_atual * (c.agendamento_atual / 100.0) * (GREATEST(c.comparecimento_patamar, c.comparecimento_atual) / 100.0) * (c.fechamento_atual / 100.0) * c.ticket_atual - c.receita_atual
+    END,
+    (c.receita_atual IS NOT NULL AND c.comparecimento_patamar IS NOT NULL)
+  FROM calc c
+  UNION ALL
+  SELECT 'Fechamento', c.fechamento_atual, c.fechamento_patamar, c.fechamento_origem,
+    CASE WHEN c.receita_atual IS NULL OR c.fechamento_patamar IS NULL THEN NULL
+      ELSE c.demanda_atual * (c.agendamento_atual / 100.0) * (c.comparecimento_atual / 100.0) * (GREATEST(c.fechamento_patamar, c.fechamento_atual) / 100.0) * c.ticket_atual - c.receita_atual
+    END,
+    (c.receita_atual IS NOT NULL AND c.fechamento_patamar IS NOT NULL)
+  FROM calc c
+  UNION ALL
+  SELECT 'Ticket', c.ticket_atual, c.ticket_patamar, c.ticket_origem,
+    CASE WHEN c.receita_atual IS NULL OR c.ticket_patamar IS NULL THEN NULL
+      ELSE c.demanda_atual * (c.agendamento_atual / 100.0) * (c.comparecimento_atual / 100.0) * (c.fechamento_atual / 100.0) * GREATEST(c.ticket_patamar, c.ticket_atual) - c.receita_atual
+    END,
+    (c.receita_atual IS NOT NULL AND c.ticket_patamar IS NOT NULL)
+  FROM calc c
+  UNION ALL
+  SELECT 'Resgate de Lead Frio', c.resgate_atual, c.resgate_patamar, c.resgate_origem,
+    CASE WHEN c.receita_atual IS NULL OR c.resgate_patamar IS NULL OR c.resgate_den_atual IS NULL THEN NULL
+      ELSE (c.resgate_den_atual * GREATEST(c.resgate_patamar - c.resgate_atual, 0) / 100.0)
+           * (c.agendamento_atual / 100.0) * (c.comparecimento_atual / 100.0) * (c.fechamento_atual / 100.0) * c.ticket_atual
+    END,
+    (c.receita_atual IS NOT NULL AND c.resgate_patamar IS NOT NULL AND c.resgate_den_atual IS NOT NULL)
+  FROM calc c
+  UNION ALL
+  SELECT 'Ciclo de Venda'::text, NULL::numeric, NULL::numeric, 'sem_formula_de_receita_na_fonte'::text, NULL::numeric, false;
+END;
+$function$;
+
+COMMENT ON FUNCTION public.cs_cliente_ganho_simulado(uuid) IS
+  'O critério real de elo-restrição (01-a-cadeia.md): ganho de receita '
+  'simulado por elo, comparando a clínica com ela mesma (nunca com outra '
+  'clínica). patamar_realista vem do melhor mês da própria série histórica '
+  '(origem=historico_proprio) ou, só na ausência dela, de uma faixa de '
+  'mercado comparável (hoje só existe para Comparecimento). Taxas '
+  '(Agendamento/Comparecimento/Fechamento/Resgate) têm patamar limitado a '
+  '100% — Fechamento pode LER acima disso num mês real por artefato de '
+  'medição (vendas sem agendamento realizado no mesmo mês), o que não pode '
+  'virar meta. Demanda tem fallback de receita/lead empírica (histórico '
+  'completo de vendas/leads da própria clínica) quando a cadeia '
+  'multiplicativa padrão quebra por Fechamento nunca ter tido valor '
+  'definido — implementa a exceção de Camada 1 de 01-a-cadeia.md sem '
+  'inventar número. Ciclo de Venda é sempre simulavel=false (métrica de '
+  'velocidade, sem fórmula de receita definida na fonte). Recompra fica '
+  'fora desta função por desenho.';
+
+-- ═══════════════════════════════════════════════════════════════════
 -- cs_carteira — uma linha por clínica PCA, ordenada pela régua de risco
 -- ═══════════════════════════════════════════════════════════════════
 CREATE OR REPLACE FUNCTION public.cs_carteira()
@@ -383,46 +610,46 @@ BEGIN
     LEFT JOIN leads_tot lt ON lt.organization_id = b.organization_id
     LEFT JOIN vendas_tot vt ON vt.organization_id = b.organization_id
   ),
-  elos_mes AS (
-    SELECT p.organization_id, ce.camada, ce.elo, ce.valor, ce.amostra_suficiente
+  -- Correção 2026-07-30: elo-restrição via GANHO DE RECEITA SIMULADO
+  -- (cs_cliente_ganho_simulado — método de 01-a-cadeia.md), não mais
+  -- ranking relativo entre clínicas. Cada clínica compete só consigo mesma.
+  ganhos AS (
+    SELECT p.organization_id, g.elo, g.ganho_simulado, g.simulavel
     FROM pca p
-    CROSS JOIN LATERAL cs_cliente_elos(p.organization_id, current_date) ce
+    CROSS JOIN LATERAL cs_cliente_ganho_simulado(p.organization_id) g
   ),
-  ranked AS (
-    SELECT organization_id, camada, elo, valor, amostra_suficiente,
-      CASE WHEN valor IS NULL OR NOT amostra_suficiente THEN NULL
-        ELSE percent_rank() OVER (
-          PARTITION BY elo
-          ORDER BY (CASE WHEN elo = 'Ciclo de Venda' THEN -valor ELSE valor END)
-        )
-      END AS rank_saude -- 0 = pior da carteira nesse elo, 1 = melhor
-    FROM elos_mes
-  ),
-  worst_comercial AS (
-    SELECT DISTINCT ON (organization_id) organization_id, elo, rank_saude
-    FROM ranked
-    WHERE camada = '2' AND rank_saude IS NOT NULL
-    ORDER BY organization_id, rank_saude ASC,
+  melhor_ganho AS (
+    SELECT DISTINCT ON (organization_id) organization_id, elo, ganho_simulado
+    FROM ganhos
+    WHERE simulavel AND ganho_simulado IS NOT NULL
+    ORDER BY organization_id, ganho_simulado DESC,
+      -- desempate (só entra em jogo em empate exato de ganho): ordem de
+      -- exposição da cadeia comercial antes de Demanda, que é a exceção.
       CASE elo
         WHEN 'Agendamento' THEN 1 WHEN 'Resgate de Lead Frio' THEN 2
         WHEN 'Comparecimento' THEN 3 WHEN 'Fechamento' THEN 4
-        WHEN 'Ticket' THEN 5 WHEN 'Ciclo de Venda' THEN 6 ELSE 9
+        WHEN 'Ticket' THEN 5 WHEN 'Demanda' THEN 6 ELSE 9
       END
   ),
-  demanda_rank AS (
-    SELECT organization_id, rank_saude FROM ranked WHERE elo = 'Demanda'
+  -- Exceção de Camada 3 (01-a-cadeia.md): Recompra só vira elo-restrição
+  -- quando os 6 comerciais não oferecem nenhum ganho simulável/positivo —
+  -- não compete diretamente com eles em ganho de receita.
+  recompra_disponivel AS (
+    SELECT organization_id, (count(*) FILTER (WHERE lead_id IS NOT NULL)) > 0 AS tem_dado
+    FROM vendas WHERE organization_id IN (SELECT organization_id FROM pca)
+    GROUP BY 1
   ),
   elo_escolhido AS (
     SELECT c0.organization_id,
       CASE
         WHEN c0.estrutural_falho THEN 'Adoção (Camada 0)'
-        WHEN dr.rank_saude IS NOT NULL AND wc.rank_saude IS NOT NULL AND dr.rank_saude < wc.rank_saude THEN 'Demanda'
-        WHEN wc.elo IS NOT NULL THEN wc.elo
-        ELSE 'Demanda'
+        WHEN mg.elo IS NOT NULL THEN mg.elo
+        WHEN COALESCE(rd.tem_dado, false) THEN 'Recompra'
+        ELSE 'Sem dado suficiente para simular'
       END AS elo_restricao
     FROM camada0 c0
-    LEFT JOIN worst_comercial wc ON wc.organization_id = c0.organization_id
-    LEFT JOIN demanda_rank dr ON dr.organization_id = c0.organization_id
+    LEFT JOIN melhor_ganho mg ON mg.organization_id = c0.organization_id
+    LEFT JOIN recompra_disponivel rd ON rd.organization_id = c0.organization_id
   ),
   aderencia_atual AS (
     SELECT p.organization_id, ad.pct
@@ -450,7 +677,11 @@ BEGIN
         WHEN b.pct_contrato > 50 AND NOT COALESCE(jm.existe, false) THEN 'critico'
         WHEN c0.receita_total = 0 AND b.pct_contrato > 25 THEN 'critico'
         WHEN a.pct IS NOT NULL AND a.pct < 30 AND asp.pct IS NOT NULL AND asp.pct < 30 THEN 'critico'
-        WHEN a.pct IS NOT NULL AND a.pct BETWEEN 30 AND 60 THEN 'atencao'
+        -- Correção 2026-07-30: aderência abaixo de 30% no PRIMEIRO mês monitorado
+        -- (sem snapshot anterior para confirmar "dois meses seguidos") não é
+        -- Crítico ainda, mas também nunca é Saudável — cai em Atenção. Cobre
+        -- tanto o caso <30% quanto a faixa 30-60% na mesma condição.
+        WHEN a.pct IS NOT NULL AND a.pct < 60 THEN 'atencao'
         WHEN b.pct_contrato BETWEEN 40 AND 50 AND NOT COALESCE(jm.existe, false) THEN 'atencao'
         ELSE 'saudavel'
       END AS nivel_risco
@@ -492,13 +723,16 @@ $function$;
 COMMENT ON FUNCTION public.cs_carteira() IS
   'Uma linha por clínica PCA (7 orgs fixas), ordenada pela régua de risco '
   '(05-operacoes-e-cs/sistema/ritos/01-regua-de-risco.md). '
+  'elo_restricao (corrigido 2026-07-30): vem de cs_cliente_ganho_simulado() — '
+  'ganho de receita simulado, cliente comparado só com ele mesmo (método de '
+  '01-a-cadeia.md), não mais ranking relativo entre clínicas. '
   'v1 — limitações declaradas: dias_sem_contato é sempre NULL (dado vive em '
   'continuidade.md, fora do Supabase); trigger de Crítico "elo piorando 2 meses '
   'seguidos" e o nível "referência" (3 meses saudável) não são avaliados aqui '
   'por dependerem de série histórica que cs_aderencia_snapshot ainda não '
   'acumulou; a trava de fila "Camada 0 categoria B / revisão manual necessária" '
   'não é aplicada (exigiria detectar padrão implausível de preenchimento, fora '
-  'de escopo desta v1); elo_restricao usa ranking relativo entre as 7 clínicas '
-  '(percent_rank) como heurística objetiva, não a análise qualitativa completa '
-  'feita em /cs-cliente — é uma aproximação de primeira leitura, não substitui o '
-  'diagnóstico humano/assistido registrado em continuidade.md.';
+  'de escopo desta v1) — elo_restricao ainda é a leitura mais próxima do '
+  'diagnóstico de /cs-cliente, mas usa só o mês mais recente com dado por '
+  'elo, não a análise qualitativa completa (causas típicas, evidência '
+  'cruzada) feita em sessão.';
