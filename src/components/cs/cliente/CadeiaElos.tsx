@@ -5,7 +5,7 @@
 import { AlertTriangle, Layers, Loader2, Crosshair, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ClienteElo } from '@/hooks/cs';
-import { CAMADA_META, CAMADA_COR, ORDEM_CAMADA, eloEhRestricao, formatEloValor, getEloMeta } from './eloMeta';
+import { CAMADA_META, CAMADA_COR, ORDEM_CAMADA, eloEhRestricao, formatEloValor, getEloMeta } from '../eloMeta';
 
 interface CadeiaElosProps {
   elos: ClienteElo[];

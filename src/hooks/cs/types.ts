@@ -132,6 +132,30 @@ export interface Aderencia {
   por_semana: AderenciaPorSemana[];
 }
 
+/**
+ * Uma linha de `cs_plano_conteudo` — um passo do plano publicado, com o
+ * estágio a que pertence. Formato "long" (uma linha por passo), já ordenado
+ * pelo banco por `estagio_ordem` e depois `passo_ordem`. NÃO assumir que
+ * "estágio = semana" nem que existem 4 estágios — o dado real varia (visto em
+ * produção: 5 estágios com títulos descritivos, não "Semana N").
+ */
+export interface PlanoPasso {
+  jornada_id: string;
+  jornada_titulo: string;
+  jornada_status: string;
+  estagio_id: string;
+  estagio_titulo: string;
+  estagio_ordem: number;
+  passo_id: string;
+  passo_titulo: string;
+  passo_descricao: string | null;
+  passo_ordem: number;
+  passo_tipo: string;
+  obrigatorio: boolean;
+  concluido: boolean;
+  concluido_em: string | null;
+}
+
 // ─── Filtros de query ───────────────────────────────────────────────────────
 
 export interface TarefasFiltros {

@@ -307,6 +307,102 @@ $function$;
 COMMENT ON FUNCTION public.cs_aderencia(uuid, date) IS 'Aderência ao plano mensal (jornadas tipo=mensal, status ativa/concluida) no período informado, com quebra por semana (estágio; semana = jornada_estagios.ordem + 1). por_semana: array de {semana int, total int, concluidos int}. Retorna zeros/[] quando não há jornada — nunca erro.';
 
 -- ═══════════════════════════════════════════════════════════════════
+-- cs_plano_conteudo — o conteúdo do plano (títulos, descrição, tipo) que
+-- cs_aderencia não devolve (só devolve números). Pedido pela tela /plano/:orgId.
+--
+-- Mesmo universo de jornadas de cs_aderencia (tipo='mensal', status IN
+-- ('ativa','concluida')) — garante que o conteúdo mostrado corresponda
+-- exatamente ao percentual que cs_aderencia calculou para o mesmo período.
+--
+-- Desempate (documentado, não implícito): o modelo de dados NÃO impede duas
+-- jornadas 'mensal' com o mesmo periodo_ref na mesma organização (sem
+-- UNIQUE INDEX — ver 05-publicar-plano.md, Seção 7, limite 1). Se acontecer,
+-- esta função pega a mais recente por created_at (desempate final por id,
+-- determinístico, sem significado de negócio) — UMA jornada só, nunca
+-- concatena conteúdo de duas. Isso é uma escolha diferente de cs_aderencia,
+-- que soma passos de TODAS as jornadas que baterem no filtro (histórico
+-- dela, não alterado aqui) — ou seja, no caso raro de duas jornadas mensais
+-- coexistindo no mesmo período, o percentual de cs_aderencia pode não bater
+-- 1:1 com os passos que cs_plano_conteudo exibe. Ver ressalva no relatório;
+-- não é corrigido aqui por estar fora do escopo pedido.
+-- ═══════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION public.cs_plano_conteudo(p_org_id uuid, p_periodo date)
+RETURNS TABLE(
+  jornada_id uuid,
+  jornada_titulo text,
+  jornada_status text,
+  estagio_id uuid,
+  estagio_titulo text,
+  estagio_ordem int,
+  passo_id uuid,
+  passo_titulo text,
+  passo_descricao text,
+  passo_ordem int,
+  passo_tipo text,
+  obrigatorio boolean,
+  concluido boolean,
+  concluido_em timestamptz
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+#variable_conflict use_column
+DECLARE
+  v_jornada_id uuid;
+BEGIN
+  IF NOT (is_super_admin() OR is_admin()) THEN
+    RAISE EXCEPTION 'not authorized';
+  END IF;
+
+  -- Filtro explícito por organization_id AQUI DENTRO — não confiar na RLS.
+  -- A policy superadmin_all_jornadas dá acesso amplo (toda a tabela) a quem
+  -- está na org master; SECURITY DEFINER além disso já ignora RLS por
+  -- completo. O único escopo real de "só esta clínica" é este WHERE.
+  SELECT j.id INTO v_jornada_id
+  FROM jornadas j
+  WHERE j.organization_id = p_org_id
+    AND j.tipo = 'mensal'
+    AND j.status IN ('ativa', 'concluida')
+    AND date_trunc('month', j.periodo_ref) = date_trunc('month', p_periodo)
+  ORDER BY j.created_at DESC, j.id DESC
+  LIMIT 1;
+
+  IF v_jornada_id IS NULL THEN
+    RETURN; -- nenhum plano no período: zero linhas, sem erro
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    j.id, j.titulo, j.status,
+    e.id, e.titulo, e.ordem,
+    p.id, p.titulo, p.descricao, p.ordem, p.tipo, p.obrigatorio,
+    p.concluido, p.concluido_em
+  FROM jornadas j
+  JOIN jornada_estagios e ON e.jornada_id = j.id
+  JOIN jornada_passos p ON p.estagio_id = e.id
+  WHERE j.id = v_jornada_id
+    AND j.organization_id = p_org_id
+  ORDER BY e.ordem, p.ordem;
+END;
+$function$;
+
+COMMENT ON FUNCTION public.cs_plano_conteudo(uuid, date) IS
+  'Conteúdo do plano mensal (títulos, descrição, tipo de cada passo) para a '
+  'tela /plano/:orgId, que hoje só tinha os números de cs_aderencia. Mesmo '
+  'universo de jornadas de cs_aderencia (tipo=mensal, status ativa/concluida) '
+  'para o conteúdo bater com o percentual. Desempate se houver >1 jornada no '
+  'mesmo período: pega só a mais recente por created_at (id como desempate '
+  'final) — não concatena. cs_aderencia, ao contrário, agrega passos de TODAS '
+  'as jornadas que baterem no filtro; no caso raro de duas jornadas mensais '
+  'coexistindo, o total pode divergir — ver COMMENT completo no bloco da '
+  'função. Elo declarado e critério de sucesso do mês NÃO existem em nenhuma '
+  'coluna hoje (jornadas/jornada_estagios/jornada_passos não têm campo para '
+  'isso) — não inventados aqui; menor mudança de schema: 2 colunas novas '
+  '(elo_alvo text, criterio_sucesso text) em jornadas, nível plano/mês, não '
+  'por estágio nem por passo.';
+
+-- ═══════════════════════════════════════════════════════════════════
 -- cs_cliente_ganho_simulado — o critério real de elo-restrição
 --
 -- Correção 2026-07-30 (revisão do CEO): elo-restrição NÃO é a pior taxa —

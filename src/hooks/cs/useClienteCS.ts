@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Aderencia, ClienteAdocaoItem, ClienteElo, ClienteSerieMes } from './types';
+import type { Aderencia, CamadaElo, ClienteAdocaoItem, ClienteElo, ClienteSerieMes, PlanoPasso } from './types';
 
 // Mesa de trabalho de um cliente PCA — cadeia dos 8 elos, série histórica,
 // checklist de adoção (Camada 0) e aderência ao plano corrente. Toda leitura
@@ -19,7 +19,11 @@ export function useClienteElos(orgId: string | null | undefined, mes: string | n
       });
       if (error) throw error;
       return ((data ?? []) as any[]).map((r): ClienteElo => ({
-        camada: r.camada,
+        // `camada` chega como TEXT ('1'/'2'/'3') da RPC — sem essa coerção, a
+        // comparação por igualdade estrita em CadeiaElos.tsx (`e.camada ===
+        // camada`, contra o number de ORDEM_CAMADA) nunca bate e a cadeia
+        // inteira renderiza vazia. Bug real encontrado na revisão de 2026-07-30.
+        camada: Number(r.camada) as CamadaElo,
         elo: r.elo,
         valor: r.valor == null ? null : Number(r.valor),
         numerador: r.numerador == null ? null : Number(r.numerador),
@@ -42,7 +46,7 @@ export function useClienteSerie(orgId: string | null | undefined) {
       if (error) throw error;
       return ((data ?? []) as any[]).map((r): ClienteSerieMes => ({
         mes: r.mes,
-        camada: r.camada,
+        camada: Number(r.camada) as CamadaElo,
         elo: r.elo,
         valor: r.valor == null ? null : Number(r.valor),
         numerador: r.numerador == null ? null : Number(r.numerador),
@@ -96,6 +100,43 @@ export function useAderencia(orgId: string | null | undefined, periodo: string |
           pct: Number(s.pct ?? 0),
         })),
       };
+    },
+  });
+}
+
+// Conteúdo real do plano publicado no período — um passo por linha, com o
+// estágio a que pertence, já ordenado pelo banco (estagio_ordem, passo_ordem).
+// Fonte distinta de useAderencia (que só soma/agrupa): esta é a única forma
+// permitida de ler título/descrição de estágio e passo, sem tocar
+// jornadas/jornada_estagios/jornada_passos diretamente. Zero linhas = sem
+// plano no período (nunca erro).
+export function usePlanoConteudo(orgId: string | null | undefined, periodo: string | null | undefined) {
+  return useQuery({
+    queryKey: ['cs-plano-conteudo', orgId, periodo],
+    enabled: !!orgId && !!periodo,
+    staleTime: 60 * 1000,
+    queryFn: async (): Promise<PlanoPasso[]> => {
+      const { data, error } = await (supabase as any).rpc('cs_plano_conteudo', {
+        p_org_id: orgId,
+        p_periodo: periodo,
+      });
+      if (error) throw error;
+      return ((data ?? []) as any[]).map((r): PlanoPasso => ({
+        jornada_id: r.jornada_id,
+        jornada_titulo: r.jornada_titulo,
+        jornada_status: r.jornada_status,
+        estagio_id: r.estagio_id,
+        estagio_titulo: r.estagio_titulo,
+        estagio_ordem: Number(r.estagio_ordem ?? 0),
+        passo_id: r.passo_id,
+        passo_titulo: r.passo_titulo,
+        passo_descricao: r.passo_descricao ?? null,
+        passo_ordem: Number(r.passo_ordem ?? 0),
+        passo_tipo: r.passo_tipo,
+        obrigatorio: !!r.obrigatorio,
+        concluido: !!r.concluido,
+        concluido_em: r.concluido_em ?? null,
+      }));
     },
   });
 }

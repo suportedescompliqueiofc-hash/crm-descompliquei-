@@ -1,28 +1,30 @@
 // Rota "/plano/:orgId" do app de CS — o plano de ação do mês daquele cliente,
-// do jeito que foi publicado: as 4 semanas, aderência real (medida em
-// jornada_passos via cs_aderencia) e navegação entre os meses do ciclo.
+// do jeito que foi publicado: os estágios (na convenção do método, semanas —
+// mas o dado real nem sempre segue essa convenção, ver PlanoEstagios.tsx),
+// com os passos de cada um e o estado de conclusão, a aderência real (medida
+// em jornada_passos via cs_aderencia) e navegação entre os meses do ciclo.
 //
 // Fonte de dado — SOMENTE hooks de src/hooks/cs/ (nunca tabela de cliente
 // direta): useCarteira() para o seletor de cliente e o "elo em foco" do mês
 // corrente; useAderencia() para o número que decide a conversa do mês;
-// useClienteElos() para a leitura da cadeia de elos do período selecionado.
+// usePlanoConteudo() para o conteúdo real (estágios/passos) do plano
+// publicado; useClienteElos() para a leitura da cadeia de elos do período.
 //
-// GAP DECLARADO (ver CadeiaDoMes.tsx): nenhum hook expõe o texto do plano
-// publicado — títulos das ações por semana, elo declarado e critério de
-// sucesso do mês vivem em jornadas/jornada_estagios/jornada_passos, sem RPC
-// `cs_*` que os devolva. Esta tela mostra a aderência NUMÉRICA real (o dado
-// que de fato decide a conversa mensal), não uma lista de ações — reportado
-// como pendência no relatório final do Executor.
+// GAP AINDA DECLARADO: elo declarado no plano e critério de sucesso numérico
+// não têm coluna no banco (confirmado pelo maestro) — "Elo em foco" segue
+// mostrando só a leitura heurística de useCarteira() (mês corrente), e
+// critério de sucesso segue "—". Decisão pendente do CEO, não antecipada aqui.
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ListChecks } from 'lucide-react';
 import { format, isSameMonth, parseISO, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PageHero } from '@/components/PageHero';
-import { useAderencia, useCarteira, useClienteElos } from '@/hooks/cs';
+import { useAderencia, useCarteira, useClienteElos, usePlanoConteudo } from '@/hooks/cs';
 import { SeletorCliente } from '@/components/cs/plano/SeletorCliente';
 import { SeletorMes } from '@/components/cs/plano/SeletorMes';
 import { AderenciaResumo } from '@/components/cs/plano/AderenciaResumo';
+import { PlanoEstagios } from '@/components/cs/plano/PlanoEstagios';
 import { CadeiaDoMes } from '@/components/cs/plano/CadeiaDoMes';
 import { PlanoVazio } from '@/components/cs/plano/PlanoVazio';
 
@@ -51,8 +53,18 @@ export default function PlanoCliente() {
 
   const { data: aderencia, isLoading: aderenciaLoading } = useAderencia(orgId, periodoISO);
   const { data: elos = [], isLoading: elosLoading } = useClienteElos(orgId, periodoISO);
+  const { data: passos = [], isLoading: passosLoading } = usePlanoConteudo(orgId, periodoISO);
 
-  const semPlano = !aderenciaLoading && !!aderencia && aderencia.total_passos === 0;
+  // "Sem plano" só quando as DUAS fontes concordam que não há nada no período —
+  // cs_aderencia e cs_plano_conteudo são fontes distintas (uma soma, a outra
+  // lista o conteúdo); ver PlanoEstagios.tsx para o tratamento de divergência
+  // quando só uma delas está vazia.
+  const semPlano =
+    !aderenciaLoading &&
+    !passosLoading &&
+    !!aderencia &&
+    aderencia.total_passos === 0 &&
+    passos.length === 0;
   const clienteNaoEncontrado = !!orgId && !carteiraLoading && !cliente;
 
   return (
@@ -81,6 +93,11 @@ export default function PlanoCliente() {
       ) : (
         <>
           <AderenciaResumo aderencia={aderencia} isLoading={aderenciaLoading} />
+          <PlanoEstagios
+            passos={passos}
+            isLoading={passosLoading}
+            totalAderencia={aderenciaLoading ? null : aderencia?.total_passos ?? null}
+          />
           <CadeiaDoMes
             elos={elos}
             isLoading={elosLoading}

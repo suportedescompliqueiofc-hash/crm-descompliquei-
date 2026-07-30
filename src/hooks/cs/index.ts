@@ -10,6 +10,7 @@ export {
   useClienteSerie,
   useClienteAdocao,
   useAderencia,
+  usePlanoConteudo,
 } from './useClienteCS';
 
 export {

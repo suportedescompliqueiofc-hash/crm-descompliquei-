@@ -18,7 +18,7 @@ import {
 import { TrendingUp, Loader2, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ClienteSerieMes } from '@/hooks/cs';
-import { CAMADA_COR, formatEloValor, getEloMeta } from './eloMeta';
+import { CAMADA_COR, formatEloValor, getEloMeta } from '../eloMeta';
 
 interface SerieHistoricaProps {
   serie: ClienteSerieMes[];

@@ -1,25 +1,16 @@
 // Elo trabalhado no mês + critério de sucesso, e a leitura da cadeia de elos
-// do período (useClienteElos). GAP DECLARADO: nenhum hook de src/hooks/cs
-// expõe o texto do plano publicado (elo declarado, critério de sucesso,
-// títulos das ações) — isso vive só em jornadas/jornada_estagios/jornada_passos,
-// fora do contrato de hooks desta tela. "Elo em foco" abaixo é a leitura
-// heurística de useCarteira() (elo_restricao), válida só para o mês corrente —
-// não é o elo que necessariamente foi publicado no plano daquele mês.
+// do período (useClienteElos). Os TÍTULOS DAS AÇÕES já vêm de usePlanoConteudo
+// (ver PlanoEstagios.tsx) — o gap que resta aqui é mais estreito: nem
+// `jornadas` nem `jornada_estagios`/`jornada_passos` têm coluna para o elo
+// declarado do plano nem para o critério de sucesso numérico (confirmado
+// pelo maestro — decisão de schema pendente do CEO). "Elo em foco" abaixo é a
+// leitura heurística de useCarteira() (elo_restricao), válida só para o mês
+// corrente — não é necessariamente o elo que foi publicado no plano daquele
+// mês histórico.
 import { Info, Link2 } from 'lucide-react';
-import { formatBRL, formatInt, formatNum, formatPct } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { ClienteElo } from '@/hooks/cs';
-
-const FORMATO: Record<string, (v: number) => string> = {
-  Demanda: (v) => formatInt(v),
-  Agendamento: (v) => formatPct(v),
-  'Resgate de Lead Frio': (v) => formatPct(v),
-  Comparecimento: (v) => formatPct(v),
-  Fechamento: (v) => formatPct(v),
-  Ticket: (v) => formatBRL(v),
-  'Ciclo de Venda': (v) => `${formatNum(v)} dias`,
-  Recompra: (v) => formatPct(v),
-};
+import { formatEloValor } from '../eloMeta';
 
 interface CadeiaDoMesProps {
   elos: ClienteElo[];
@@ -89,7 +80,7 @@ export function CadeiaDoMes({ elos, isLoading, eloEmFoco, mostrarEloEmFoco }: Ca
                     e.valor == null ? 'text-muted-foreground/40' : 'text-foreground',
                   )}
                 >
-                  {e.valor == null ? '—' : (FORMATO[e.elo]?.(e.valor) ?? formatNum(e.valor))}
+                  {formatEloValor(e.elo, e.valor)}
                 </p>
                 {e.valor != null && !e.amostra_suficiente && (
                   <p className="text-[9px] text-amber-600 mt-0.5 flex items-center gap-0.5">

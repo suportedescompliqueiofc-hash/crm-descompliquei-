@@ -5,8 +5,9 @@ import { formatPct } from '@/lib/format';
 import type { ClienteCarteira } from '@/hooks/cs';
 import { RiscoBadge } from './RiscoBadge';
 import { RelogioContrato } from './RelogioContrato';
-import { getEloInfo } from './elos';
-import { CARTEIRA_GRID_COLS, formatDataBR } from './utils';
+import { getEloInfo } from '../eloMeta';
+import { formatDataBR } from '../format';
+import { CARTEIRA_GRID_COLS } from './utils';
 
 /**
  * Uma clínica da carteira PCA. O card inteiro é clicável e navega para a
