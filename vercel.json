@@ -1,1 +1,11 @@
-{ "rewrites": [{ "source": "/(.*)", "destination": "/" }] }
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "cs.descompliqueiofc.com" }],
+      "destination": "/index-cs.html"
+    },
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}
+
