@@ -32,6 +32,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
+#variable_conflict use_column
 DECLARE
   v_mes_ini date := date_trunc('month', p_mes)::date;
   v_mes_fim_excl date := (date_trunc('month', p_mes) + interval '1 month')::date;
@@ -139,7 +140,7 @@ BEGIN
   UNION ALL
   SELECT '2', 'Ticket', round(t.soma / NULLIF(t.den, 0), 2), t.soma, t.den, t.den >= 5 FROM ticket t
   UNION ALL
-  SELECT '2', 'Ciclo de Venda', round(ci.mediana, 1), ci.mediana, ci.den, ci.den >= 5 FROM ciclo ci
+  SELECT '2', 'Ciclo de Venda', round(ci.mediana::numeric, 1), ci.mediana::numeric, ci.den, ci.den >= 5 FROM ciclo ci
   UNION ALL
   SELECT '3', 'Recompra', round(100.0 * rc.num / NULLIF(rc.den, 0), 1), rc.num, rc.den, rc.den >= 5 FROM recompra rc;
 END;
@@ -164,6 +165,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
+#variable_conflict use_column
 DECLARE
   v_inicio date;
   v_atual date := date_trunc('month', now())::date;
@@ -205,6 +207,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
+#variable_conflict use_column
 BEGIN
   IF NOT (is_super_admin() OR is_admin()) THEN
     RAISE EXCEPTION 'not authorized';
@@ -264,6 +267,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
+#variable_conflict use_column
 BEGIN
   IF NOT (is_super_admin() OR is_admin()) THEN
     RAISE EXCEPTION 'not authorized';
@@ -323,6 +327,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
+#variable_conflict use_column
 BEGIN
   IF NOT (is_super_admin() OR is_admin()) THEN
     RAISE EXCEPTION 'not authorized';

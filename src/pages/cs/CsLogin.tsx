@@ -1,0 +1,290 @@
+// Tela de login do app de CS (cs.descompliqueiofc.com).
+// Visual espelha src/pages/plataforma/PlataformaLogin.tsx (painel escuro +
+// formulário), com a marca "CS" no lugar de "Growth Labs" — é a única tela
+// de auth do app de CS, único ponto de entrada não protegido por CsGuard.
+import { useState, useEffect } from 'react';
+import { Eye, EyeOff, ArrowRight, Loader2, ArrowLeft, MailCheck, HeartHandshake } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+export default function CsLogin() {
+  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isForgotMode, setIsForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const { signIn, user } = useAuth();
+
+  // Já autenticado (sessão desta origem) — segue para a Carteira.
+  // CsGuard decide se a conta tem acesso interno.
+  useEffect(() => {
+    if (user) window.location.href = '/';
+  }, [user]);
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke('send-password-reset-public', {
+        body: { email: forgotEmail },
+      });
+      if (error) throw error;
+      setForgotSent(true);
+    } catch {
+      toast.error('Não foi possível enviar o e-mail. Tente novamente.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await signIn(email, password);
+      if (error) {
+        const msg = error.message?.includes('fetch')
+          ? 'Servidor indisponível. Tente novamente em alguns segundos.'
+          : (error.message?.includes('Invalid login credentials') || error.message?.includes('invalid_credentials'))
+            ? 'E-mail ou senha incorretos.'
+            : error.message || 'E-mail ou senha incorretos.';
+        toast.error(msg, { closeButton: true });
+      } else {
+        // signIn() do AuthContext compartilhado navega para '/crm' (rota que
+        // não existe neste bundle) — força um reload completo para a raiz do
+        // app de CS, sobrepondo essa navegação. Mesmo truque usado em
+        // PlataformaLogin.tsx.
+        window.location.href = '/';
+      }
+    } catch {
+      toast.error('Não foi possível conectar ao servidor. Verifique sua conexão.', { closeButton: true });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex bg-[#FAFAF8]">
+      {/* ═══ LEFT PANEL — Brand showcase ═══ */}
+      <div className="hidden lg:flex lg:w-[52%] relative overflow-hidden" style={{ background: '#0A0A0A' }}>
+        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full blur-[120px] opacity-[0.07]" style={{ background: '#E85D24' }} />
+        <div className="absolute bottom-[-15%] left-[-5%] w-[500px] h-[500px] rounded-full blur-[100px] opacity-[0.04]" style={{ background: '#E85D24' }} />
+
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+            backgroundSize: '60px 60px',
+          }}
+        />
+
+        <div className="relative z-10 flex flex-col justify-between w-full p-12">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/[0.12] border border-primary/20">
+              <HeartHandshake className="h-5 w-5 text-primary" />
+            </div>
+            <span className="text-[13px] font-semibold tracking-wide text-white/40">Descompliquei</span>
+          </div>
+
+          <div className="max-w-lg">
+            <p className="text-[11px] font-bold uppercase tracking-[0.25em] mb-4 text-primary">
+              Customer Success
+            </p>
+            <h1 className="text-[42px] font-extrabold leading-[1.1] tracking-tight font-display text-white/95">
+              A carteira,
+              <br />
+              o cliente e o
+              <br />
+              <span className="text-primary">plano do mês.</span>
+            </h1>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] text-white/15">
+              &copy; {new Date().getFullYear()} Descompliquei — Uso interno
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ RIGHT PANEL ═══ */}
+      <div className="w-full lg:w-[48%] flex items-center justify-center p-8 lg:p-16">
+        <div className="w-full max-w-[400px]">
+          <div className="lg:hidden flex items-center gap-2.5 mb-10">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-primary/10 border border-primary/15">
+              <HeartHandshake className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <span className="text-[11px] font-medium text-muted-foreground">Descompliquei</span>
+              <span className="text-[11px] font-bold ml-1 text-primary">CS</span>
+            </div>
+          </div>
+
+          {isForgotMode ? (
+            <>
+              <button
+                type="button"
+                onClick={() => { setIsForgotMode(false); setForgotSent(false); setForgotEmail(''); }}
+                className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors mb-8"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> Voltar ao login
+              </button>
+
+              {forgotSent ? (
+                <div className="text-center py-4">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 bg-primary/[0.08] border border-primary/15">
+                    <MailCheck className="h-7 w-7 text-primary" />
+                  </div>
+                  <h2 className="text-[22px] font-extrabold tracking-tight text-foreground font-display mb-2">
+                    Verifique seu e-mail
+                  </h2>
+                  <p className="text-[13px] text-muted-foreground leading-relaxed">
+                    Se o endereço <strong>{forgotEmail}</strong> estiver cadastrado, você receberá um link para redefinir sua senha em instantes.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground/40 mt-4">
+                    Não recebeu? Verifique a pasta de spam.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-8">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 mb-2">
+                      Recuperar acesso
+                    </p>
+                    <h2 className="text-[28px] font-extrabold tracking-tight text-foreground font-display leading-tight">
+                      Esqueceu a senha?
+                    </h2>
+                    <p className="text-[13px] text-muted-foreground mt-1.5">
+                      Digite seu e-mail e enviaremos um link de redefinição.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleForgotSubmit} className="space-y-5">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="forgot-email" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        E-mail
+                      </Label>
+                      <Input
+                        id="forgot-email"
+                        type="email"
+                        placeholder="seu.email@descompliquei.com"
+                        className="h-11 text-sm rounded-xl border-border/60 bg-background transition-all duration-200 focus:ring-2 focus:ring-primary/10 focus:border-primary/40"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        required
+                        autoFocus
+                      />
+                    </div>
+
+                    <Button
+                      className="w-full h-11 text-sm font-bold rounded-xl gap-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200"
+                      type="submit"
+                      disabled={forgotLoading}
+                    >
+                      {forgotLoading ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Enviando...</>
+                      ) : (
+                        <>Enviar link de redefinição <ArrowRight className="h-4 w-4" /></>
+                      )}
+                    </Button>
+                  </form>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="mb-8">
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 mb-2">
+                  Área interna
+                </p>
+                <h2 className="text-[28px] font-extrabold tracking-tight text-foreground font-display leading-tight">
+                  Acesse o CS
+                </h2>
+                <p className="text-[13px] text-muted-foreground mt-1.5">
+                  Restrito à equipe da Descompliquei
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    E-mail
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="seu.email@descompliquei.com"
+                    className="h-11 text-sm rounded-xl border-border/60 bg-background transition-all duration-200 focus:ring-2 focus:ring-primary/10 focus:border-primary/40"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="password" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Senha
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Digite sua senha"
+                      className="h-11 text-sm rounded-xl border-border/60 bg-background pr-10 transition-all duration-200 focus:ring-2 focus:ring-primary/10 focus:border-primary/40"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => { setIsForgotMode(true); setForgotEmail(email); }}
+                      className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-1"
+                    >
+                      Esqueci a senha
+                    </button>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full h-11 text-sm font-bold rounded-xl gap-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200"
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Entrando...</>
+                  ) : (
+                    <>Entrar <ArrowRight className="h-4 w-4" /></>
+                  )}
+                </Button>
+              </form>
+
+              <div className="mt-8 pt-6 border-t border-border/40">
+                <p className="text-center text-[11px] text-muted-foreground/40">
+                  Acesso restrito à equipe interna da Descompliquei.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
