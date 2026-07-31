@@ -31,3 +31,4 @@ nul
 # Empresa — pastas privadas (nunca versionar dados sensíveis internos)
 empresa/**/_privado/
 
+.vercel
