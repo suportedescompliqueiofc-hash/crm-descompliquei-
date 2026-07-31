@@ -26,11 +26,13 @@
 // `agendamentos` diretamente, só via essas funções.
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { Menu } from 'lucide-react';
+import { Menu, Building2 } from 'lucide-react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { CsSidebarContent } from './CsSidebar';
 import { useLocalStorage } from '@/hooks/use-local-storage';
+import { useProfile } from '@/hooks/useProfile';
+import { MASTER_ORG_ID } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
 const PAGE_TITLES: Record<string, string> = {
@@ -43,10 +45,20 @@ export default function CsLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useLocalStorage('cs-sidebar-collapsed', false);
   const location = useLocation();
+  const { profile, isLoading: profileLoading } = useProfile();
 
   const currentTitle =
     PAGE_TITLES[location.pathname] ??
     (location.pathname.startsWith('/cliente/') ? 'Cliente' : location.pathname.startsWith('/plano/') ? 'Plano do mês' : 'CS');
+
+  // Aviso não-bloqueante: o perfil está com uma organização de CLIENTE
+  // aberta na plataforma (impersonação via "Acessar CRM" numa outra aba),
+  // em vez da organização master. Não é erro e não impede o uso do CS — só
+  // informação que afeta o que a pessoa vê na outra aba. Não fazemos aqui
+  // o UPDATE forçado de organização que o AdminLayout.tsx faz — ver
+  // decisão completa no comentário do topo deste arquivo.
+  const showImpersonationNotice =
+    !profileLoading && !!profile?.organization_id && profile.organization_id !== MASTER_ORG_ID;
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden flex flex-col">
@@ -83,6 +95,17 @@ export default function CsLayout() {
               {currentTitle}
             </span>
           </div>
+
+          {showImpersonationNotice && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 shrink-0">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+              <Building2 className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
+              <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                <span className="hidden sm:inline">Organização de cliente aberta na plataforma</span>
+                <span className="sm:hidden">Impersonação ativa</span>
+              </span>
+            </div>
+          )}
         </div>
       </header>
 
