@@ -10,6 +10,12 @@
 // aqui, nem em CarteiraRow.tsx/narrativa.ts. Urgência vem da ordem
 // (ordem_fila, já calculada pelo banco) e do texto, nunca de cor.
 //
+// Segunda passada de design (2026-07-31, conceito "Console"): o número grande
+// que antes vivia dentro da descrição virou `stats` do PageTitle (é leitura,
+// não prosa) e a lista deixou de ser um `divide-y` solto para virar um
+// `Panel` — "FILA DE ATENDIMENTO" — porque é isso que ela é: uma fila de
+// trabalho, não um parágrafo com clientes.
+//
 // Fonte de dado: `useCarteira()` para a fila em si; `useTarefas()` só para o
 // acréscimo de sinal por linha (tarefas atrasadas — arquitetura-app-cs.md,
 // seção D). Nenhuma outra fonte entra nesta tela.
@@ -18,11 +24,22 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { formatInt } from '@/lib/format';
 import { useCarteira, useTarefas } from '@/hooks/cs';
-import { PageTitle, Section, Metric, EmptyState, LoadingState, ErrorState } from '@/components/cs/ui';
+import {
+  PageTitle,
+  Panel,
+  PanelHeader,
+  PanelBody,
+  PanelRows,
+  Readout,
+  Action,
+  EmptyState,
+  LoadingState,
+  ErrorState,
+} from '@/components/cs/ui';
 import { CarteiraRow } from '@/components/cs/carteira/CarteiraRow';
 
 export default function Carteira() {
-  const { data: carteira, isLoading, isError } = useCarteira();
+  const { data: carteira, isLoading, isError, refetch } = useCarteira();
   const { data: tarefas = [] } = useTarefas();
   const lista = carteira ?? [];
 
@@ -47,51 +64,72 @@ export default function Carteira() {
     // "Precisam de ação imediata" é a tradução comportamental de
     // nivel_risco === 'critico' — a PALAVRA nunca é impressa na tela.
     const urgentes = lista.filter((c) => c.nivel_risco === 'critico').length;
-    return { total, urgentes };
+    // Mesmo campo que a linha usa para o chip "sem plano" (aderencia_pct nulo
+    // = a RPC não achou plano publicado no período corrente para o cliente).
+    const semPlano = lista.filter((c) => c.aderencia_pct == null).length;
+    return { total, urgentes, semPlano };
   }, [lista]);
 
-  const descricao = isLoading ? undefined : (
-    <div className="space-y-1 pt-1">
-      {resumo.urgentes > 0 ? (
-        <>
-          <Metric size="lg" value={formatInt(resumo.urgentes)} />
-          <p>
-            {resumo.urgentes === 1 ? 'cliente pede' : 'clientes pedem'} ação imediata agora, de{' '}
-            {formatInt(resumo.total)} na carteira.
-          </p>
-        </>
-      ) : (
-        <>
-          <Metric size="lg" tone="muted" value={formatInt(resumo.total)} />
-          <p>clientes na carteira — nenhum pede ação imediata agora.</p>
-        </>
-      )}
-    </div>
-  );
-
   return (
-    <div className="max-w-[760px] mx-auto pb-12">
-      <PageTitle title="Carteira" description={descricao} />
-
-      <Section>
-        {isLoading ? (
-          <LoadingState label="Carregando a carteira…" />
-        ) : isError ? (
-          <ErrorState description="Não foi possível carregar a carteira." />
-        ) : lista.length === 0 ? (
-          <EmptyState title="Nada por aqui ainda" description="Assim que a carteira for carregada, ela aparece aqui." />
-        ) : (
-          <div className="divide-y divide-border/50">
-            {lista.map((cliente) => (
-              <CarteiraRow
-                key={cliente.organization_id}
-                cliente={cliente}
-                tarefasAtrasadas={atrasadasPorCliente.get(cliente.organization_id) ?? 0}
+    <div className="pb-12">
+      <PageTitle
+        title="Carteira"
+        description="A fila abaixo já vem ordenada por quem precisa de ação primeiro — o mesmo critério da régua de risco do método."
+        stats={
+          !isLoading && (
+            <>
+              <Readout
+                label="Pedem ação agora"
+                value={formatInt(resumo.urgentes)}
+                tone={resumo.urgentes > 0 ? 'accent' : 'muted'}
               />
-            ))}
-          </div>
-        )}
-      </Section>
+              <Readout label="Na carteira" value={formatInt(resumo.total)} />
+              <Readout
+                label="Sem plano no mês"
+                value={formatInt(resumo.semPlano)}
+                tone={resumo.semPlano > 0 ? 'accent' : 'muted'}
+              />
+            </>
+          )
+        }
+      />
+
+      <Panel>
+        <PanelHeader title="Fila de atendimento" hint="ordenada por quem precisa de ação primeiro" />
+        <PanelBody flush>
+          {isLoading ? (
+            <div className="px-4 py-4">
+              <LoadingState rows={6} label="Carregando a carteira…" />
+            </div>
+          ) : isError ? (
+            <div className="px-4 py-4">
+              <ErrorState
+                description="Não foi possível carregar a carteira."
+                action={
+                  <Action variant="outline" size="sm" onClick={() => refetch()}>
+                    Tentar novamente
+                  </Action>
+                }
+              />
+            </div>
+          ) : lista.length === 0 ? (
+            <div className="px-4 py-4">
+              <EmptyState title="Nada por aqui ainda" description="Assim que a carteira for carregada, ela aparece aqui." />
+            </div>
+          ) : (
+            <PanelRows>
+              {lista.map((cliente, index) => (
+                <CarteiraRow
+                  key={cliente.organization_id}
+                  cliente={cliente}
+                  index={index}
+                  tarefasAtrasadas={atrasadasPorCliente.get(cliente.organization_id) ?? 0}
+                />
+              ))}
+            </PanelRows>
+          )}
+        </PanelBody>
+      </Panel>
     </div>
   );
 }

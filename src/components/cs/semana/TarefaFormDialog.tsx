@@ -1,3 +1,14 @@
+// Formulário curto de tarefa — criação e edição na mesma peça. Sem fricção:
+// só "título" é obrigatório, o resto tem default sensato (dono = João,
+// prioridade = normal, sem cliente = tarefa interna).
+//
+// Alinhamento visual ao Console (2026-07-31): título em font-display, rótulo
+// de campo na mesma caixa alta/tracking do PanelHeader, botões viraram
+// <Action> (nunca mais <Button> do shadcn cru) — a lógica de formulário não
+// mudou uma linha.
+//
+// Cliente é editável tanto na criação quanto na edição (`EditarTarefaInput`
+// aceita `organization_id` desde 2026-07-30 — corrigido na revisão do squad).
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -8,16 +19,15 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 import { useCriarTarefa, useEditarTarefa } from '@/hooks/cs';
 import type { CSTarefa, ClienteCarteira, DonoTarefa } from '@/hooks/cs';
+import { Action } from '@/components/cs/ui';
 import { DONO_CONFIG, PRIORIDADE_OPTIONS } from './constants';
 
-const LABEL_CLASS = 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground';
+const LABEL_CLASS = 'text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground/70';
 const NENHUM_CLIENTE = '__nenhum__';
 
 interface TarefaFormDialogProps {
@@ -30,14 +40,6 @@ interface TarefaFormDialogProps {
   organizationIdInicial?: string | null;
 }
 
-/**
- * Formulário curto de tarefa — criação e edição na mesma peça. Sem fricção:
- * só "título" é obrigatório, o resto tem default sensato (dono = João,
- * prioridade = normal, sem cliente = tarefa interna).
- *
- * Cliente é editável tanto na criação quanto na edição (`EditarTarefaInput`
- * aceita `organization_id` desde 2026-07-30 — corrigido na revisão do squad).
- */
 export function TarefaFormDialog({
   open,
   onOpenChange,
@@ -131,7 +133,7 @@ export function TarefaFormDialog({
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
               placeholder="O que precisa ser feito"
-              className="h-10 text-sm rounded-lg border-border/60"
+              className="h-10 text-[13.5px] rounded-lg border-border/60"
             />
           </div>
 
@@ -142,7 +144,7 @@ export function TarefaFormDialog({
               onChange={(e) => setDescricao(e.target.value)}
               placeholder="Detalhe, se precisar"
               rows={2}
-              className="text-sm rounded-lg border-border/60 resize-none"
+              className="text-[13.5px] rounded-lg border-border/60 resize-none"
             />
           </div>
 
@@ -153,7 +155,7 @@ export function TarefaFormDialog({
                 value={organizationId ?? NENHUM_CLIENTE}
                 onValueChange={(v) => setOrganizationId(v === NENHUM_CLIENTE ? null : v)}
               >
-                <SelectTrigger className="h-10 text-sm rounded-lg border-border/60">
+                <SelectTrigger className="h-10 text-[13.5px] rounded-lg border-border/60">
                   <SelectValue placeholder="Sem cliente" />
                 </SelectTrigger>
                 <SelectContent>
@@ -173,7 +175,7 @@ export function TarefaFormDialog({
                 type="date"
                 value={prazo}
                 onChange={(e) => setPrazo(e.target.value)}
-                className="h-10 text-sm rounded-lg border-border/60"
+                className="h-10 text-[13.5px] rounded-lg border-border/60"
               />
             </div>
           </div>
@@ -182,7 +184,7 @@ export function TarefaFormDialog({
             <div className="space-y-1.5">
               <label className={LABEL_CLASS}>Prioridade</label>
               <Select value={String(prioridade)} onValueChange={(v) => setPrioridade(Number(v))}>
-                <SelectTrigger className="h-10 text-sm rounded-lg border-border/60">
+                <SelectTrigger className="h-10 text-[13.5px] rounded-lg border-border/60">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -197,40 +199,30 @@ export function TarefaFormDialog({
 
             <div className="space-y-1.5">
               <label className={LABEL_CLASS}>Dono</label>
-              <div className="flex bg-muted/40 rounded-xl p-1 gap-0.5 h-10 items-center">
+              <div className="flex bg-muted/50 rounded-lg p-1 gap-0.5 h-10 items-center">
                 {(Object.keys(DONO_CONFIG) as DonoTarefa[]).map((d) => (
-                  <button
+                  <Action
                     key={d}
                     type="button"
+                    variant={dono === d ? 'solid' : 'ghost'}
+                    size="sm"
+                    className="flex-1"
                     onClick={() => setDono(d)}
-                    className={cn(
-                      'flex-1 h-full px-2 text-[11px] font-medium rounded-lg transition-all',
-                      dono === d ? 'bg-foreground text-background shadow-sm' : 'text-muted-foreground hover:text-foreground',
-                    )}
                   >
                     {DONO_CONFIG[d].label}
-                  </button>
+                  </Action>
                 ))}
               </div>
             </div>
           </div>
 
           <DialogFooter className="pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-9 rounded-lg text-[11px] font-medium border-border/60 gap-1.5 px-3"
-              onClick={() => onOpenChange(false)}
-            >
+            <Action type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={isPending}
-              className="h-9 rounded-lg text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 px-5 gap-1.5"
-            >
+            </Action>
+            <Action type="submit" variant="solid" disabled={isPending}>
               {isPending ? 'Salvando…' : isEdit ? 'Salvar' : 'Criar tarefa'}
-            </Button>
+            </Action>
           </DialogFooter>
         </form>
       </DialogContent>

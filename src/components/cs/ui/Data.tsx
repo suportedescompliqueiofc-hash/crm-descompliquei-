@@ -115,7 +115,7 @@ export function Readout({ label, value, caption, size = 'md', tone = 'default', 
     <div className={cn('min-w-0', className)}>
       <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60">{label}</p>
       <div className="mt-1">
-        <Metric size={size === 'lg' ? 'lg' : 'xl'} tone={tone} value={value} />
+        <Metric size={size === 'lg' ? 'xl' : 'lg'} tone={tone} value={value} />
       </div>
       {caption && <p className="text-[11.5px] text-muted-foreground/75 mt-0.5 leading-snug">{caption}</p>}
     </div>

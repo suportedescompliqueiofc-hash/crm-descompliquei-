@@ -2,8 +2,15 @@
 // principal do plano agora vive DENTRO da Ficha do Cliente
 // (PlanoEmbutido.tsx, mês corrente). Esta tela virou o arquivo: navegar
 // entre cliente e mês, e ver o plano publicado de qualquer mês do ciclo —
-// inclusive meses já fechados. Reaproveita PlanoEmbutido (mesmo componente
-// da Ficha) para não duplicar a renderização do plano em dois lugares.
+// inclusive meses já fechados.
+//
+// Redesign 2026-07-31 (design "Console"): esta tela ganhou <PlanoMesPanel>
+// própria em vez de reaproveitar <PlanoEmbutido> — ver o cabeçalho desse
+// arquivo para o porquê (PlanoEmbutido carrega comportamento de edição do
+// mês corrente que este arquivo histórico nunca usa, e é peça compartilhada
+// com a Ficha do Cliente, fora do escopo desta rodada). A largura deixou de
+// ser fixa em 760px (medida de coluna de texto) — o container já é 1200px
+// (CsLayout) e cada tela desenha o próprio grid dentro dele.
 //
 // Acopla o método (pedido do coordenador, 2026-07-30): uma referência
 // discreta e recolhida (`<details>`) com a anatomia de um bom plano e o
@@ -15,11 +22,11 @@ import { format, isSameMonth, parseISO, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAderencia, useCarteira, useClienteElos, usePlanoConteudo } from '@/hooks/cs';
 import { getPlanoDeAcao } from '@/content/cs';
-import { PageTitle, Section } from '@/components/cs/ui';
+import { PageTitle, Panel, PanelBody, Section, EmptyState } from '@/components/cs/ui';
 import { SeletorCliente } from '@/components/cs/plano/SeletorCliente';
 import { SeletorMes } from '@/components/cs/plano/SeletorMes';
 import { PlanoVazio } from '@/components/cs/plano/PlanoVazio';
-import { PlanoEmbutido } from '@/components/cs/cliente/PlanoEmbutido';
+import { PlanoMesPanel } from '@/components/cs/plano/PlanoMesPanel';
 
 export default function PlanoCliente() {
   const { orgId } = useParams<{ orgId: string }>();
@@ -50,32 +57,35 @@ export default function PlanoCliente() {
   const anatomia = getPlanoDeAcao();
 
   return (
-    <div className="max-w-[760px] mx-auto pb-16 space-y-6">
+    <div className="pb-16 space-y-6">
       <PageTitle
         title="Plano"
+        eyebrow="PLANO"
         description="O plano publicado em cada mês do ciclo — arquivo histórico. O mês corrente vive na ficha do cliente."
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <SeletorCliente clientes={carteira} orgId={orgId} isLoading={carteiraLoading} />
-        {orgId && <SeletorMes mes={mes} minMes={minMes} maxMes={hojeMes} onChange={setMes} />}
-      </div>
+      {/* Painel de filtro — cliente e mês são os dois controles que decidem
+          o que o resto da tela mostra; ganham superfície própria em vez de
+          flutuarem soltos sobre o canvas entre o título e o painel do mês. */}
+      <Panel>
+        <PanelBody className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <SeletorCliente clientes={carteira} orgId={orgId} isLoading={carteiraLoading} />
+          {orgId && <SeletorMes mes={mes} minMes={minMes} maxMes={hojeMes} onChange={setMes} />}
+        </PanelBody>
+      </Panel>
 
       {!orgId ? (
-        <p className="text-sm text-muted-foreground">Selecione um cliente para ver o plano do mês.</p>
+        <EmptyState title="Selecione um cliente" description="Escolha um cliente no filtro acima para ver o plano do mês." />
       ) : clienteNaoEncontrado ? (
-        <p className="text-sm text-muted-foreground">Cliente não encontrado na carteira PCA.</p>
+        <EmptyState title="Cliente não encontrado" description="Este cliente não está na carteira PCA." />
       ) : semPlano ? (
         <PlanoVazio mesLabel={mesLabel} />
       ) : (
-        <PlanoEmbutido
-          orgId={orgId!}
+        <PlanoMesPanel
+          mesLabel={mesLabel}
           aderencia={aderencia}
           passos={passos}
           isLoading={aderenciaLoading || passosLoading}
-          mesLabel={mesLabel}
-          mostrarLinksArquivo={false}
-          mostrarAcoesPublicacao={false}
         />
       )}
 

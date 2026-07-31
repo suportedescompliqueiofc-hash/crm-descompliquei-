@@ -16,7 +16,11 @@ import {
 
 export function FundamentosView() {
   return (
-    <div>
+    // space-y-4: cada <Section> agora é um painel com moldura própria (ver
+    // Section.tsx) — sem respiro entre eles, os painéis se tocam e voltam a
+    // ler como bloco único. A regra do próprio primitivo é "empilhe com
+    // space-y-4", nunca divide-y.
+    <div className="space-y-4">
       <Section title="O sistema">
         <p className="text-sm leading-relaxed text-foreground">{O_QUE_E_O_SISTEMA}</p>
         <p className="text-sm leading-relaxed text-muted-foreground">{POR_QUE_EXISTE}</p>

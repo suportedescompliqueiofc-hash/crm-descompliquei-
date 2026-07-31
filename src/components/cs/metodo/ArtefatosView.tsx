@@ -42,7 +42,8 @@ export function ArtefatosView() {
   const materiais = useMemo(() => (grupo === 'todos' ? MATERIAIS : getMateriaisPorGrupo(grupo)), [grupo]);
 
   return (
-    <div>
+    // space-y-4 entre painéis — ver nota em FundamentosView.tsx.
+    <div className="space-y-4">
       <Section title="O plano de ação mensal" description="O entregável central do sistema.">
         <p className="text-sm leading-relaxed text-foreground">{O_QUE_E_UM_PLANO}</p>
         <p className="text-[13px] text-muted-foreground leading-relaxed mt-3">{EVIDENCIA_QUE_MOTIVA_O_RIGOR}</p>

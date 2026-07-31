@@ -2,7 +2,14 @@
 // dado (05-operacoes-e-cs/CLAUDE.md: "duas verdades, nunca misturadas").
 // Quando uma percepção diverge do que o número mostra, isso é o sinal mais
 // valioso do sistema — destacado aqui por peso de fonte e um filete à
-// esquerda (`border-l`), nunca por cor.
+// esquerda (`border-l`), nunca por cor (nem laranja: divergência não é
+// "exige ação", é "vale a pena olhar duas vezes").
+//
+// Redesign 2026-07-31 (rodada "Console"): bloco da coluna lateral (sticky).
+// Vira `<Panel>` com a ação "Registrar" no cabeçalho; a lista de percepções
+// vira `<PanelRows>`/`<ListRow>` (o filete de divergência é aplicado direto
+// na `<ListRow>`, sem mudar de cor). O formulário do diálogo é inalterado —
+// fora do escopo visual desta rodada.
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -13,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import type { PercepcaoRecente } from '@/hooks/cs';
 import { useRegistrarPercepcao } from '@/hooks/cs';
-import { Section, EmptyState } from '@/components/cs/ui';
+import { Panel, PanelHeader, PanelBody, PanelRows, ListRow, Action, EmptyState } from '@/components/cs/ui';
 
 const LABEL_CLASS = 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground';
 
@@ -54,43 +61,46 @@ export function PercepcaoCeo({ organizationId, percepcoes, isLoading }: Percepca
   }
 
   return (
-    <Section
-      title="Percepção"
-      description="O que o João observa neste cliente, além do que os números mostram."
-    >
-      <button
-        type="button"
-        onClick={() => setDialogAberto(true)}
-        className="text-sm font-medium text-foreground underline underline-offset-4 hover:no-underline mb-3"
-      >
-        Registrar percepção
-      </button>
-
-      {isLoading ? null : percepcoes.length === 0 ? (
-        <EmptyState title="Nenhuma percepção registrada ainda" />
-      ) : (
-        <div className="space-y-3 max-w-[680px]">
-          {percepcoes.map((p) => (
-            <div
-              key={p.id}
-              className={p.diverge_do_dado ? 'border-l-2 border-foreground/25 pl-3' : undefined}
-            >
-              <p className={p.diverge_do_dado ? 'text-sm font-medium text-foreground leading-relaxed' : 'text-sm text-foreground leading-relaxed'}>
-                {p.texto}
-              </p>
-              <p className="text-[12px] text-muted-foreground/70 mt-0.5">
-                {p.data_percepcao
-                  ? format(parseISO(p.data_percepcao), "d 'de' MMMM 'de' yyyy", { locale: ptBR })
-                  : 'data aproximada'}
-                {p.diverge_do_dado && ' · diverge do que o número mostra'}
-              </p>
-              {p.diverge_do_dado && p.divergencia_nota && (
-                <p className="text-[13px] text-muted-foreground leading-relaxed mt-1">{p.divergencia_nota}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+    <Panel>
+      <PanelHeader
+        title="Percepção"
+        hint="O que o João observa, além do número"
+        action={
+          <Action size="sm" variant="outline" onClick={() => setDialogAberto(true)}>
+            Registrar
+          </Action>
+        }
+      />
+      <PanelBody flush={!isLoading && percepcoes.length > 0}>
+        {isLoading ? null : percepcoes.length === 0 ? (
+          <EmptyState title="Nenhuma percepção registrada ainda" />
+        ) : (
+          <PanelRows>
+            {percepcoes.map((p) => (
+              <ListRow key={p.id} className={p.diverge_do_dado ? 'border-l-2 border-foreground/25' : undefined}>
+                <p
+                  className={
+                    p.diverge_do_dado
+                      ? 'text-sm font-medium text-foreground leading-relaxed'
+                      : 'text-sm text-foreground leading-relaxed'
+                  }
+                >
+                  {p.texto}
+                </p>
+                <p className="text-[12px] text-muted-foreground/70 mt-0.5">
+                  {p.data_percepcao
+                    ? format(parseISO(p.data_percepcao), "d 'de' MMMM 'de' yyyy", { locale: ptBR })
+                    : 'data aproximada'}
+                  {p.diverge_do_dado && ' · diverge do que o número mostra'}
+                </p>
+                {p.diverge_do_dado && p.divergencia_nota && (
+                  <p className="text-[13px] text-muted-foreground leading-relaxed mt-1">{p.divergencia_nota}</p>
+                )}
+              </ListRow>
+            ))}
+          </PanelRows>
+        )}
+      </PanelBody>
 
       <Dialog open={dialogAberto} onOpenChange={setDialogAberto}>
         <DialogContent className="max-w-md">
@@ -144,6 +154,6 @@ export function PercepcaoCeo({ organizationId, percepcoes, isLoading }: Percepca
           </form>
         </DialogContent>
       </Dialog>
-    </Section>
+    </Panel>
   );
 }

@@ -1,16 +1,19 @@
-// Layout do app de CS — barra de topo (CsTopNav) + conteúdo em coluna de
-// leitura, nunca a casca de painel administrativo (sidebar fixa escura,
-// header separado, margem que cresce/encolhe com o colapso).
+// Casca do console de CS — cromo grafite no topo + canvas de trabalho.
 //
-// Redesign completo (2026-07-30) — ver comentário em CsSidebar.tsx para o
-// porquê da mudança de sidebar lateral para barra de topo. Sem estado de
-// colapso, sem Sheet mobile: a navegação é três links de texto, não precisa
-// de gaveta.
+// O canvas (`bg-background`, areia quente pelo cs-theme.css) não é
+// decoração: é o que permite que exista PAINEL. Painel branco sobre página
+// branca não é painel, é parágrafo com borda — e foi por isso que a versão
+// anterior deste app lia como documento. A cor do fundo é, literalmente, a
+// decisão que faz a interface parecer software.
 //
-// Mantida a mesma decisão de não forçar `perfis.organization_id` para a org
-// master (ver comentário original no histórico do arquivo) — só o aviso de
-// impersonação mudou de lugar, de badge âmbar num header fixo para uma linha
-// de texto discreta no topo do conteúdo.
+// Largura: 1200px. A versão anterior usava coluna de leitura de 760px, que é
+// medida de texto, não de sistema — com 760px não cabe ficha em duas colunas
+// e todo bloco vira uma pilha vertical infinita. As telas definem o próprio
+// grid dentro desta largura; nenhuma delas volta a fixar `max-w` própria.
+//
+// Mantida a decisão de NÃO forçar `perfis.organization_id` para a org master
+// (o AdminLayout do app do cliente faz isso; aqui seria arrancar a org do
+// João de baixo de outra aba aberta). O aviso de impersonação é informativo.
 import { Outlet } from 'react-router-dom';
 import { CsTopNav } from './CsSidebar';
 import { useProfile } from '@/hooks/useProfile';
@@ -19,10 +22,6 @@ import { MASTER_ORG_ID } from '@/lib/constants';
 export default function CsLayout() {
   const { profile, isLoading: profileLoading } = useProfile();
 
-  // Aviso não-bloqueante: o perfil está com uma organização de CLIENTE
-  // aberta na plataforma (impersonação via "Acessar CRM" numa outra aba), em
-  // vez da organização master. Não é erro e não impede o uso do CS — nunca
-  // fazemos aqui o UPDATE forçado de organização que o AdminLayout.tsx faz.
   const showImpersonationNotice =
     !profileLoading && !!profile?.organization_id && profile.organization_id !== MASTER_ORG_ID;
 
@@ -31,17 +30,20 @@ export default function CsLayout() {
       <CsTopNav />
 
       {showImpersonationNotice && (
-        <div className="border-b border-border/40 bg-muted/20">
-          <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-1.5">
-            <p className="text-[11px] text-muted-foreground/70">
+        <div className="border-b border-border bg-[hsl(var(--cs-accent-soft))]">
+          <div className="max-w-[1200px] mx-auto px-5 sm:px-8 py-2 flex items-center gap-2.5">
+            <span className="h-[6px] w-[6px] rounded-[2px] bg-[hsl(var(--cs-accent))] shrink-0" />
+            <p className="text-[11.5px] text-foreground/70">
               Há uma organização de cliente aberta na plataforma (impersonação ativa noutra aba).
             </p>
           </div>
         </div>
       )}
 
-      <main className="flex-1 px-4 sm:px-6 py-8">
-        <Outlet />
+      <main className="flex-1 px-5 sm:px-8 py-7">
+        <div className="max-w-[1200px] mx-auto">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

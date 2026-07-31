@@ -15,12 +15,17 @@
 //   verdade porque o elo do próximo plano só é decidido no fechamento
 //   mensal seguinte — aqui é usada uma aproximação deliberada (material
 //   ENTREGUE para o elo-restrição ATUAL), declarada na própria tela.
+//
+// Redesign 2026-07-31 (rodada "Console"): bloco da coluna lateral (sticky).
+// A checklist de prontidão reaproveita o mesmo `<Checkline>` da Camada 0 (A
+// cadeia, bloco 2) em vez de um checkbox HTML cru — mesma forma mínima para
+// todo estado binário verificável no sistema inteiro.
 import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useMateriaisCliente, useReunioes } from '@/hooks/cs';
 import type { Aderencia, ClienteCarteira, EloMaterial } from '@/hooks/cs';
-import { Section, LoadingState, EmptyState } from '@/components/cs/ui';
+import { Panel, PanelHeader, PanelBody, Checkline, Action, LoadingState, EmptyState } from '@/components/cs/ui';
 import { NovaReuniaoDialog } from '@/components/cs/agenda/NovaReuniaoDialog';
 import { TIPO_LABEL } from '@/components/cs/agenda/reuniaoMeta';
 
@@ -42,23 +47,13 @@ interface ItemProntidao {
   nota?: string;
 }
 
-function ItemChecklist({ item }: { item: ItemProntidao }) {
-  return (
-    <div className="flex items-start gap-2.5 text-sm">
-      <input
-        type="checkbox"
-        checked={item.estado === 'ok'}
-        disabled
-        readOnly
-        className="mt-0.5 h-4 w-4 shrink-0 accent-foreground disabled:opacity-100"
-        aria-label={item.label}
-      />
-      <span className="min-w-0">
-        <span className={item.estado === 'ok' ? 'text-foreground' : 'text-foreground font-medium'}>{item.label}</span>
-        {item.nota && <span className="text-[12px] text-muted-foreground/70"> — {item.nota}</span>}
-      </span>
-    </div>
-  );
+/** `estado` (3 valores, vocabulário do domínio) → `checked` do `<Checkline>`
+ * (`true`/`false`/`null`) — indisponível vira `null` ("ainda não se sabe"),
+ * nunca uma cor de risco própria. */
+function estadoParaChecked(estado: ItemProntidao['estado']): boolean | null {
+  if (estado === 'ok') return true;
+  if (estado === 'pendente') return false;
+  return null;
 }
 
 interface ProximaReuniaoProps {
@@ -113,40 +108,54 @@ export function ProximaReuniao({ orgId, clientes, aderencia, aderenciaLoading, e
     : [];
 
   return (
-    <Section title="Próxima reunião">
-      <button
-        type="button"
-        onClick={() => setDialogAberto(true)}
-        className="text-sm font-medium text-foreground underline underline-offset-4 hover:no-underline mb-1"
-      >
-        Agendar reunião
-      </button>
+    <Panel>
+      <PanelHeader
+        title="Próxima reunião"
+        action={
+          <Action size="sm" variant="outline" onClick={() => setDialogAberto(true)}>
+            Agendar
+          </Action>
+        }
+      />
+      <PanelBody>
+        {isLoading ? (
+          <LoadingState label="Carregando…" />
+        ) : !proxima ? (
+          <EmptyState title="Nenhuma reunião marcada" description="Agende a próxima reunião com este cliente." />
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-foreground leading-relaxed">
+              {TIPO_LABEL[proxima.tipo]} —{' '}
+              <span className="font-display tabular-nums">
+                {format(new Date(proxima.data_hora), "d 'de' MMMM", { locale: ptBR })}
+              </span>
+              , <span className="font-display tabular-nums">{format(new Date(proxima.data_hora), 'HH:mm')}</span>.
+            </p>
 
-      {isLoading ? (
-        <LoadingState label="Carregando…" />
-      ) : !proxima ? (
-        <EmptyState title="Nenhuma reunião marcada" description="Agende a próxima reunião com este cliente." />
-      ) : (
-        <div className="max-w-[620px] space-y-3">
-          <p className="text-sm text-foreground leading-relaxed">
-            {TIPO_LABEL[proxima.tipo]} —{' '}
-            <span className="font-display tabular-nums">
-              {format(new Date(proxima.data_hora), "d 'de' MMMM", { locale: ptBR })}
-            </span>
-            , <span className="font-display tabular-nums">{format(new Date(proxima.data_hora), 'HH:mm')}</span>.
-          </p>
-
-          {ehMensal && (
-            <div className="space-y-1">
-              {itens.map((item) => (
-                <ItemChecklist key={item.label} item={item} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+            {ehMensal && (
+              <div>
+                {itens.map((item) => (
+                  <Checkline
+                    key={item.label}
+                    checked={estadoParaChecked(item.estado)}
+                    label={
+                      item.nota ? (
+                        <>
+                          {item.label} <span className="text-muted-foreground font-normal">— {item.nota}</span>
+                        </>
+                      ) : (
+                        item.label
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </PanelBody>
 
       <NovaReuniaoDialog open={dialogAberto} onOpenChange={setDialogAberto} clientes={clientes} defaultOrgId={orgId} />
-    </Section>
+    </Panel>
   );
 }

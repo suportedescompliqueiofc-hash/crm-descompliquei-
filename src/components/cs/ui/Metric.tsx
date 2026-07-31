@@ -1,31 +1,38 @@
-// Valor numérico do app de CS — todo número/valor/data/percentual exibido
-// passa por aqui. Mantém a única regra que fica da plataforma: `font-display
-// tabular-nums` sempre JUNTOS na mesma tag (nunca isolados — cai num bug
-// latente do CSS base que joga o número para JetBrains Mono). Formate o
-// valor ANTES de passar (`formatBRL`/`formatInt`/`formatPct` de `@/lib/format`;
-// "sem dado" é sempre '—').
+// Valor numérico do console — todo número, valor, data e percentual passa
+// por aqui.
 //
-// `size="lg"` é o número grande da tela — no MÁXIMO um por tela (princípio
-// 4). `size="md"` é o valor padrão de linha de lista/seção. `size="sm"` é
-// para contextos apertados (célula estreita, texto inline).
+// Regra herdada da plataforma (a única que fica): `font-display tabular-nums`
+// SEMPRE juntos na mesma tag. Isolados, caem num bug latente do CSS base que
+// joga o número para JetBrains Mono — e número em mono é proibido no console
+// (mono ali significa "identificador de banco", ver Evidence em Chip.tsx).
+// Formate o valor ANTES de passar (`formatBRL`/`formatInt`/`formatPct` de
+// `@/lib/format`); "sem dado" é sempre '—'.
+//
+// Tons: o console não tem semáforo. `danger`/`warning` são apelidos de
+// laranja (atenção/ação) e `success` de petróleo (o método passou) — os
+// nomes antigos seguem válidos para não quebrar telas, mas em código novo
+// use `accent` e `signal`, que dizem o que a cor significa AQUI.
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
-type MetricSize = 'lg' | 'md' | 'sm';
-type MetricTone = 'default' | 'muted' | 'danger' | 'warning' | 'success';
+type MetricSize = 'xl' | 'lg' | 'md' | 'sm';
+type MetricTone = 'default' | 'muted' | 'accent' | 'signal' | 'danger' | 'warning' | 'success';
 
 const SIZE_CLASSES: Record<MetricSize, string> = {
-  lg: 'text-[40px] leading-[1.05]',
-  md: 'text-base',
-  sm: 'text-sm',
+  xl: 'text-[38px] leading-[1.02] tracking-[-0.02em]',
+  lg: 'text-[23px] leading-[1.1] tracking-[-0.01em]',
+  md: 'text-[14.5px]',
+  sm: 'text-[12.5px]',
 };
 
 const TONE_CLASSES: Record<MetricTone, string> = {
   default: 'text-foreground',
   muted: 'text-muted-foreground',
-  danger: 'text-red-600',
-  warning: 'text-amber-600',
-  success: 'text-emerald-600',
+  accent: 'text-[hsl(var(--cs-accent))]',
+  signal: 'text-[hsl(var(--cs-signal))]',
+  danger: 'text-[hsl(var(--cs-accent))]',
+  warning: 'text-[hsl(var(--cs-accent))]',
+  success: 'text-[hsl(var(--cs-signal))]',
 };
 
 interface MetricProps {

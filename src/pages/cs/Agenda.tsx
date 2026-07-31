@@ -1,15 +1,36 @@
-// Rota "/agenda" do app de CS — as reuniões com clientes, em frases.
-// Redesign completo (2026-07-30, veredito do CEO: "Em Semana e Agenda está
-// absolutamente tudo igual" — mesmo StatCardGrid e PageHero de antes). Agora:
-// PageTitle discreto, listas de linha (ListRow), sem badge colorido de
-// tipo/status. A nota da reunião pode virar entrada de continuidade do
-// cliente — ver ReuniaoDetalheDialog.tsx.
+// Rota "/agenda" do app de CS — as reuniões com clientes.
+//
+// Conceito "Console" (2026-07-31): a lista de reuniões é a atenção principal
+// da tela, então ganha a coluna larga (`minmax(0,1fr)`); "Sem reunião há
+// muito tempo" — o único bloco que pede ação AGORA — vai para a coluna
+// lateral fixa de 340px, sem competir por espaço com a fila de reuniões.
+//
+// Decisão de leiaute (não trivial, documentada porque diverge do texto do
+// briefing): `ProntidaoMensal` NÃO virou um painel próprio na coluna
+// lateral. Ela é parametrizada por uma reunião específica
+// (organizationId + dataHora daquela reunião mensal) — não existe "a
+// prontidão da tela", existe "a prontidão desta reunião". Transformá-la num
+// painel solto exigiria inventar qual reunião ela representaria (a próxima?
+// todas?) sem que isso viesse dos hooks. Ela continua exatamente onde fazia
+// sentido: como segunda linha discreta dentro de `ReuniaoRow`, só quando a
+// própria linha é uma mensal ainda agendada.
 import { useMemo, useState } from 'react';
 import { differenceInCalendarDays, endOfWeek, isSameMonth, startOfWeek } from 'date-fns';
 import { formatInt } from '@/lib/format';
 import { useCarteira, useReunioes } from '@/hooks/cs';
 import type { CSReuniao } from '@/hooks/cs';
-import { PageTitle, Section, Metric, EmptyState, LoadingState } from '@/components/cs/ui';
+import {
+  PageTitle,
+  Panel,
+  PanelHeader,
+  PanelBody,
+  PanelRows,
+  Readout,
+  Action,
+  Chip,
+  EmptyState,
+  LoadingState,
+} from '@/components/cs/ui';
 import { ReuniaoRow } from '@/components/cs/agenda/ReuniaoRow';
 import { NovaReuniaoDialog } from '@/components/cs/agenda/NovaReuniaoDialog';
 import { ReuniaoDetalheDialog } from '@/components/cs/agenda/ReuniaoDetalheDialog';
@@ -105,72 +126,89 @@ export default function Agenda() {
     setNovaAberta(true);
   }
 
-  const descricao = isLoading ? undefined : (
-    <div className="space-y-1 pt-1">
-      <Metric size="lg" tone="muted" value={formatInt(reunioesDaSemana)} />
-      <p>
-        {reunioesDaSemana === 1 ? 'reunião esta semana' : 'reuniões esta semana'} · {formatInt(clientesSemReuniao.length)}{' '}
-        sem reunião marcada · {formatInt(realizadasNoMes)} realizadas no mês.
-      </p>
-    </div>
-  );
-
   return (
-    <div className="max-w-[760px] mx-auto pb-16">
+    <div className="pb-12">
       <PageTitle
         title="Agenda"
-        description={descricao}
+        description="As reuniões marcadas com a carteira — o que vem primeiro, e quem está há muito tempo sem conversa."
+        stats={
+          !isLoading && (
+            <>
+              <Readout label="Esta semana" value={formatInt(reunioesDaSemana)} />
+              <Readout
+                label="Sem reunião"
+                value={formatInt(clientesSemReuniao.length)}
+                tone={clientesSemReuniao.length > 0 ? 'accent' : 'muted'}
+              />
+              <Readout label="Realizadas no mês" value={formatInt(realizadasNoMes)} tone="signal" />
+            </>
+          )
+        }
         action={
-          <button
-            type="button"
-            onClick={() => abrirNova(null)}
-            className="text-sm font-medium text-foreground underline underline-offset-4 hover:no-underline"
-          >
+          <Action variant="accent" onClick={() => abrirNova(null)}>
             Agendar reunião
-          </button>
+          </Action>
         }
       />
 
-      <div className="divide-y divide-border/60">
-        {!isLoading && <ClientesAtencaoAgenda atrasados={atrasados} onSelecionar={(orgId) => abrirNova(orgId)} />}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-5 items-start">
+        <div className="space-y-5">
+          <Panel>
+            <PanelHeader title="Próximas reuniões" action={!isLoading && <Chip>{proximas.length}</Chip>} />
+            <PanelBody flush>
+              {isLoading ? (
+                <div className="px-4 py-4">
+                  <LoadingState rows={4} label="Carregando as próximas reuniões…" />
+                </div>
+              ) : proximas.length === 0 ? (
+                <div className="px-4 py-4">
+                  <EmptyState title="Nada agendado" description="Assim que houver reuniões marcadas, elas aparecem aqui." />
+                </div>
+              ) : (
+                <PanelRows>
+                  {proximas.map((r) => (
+                    <ReuniaoRow
+                      key={r.id}
+                      reuniao={r}
+                      clienteNome={r.organization_id ? nomesPorOrg.get(r.organization_id) ?? null : null}
+                      onClick={() => setSelecionada(r)}
+                    />
+                  ))}
+                </PanelRows>
+              )}
+            </PanelBody>
+          </Panel>
 
-        <Section title="Próximas reuniões">
-          {isLoading ? (
-            <LoadingState />
-          ) : proximas.length === 0 ? (
-            <EmptyState title="Nada agendado" description="Assim que houver reuniões marcadas, elas aparecem aqui." />
-          ) : (
-            <div className="divide-y divide-border/50">
-              {proximas.map((r) => (
-                <ReuniaoRow
-                  key={r.id}
-                  reuniao={r}
-                  clienteNome={r.organization_id ? nomesPorOrg.get(r.organization_id) ?? null : null}
-                  onClick={() => setSelecionada(r)}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
+          <Panel>
+            <PanelHeader title="Histórico" hint="realizadas e canceladas" />
+            <PanelBody flush>
+              {isLoading ? (
+                <div className="px-4 py-4">
+                  <LoadingState rows={4} label="Carregando o histórico…" />
+                </div>
+              ) : historico.length === 0 ? (
+                <div className="px-4 py-4">
+                  <EmptyState title="Nada por aqui ainda" description="Reuniões realizadas ou canceladas aparecem aqui." />
+                </div>
+              ) : (
+                <PanelRows>
+                  {historico.map((r) => (
+                    <ReuniaoRow
+                      key={r.id}
+                      reuniao={r}
+                      clienteNome={r.organization_id ? nomesPorOrg.get(r.organization_id) ?? null : null}
+                      onClick={() => setSelecionada(r)}
+                    />
+                  ))}
+                </PanelRows>
+              )}
+            </PanelBody>
+          </Panel>
+        </div>
 
-        <Section title="Histórico" description="Realizadas e canceladas.">
-          {isLoading ? (
-            <LoadingState />
-          ) : historico.length === 0 ? (
-            <EmptyState title="Nada por aqui ainda" description="Reuniões realizadas ou canceladas aparecem aqui." />
-          ) : (
-            <div className="divide-y divide-border/50">
-              {historico.map((r) => (
-                <ReuniaoRow
-                  key={r.id}
-                  reuniao={r}
-                  clienteNome={r.organization_id ? nomesPorOrg.get(r.organization_id) ?? null : null}
-                  onClick={() => setSelecionada(r)}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
+        <div className="space-y-5">
+          {!isLoading && <ClientesAtencaoAgenda atrasados={atrasados} onSelecionar={(orgId) => abrirNova(orgId)} />}
+        </div>
       </div>
 
       <NovaReuniaoDialog open={novaAberta} onOpenChange={setNovaAberta} clientes={carteira} defaultOrgId={defaultOrgId} />

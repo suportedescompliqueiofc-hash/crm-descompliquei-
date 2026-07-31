@@ -1,10 +1,8 @@
 // Bloco 5 da Ficha (arquitetura-app-cs.md, seção B.5, especificação
-// completa na seção C) — "Linha do tempo". Bloco NOVO: une continuidade,
-// reuniões, materiais, tarefas concluídas, plano publicado e marcos do CRM
-// num único feed cronológico — o segundo item mais citado pelo CEO como
-// ausente ("não tem histórico de nada do cliente"). Substitui por completo
-// o antigo HistoricoContinuidade.tsx, que só mostrava a metade disso (só
-// continuidade, digitada à mão).
+// completa na seção C) — "Linha do tempo". Une continuidade, reuniões,
+// materiais, tarefas concluídas, plano publicado e marcos do CRM num único
+// feed cronológico — o segundo item mais citado pelo CEO como ausente ("não
+// tem histórico de nada do cliente").
 //
 // Fonte principal: useTimelineCliente() (RPC cs_cliente_timeline) —
 // confirmado ao vivo em 2026-07-31 que o campo `tipo` só distingue os 7
@@ -19,20 +17,28 @@
 // reais expostos — o caso de uso principal do filtro (silenciar TAREFA)
 // continua 100% coberto.
 //
-// Marcos do CRM (acréscimo de 2026-07-31): useClienteMarcos() (RPC
-// cs_cliente_marcos) devolve primeira venda, primeiro agendamento, primeira
-// mensagem e saltos/quedas relevantes de demanda — testado ao vivo com as 7
-// orgs PCA, incluindo a Dra. Monção (+470% de leads em um mês: 83 → 473,
-// confirmado por SELECT direto em `leads`, não é erro de cálculo). O tipo
-// `primeira_venda` que essa RPC devolve é DESCARTADO na junção abaixo —
-// `cs_cliente_timeline` já cobre esse mesmo marco (fonte `vendas`), e
-// mostrar os dois criaria uma linha duplicada na mesma data.
+// Marcos do CRM: useClienteMarcos() (RPC cs_cliente_marcos) devolve
+// primeira venda, primeiro agendamento, primeira mensagem e saltos/quedas
+// relevantes de demanda — testado ao vivo com as 7 orgs PCA, incluindo a
+// Dra. Monção (+470% de leads em um mês: 83 → 473, confirmado por SELECT
+// direto em `leads`, não é erro de cálculo). O tipo `primeira_venda` que
+// essa RPC devolve é DESCARTADO na junção abaixo — `cs_cliente_timeline` já
+// cobre esse mesmo marco (fonte `vendas`), e mostrar os dois criaria uma
+// linha duplicada na mesma data.
+//
+// Redesign 2026-07-31 (rodada "Console"): o painel ganha contador (`<Chip>`)
+// e ação ("Registrar conversa") no cabeçalho. A mudança que faz a diferença
+// visual é a RÉGUA VERTICAL: um fio de 1px corre à esquerda da lista de cada
+// mês, com um marcador quadrado de 7px por evento encostado nele — é o que
+// faz o bloco parecer instrumento de leitura cronológica em vez de uma lista
+// de parágrafos. O marcador é neutro (nem laranja nem petróleo): a linha do
+// tempo registra fato, não pede ação nem mede método.
 import { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useClienteMarcos, useTimelineCliente } from '@/hooks/cs';
 import type { TipoEventoTimeline, TipoMarcoCliente } from '@/hooks/cs';
-import { Section, LoadingState, EmptyState } from '@/components/cs/ui';
+import { Panel, PanelHeader, PanelBody, Chip, Action, LoadingState, EmptyState } from '@/components/cs/ui';
 import { cn } from '@/lib/utils';
 import { RegistrarContinuidadeDialog } from './RegistrarContinuidadeDialog';
 
@@ -86,6 +92,22 @@ const GRUPOS_FILTRO: { label: string; tipos: TipoUnificado[] }[] = [
 
 function capitalizar(s: string): string {
   return s.length > 0 ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+/** Chip de filtro tipo pílula — ativo em tom neutro, inativo esmaecido e riscado. */
+function FiltroChip({ ativo, label, onClick }: { ativo: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center h-[22px] px-2.5 rounded-full border text-[11px] font-medium transition-colors',
+        ativo ? 'border-border text-foreground bg-card' : 'border-border/50 text-muted-foreground/45 line-through',
+      )}
+    >
+      {label}
+    </button>
+  );
 }
 
 interface TimelineClienteProps {
@@ -180,88 +202,84 @@ export function TimelineCliente({ orgId }: TimelineClienteProps) {
   }
 
   return (
-    <Section title="Linha do tempo" description="Tudo que já aconteceu com este cliente, mais recente primeiro.">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-1">
-        <button
-          type="button"
-          onClick={() => setDialogAberto(true)}
-          className="text-sm font-medium text-foreground underline underline-offset-4 hover:no-underline"
-        >
-          + registrar conversa
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {GRUPOS_FILTRO.map((g) => {
-          const ativo = g.tipos.some((t) => !tiposExcluidos.has(t));
-          return (
-            <button
-              key={g.label}
-              type="button"
-              onClick={() => alternarGrupoFiltro(g.tipos)}
-              className={cn(
-                'px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors',
-                ativo
-                  ? 'border-foreground/30 text-foreground'
-                  : 'border-border/50 text-muted-foreground/50 line-through',
-              )}
-            >
-              {g.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {isLoading ? (
-        <LoadingState label="Carregando a linha do tempo…" />
-      ) : eventosUnificados.length === 0 ? (
-        <EmptyState
-          title="Nenhum evento registrado ainda"
-          description="Continuidade, reuniões, materiais, tarefas concluídas, planos publicados e marcos do CRM aparecem aqui a partir de agora."
-        />
-      ) : eventosFiltrados.length === 0 ? (
-        <EmptyState title="Nenhum evento com os filtros atuais" description="Ative algum tipo acima para ver o histórico." />
-      ) : (
-        <div className="space-y-5 max-w-[680px]">
-          {gruposParaMostrar.map((grupo) => (
-            <div key={grupo.chave}>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1.5">
-                {grupo.mesLabel}
-              </p>
-              <div className="divide-y divide-border/40">
-                {grupo.eventos.map((e) => (
-                  <div key={e.id} className="py-2.5 flex items-start gap-3">
-                    <span className="shrink-0 w-[92px] pt-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                      {rotuloEvento(e)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-foreground leading-relaxed">{e.titulo}</p>
-                      {e.descricao && (
-                        <p className="text-[13px] text-muted-foreground leading-relaxed mt-0.5">{e.descricao}</p>
-                      )}
-                    </div>
-                    <span className="shrink-0 text-[11px] font-display tabular-nums text-muted-foreground/60 whitespace-nowrap pt-0.5">
-                      {format(parseISO(e.data), 'dd/MM')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {mostrarCarregarMais && (
-            <button
-              type="button"
-              onClick={carregarMais}
-              className="text-sm font-medium text-foreground underline underline-offset-4 hover:no-underline"
-            >
-              Carregar mês anterior
-            </button>
-          )}
+    <Panel>
+      <PanelHeader
+        title="Linha do tempo"
+        hint="Mais recente primeiro"
+        action={
+          <>
+            <Chip>{eventosFiltrados.length}</Chip>
+            <Action size="sm" variant="outline" onClick={() => setDialogAberto(true)}>
+              Registrar conversa
+            </Action>
+          </>
+        }
+      />
+      <PanelBody>
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {GRUPOS_FILTRO.map((g) => {
+            const ativo = g.tipos.some((t) => !tiposExcluidos.has(t));
+            return <FiltroChip key={g.label} ativo={ativo} label={g.label} onClick={() => alternarGrupoFiltro(g.tipos)} />;
+          })}
         </div>
-      )}
+
+        {isLoading ? (
+          <LoadingState label="Carregando a linha do tempo…" />
+        ) : eventosUnificados.length === 0 ? (
+          <EmptyState
+            title="Nenhum evento registrado ainda"
+            description="Continuidade, reuniões, materiais, tarefas concluídas, planos publicados e marcos do CRM aparecem aqui a partir de agora."
+          />
+        ) : eventosFiltrados.length === 0 ? (
+          <EmptyState title="Nenhum evento com os filtros atuais" description="Ative algum tipo acima para ver o histórico." />
+        ) : (
+          <>
+            {gruposParaMostrar.map((grupo) => (
+              <div key={grupo.chave} className="mb-5 last:mb-0">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1.5">
+                  {grupo.mesLabel}
+                </p>
+                {/* Régua vertical: fio de 1px + marcador quadrado de 7px por
+                    evento — é isso que faz a lista ler como instrumento de
+                    leitura cronológica, não uma pilha de parágrafos soltos. */}
+                <div className="relative">
+                  <div className="absolute left-[3px] top-1 bottom-1 w-px bg-border" aria-hidden />
+                  {grupo.eventos.map((e) => (
+                    <div key={e.id} className="relative pl-5 py-2.5">
+                      <span
+                        aria-hidden
+                        className="absolute left-0 top-[14px] h-[7px] w-[7px] rounded-[2px] bg-muted-foreground/40"
+                      />
+                      <div className="flex items-start gap-3">
+                        <span className="shrink-0 w-[84px] pt-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                          {rotuloEvento(e)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-foreground leading-relaxed">{e.titulo}</p>
+                          {e.descricao && (
+                            <p className="text-[13px] text-muted-foreground leading-relaxed mt-0.5">{e.descricao}</p>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-[11px] font-display tabular-nums text-muted-foreground/60 whitespace-nowrap pt-0.5">
+                          {format(parseISO(e.data), 'dd/MM')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {mostrarCarregarMais && (
+              <Action size="sm" variant="outline" onClick={carregarMais} className="mt-1">
+                Carregar mês anterior
+              </Action>
+            )}
+          </>
+        )}
+      </PanelBody>
 
       <RegistrarContinuidadeDialog open={dialogAberto} onOpenChange={setDialogAberto} organizationId={orgId} />
-    </Section>
+    </Panel>
   );
 }

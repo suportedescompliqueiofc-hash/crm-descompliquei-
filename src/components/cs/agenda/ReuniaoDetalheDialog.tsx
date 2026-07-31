@@ -1,18 +1,22 @@
 // Detalhe de uma reunião — remarcar, cancelar, marcar como realizada, e
-// salvar pauta/notas. Redesign 2026-07-30: sem badge colorido de status/tipo
-// (texto puro), sem vermelho no cancelamento (peso de fonte no lugar de
-// cor). Ganhou o pedido explícito da tarefa: a nota da reunião pode virar
-// uma entrada de continuidade do cliente — ao marcar como realizada com
-// notas escritas, a entrada nasce automaticamente (linkada por
+// salvar pauta/notas. Sem badge colorido de status/tipo (texto puro), sem
+// vermelho no cancelamento (peso de fonte no lugar de cor — o vermelho do
+// console é reservado a erro técnico, ver ErrorState). A nota da reunião
+// pode virar uma entrada de continuidade do cliente — ao marcar como
+// realizada com notas escritas, a entrada nasce automaticamente (linkada por
 // `reuniaoId`); para reuniões já realizadas antes, um botão separado faz o
 // mesmo a qualquer momento. Sessão tática em grupo (sem organization_id) não
 // tem cliente único — a opção não aparece nesse caso.
+//
+// Alinhamento visual ao Console (2026-07-31): botões e links de ação viraram
+// <Action> (ghost para navegação leve, outline para secundárias, solid para
+// a ação principal do bloco, danger só para confirmar cancelamento de
+// verdade) — lógica de mutação intacta.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import {
@@ -23,8 +27,11 @@ import {
   useSalvarNotasReuniao,
 } from '@/hooks/cs';
 import type { CSReuniao } from '@/hooks/cs';
+import { Action } from '@/components/cs/ui';
 import { STATUS_LABEL, TIPO_LABEL, toLocalInputValue } from './reuniaoMeta';
 import { getRoteiroReuniaoMensal } from '@/content/cs';
+
+const LABEL_CLASS = 'text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground/70';
 
 interface ReuniaoDetalheDialogProps {
   reuniao: CSReuniao | null;
@@ -153,13 +160,9 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
                   {format(new Date(reuniao.data_hora), "EEEE, dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
                 </p>
                 {podeAgir && (
-                  <button
-                    type="button"
-                    onClick={() => setRemarcando(true)}
-                    className="text-[11px] font-medium text-foreground underline underline-offset-2 hover:no-underline shrink-0"
-                  >
+                  <Action variant="ghost" size="sm" onClick={() => setRemarcando(true)}>
                     Remarcar
-                  </button>
+                  </Action>
                 )}
               </div>
             ) : (
@@ -171,20 +174,12 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
                   className="h-10 text-sm rounded-lg border border-border/60 px-3 w-full bg-background"
                 />
                 <div className="flex gap-2 justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => setRemarcando(false)}
-                    className="h-8 rounded-lg text-[11px] font-medium border-border/60"
-                  >
+                  <Action variant="outline" size="sm" onClick={() => setRemarcando(false)}>
                     Voltar
-                  </Button>
-                  <Button
-                    onClick={handleRemarcar}
-                    disabled={remarcar.isPending}
-                    className="h-8 rounded-lg text-[11px] font-semibold bg-foreground text-background hover:bg-foreground/90"
-                  >
+                  </Action>
+                  <Action variant="solid" size="sm" onClick={handleRemarcar} disabled={remarcar.isPending}>
                     Salvar nova data
-                  </Button>
+                  </Action>
                 </div>
               </div>
             )}
@@ -219,9 +214,7 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
           )}
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Notas — o que foi conversado
-            </label>
+            <label className={LABEL_CLASS}>Notas — o que foi conversado</label>
             <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Registro da reunião" rows={4} />
 
             {temCliente && podeAgir && (
@@ -231,25 +224,20 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
               </label>
             )}
 
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end items-center gap-1">
               {temCliente && !podeAgir && (
-                <button
-                  type="button"
+                <Action
+                  variant="ghost"
+                  size="sm"
                   onClick={handleVirarContinuidadeAgora}
                   disabled={!notas.trim() || registrarContinuidade.isPending}
-                  className="text-[11px] font-medium text-foreground underline underline-offset-2 hover:no-underline disabled:opacity-40 disabled:no-underline"
                 >
                   Registrar no histórico do cliente
-                </button>
+                </Action>
               )}
-              <Button
-                variant="outline"
-                onClick={handleSalvarNotas}
-                disabled={salvarNotas.isPending}
-                className="h-8 rounded-lg text-[11px] font-medium border-border/60"
-              >
+              <Action variant="outline" size="sm" onClick={handleSalvarNotas} disabled={salvarNotas.isPending}>
                 Salvar notas
-              </Button>
+              </Action>
             </div>
           </div>
         </div>
@@ -257,38 +245,22 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
         {podeAgir && (
           <DialogFooter className="flex-col sm:flex-row gap-2">
             {!confirmandoCancelamento ? (
-              <Button
-                variant="outline"
-                onClick={() => setConfirmandoCancelamento(true)}
-                className="h-9 rounded-lg text-[11px] font-medium border-border/60 w-full sm:w-auto"
-              >
+              <Action variant="outline" onClick={() => setConfirmandoCancelamento(true)} className="w-full sm:w-auto">
                 Cancelar reunião
-              </Button>
+              </Action>
             ) : (
               <div className="flex gap-2 w-full sm:w-auto">
-                <Button
-                  variant="outline"
-                  onClick={() => setConfirmandoCancelamento(false)}
-                  className="h-9 rounded-lg text-[11px] font-medium border-border/60 flex-1"
-                >
+                <Action variant="outline" onClick={() => setConfirmandoCancelamento(false)} className="flex-1">
                   Manter
-                </Button>
-                <Button
-                  onClick={handleCancelar}
-                  disabled={cancelar.isPending}
-                  className="h-9 rounded-lg text-[11px] font-semibold bg-foreground text-background hover:bg-foreground/90 flex-1"
-                >
+                </Action>
+                <Action variant="danger" onClick={handleCancelar} disabled={cancelar.isPending} className="flex-1">
                   Confirmar cancelamento
-                </Button>
+                </Action>
               </div>
             )}
-            <Button
-              onClick={handleMarcarRealizada}
-              disabled={marcarRealizada.isPending}
-              className="h-9 rounded-lg text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 px-5 w-full sm:w-auto"
-            >
+            <Action variant="solid" onClick={handleMarcarRealizada} disabled={marcarRealizada.isPending} className="w-full sm:w-auto">
               Marcar como realizada
-            </Button>
+            </Action>
           </DialogFooter>
         )}
       </DialogContent>

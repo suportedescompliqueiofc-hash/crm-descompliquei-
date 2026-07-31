@@ -11,7 +11,8 @@ import {
 
 export function TecnicoView() {
   return (
-    <div>
+    // space-y-4 entre painéis — ver nota em FundamentosView.tsx.
+    <div className="space-y-4">
       <Section title="Schema de jornadas" description="jornadas / jornada_estagios / jornada_passos / jornada_subtarefas — como o plano vira registro no CRM.">
         <div className="divide-y divide-border/50">
           {Object.entries(SCHEMA_JORNADAS).map(([tabela, campos]) => (

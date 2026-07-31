@@ -16,11 +16,23 @@
 // direções: chegar por link posiciona a tela; navegar dentro da tela
 // atualiza a URL (para voltar/recarregar preservar a posição).
 //
+// Redesign 2026-07-31 (segunda leitura do veredito do CEO — "ficou bem legal
+// a parte de método, só que tá muito fora"): o conteúdo já era bom, o que
+// faltava era ela PARECER parte do console. Duas mudanças resolvem isso:
+//   1. Vira layout de documentação de sistema — índice fixo à esquerda
+//      (SecaoNav, agora sticky) e conteúdo em painéis à direita, em vez de
+//      uma coluna única de texto com uma nav solta em cima.
+//   2. A busca ganha superfície própria (ver BuscaMetodo.tsx) em vez de ser
+//      um campo flutuando sobre o canvas.
+// Nenhuma mudança de conteúdo ou de comportamento: `?secao=`/`?busca=`
+// continuam a fonte de verdade da posição de leitura.
+//
 // Guardrail de rota: esta tela ainda não está registrada em App-cs.tsx — a
 // consolidação da rota /metodo fica para quem integra as fatias dos agentes.
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageTitle } from '@/components/cs/ui';
+import { cn } from '@/lib/utils';
 import { SecaoNav } from '@/components/cs/metodo/SecaoNav';
 import { BuscaMetodo } from '@/components/cs/metodo/BuscaMetodo';
 import { FundamentosView } from '@/components/cs/metodo/FundamentosView';
@@ -74,26 +86,34 @@ export default function Metodo() {
   }
 
   return (
-    <div className="max-w-[900px] mx-auto pb-16 space-y-6">
+    <div className="pb-16">
       <PageTitle
         title="Método"
-        description="O manual de CS da Descompliquei — a cadeia de elos, os ritos, o catálogo de materiais e a régua de risco, para consultar sem sair do app."
+        eyebrow="MANUAL"
+        description="A cadeia de elos, os ritos, o catálogo de materiais e a régua de risco — para consultar sem sair do app."
       />
 
-      <BuscaMetodo query={query} onQueryChange={irParaBusca} resultados={resultados} onIrPara={irParaSecao} />
+      {/* O grid de documentação só se aplica fora da busca: buscando, o
+          índice de seções perde sentido (a lista de resultados já atravessa
+          todas as seções) e a coluna de conteúdo volta a ocupar a largura
+          inteira. */}
+      <div className={cn('grid gap-6 items-start', !buscando && 'lg:grid-cols-[236px_minmax(0,1fr)]')}>
+        {!buscando && <SecaoNav ativa={secao} onSelecionar={irParaSecao} />}
 
-      {!buscando && (
-        <div className="space-y-6">
-          <SecaoNav ativa={secao} onSelecionar={irParaSecao} />
-          <div>
-            {secao === 'fundamentos' && <FundamentosView />}
-            {secao === 'ritos' && <RitosView />}
-            {secao === 'artefatos' && <ArtefatosView />}
-            {secao === 'realidade' && <RealidadeView />}
-            {secao === 'tecnico' && <TecnicoView />}
-          </div>
+        <div className="min-w-0 space-y-6">
+          <BuscaMetodo query={query} onQueryChange={irParaBusca} resultados={resultados} onIrPara={irParaSecao} />
+
+          {!buscando && (
+            <div className="space-y-6">
+              {secao === 'fundamentos' && <FundamentosView />}
+              {secao === 'ritos' && <RitosView />}
+              {secao === 'artefatos' && <ArtefatosView />}
+              {secao === 'realidade' && <RealidadeView />}
+              {secao === 'tecnico' && <TecnicoView />}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -1,33 +1,40 @@
-// Seção de conteúdo do app de CS — substitui o card com header em pill
-// (ícone + overline + shadow) da plataforma do cliente. Hierarquia vem de
-// tipografia e espaço, nunca de caixa — ver design-cs.md, princípio 3.
+// Seção de conteúdo do console — hoje é um Painel com cabeçalho em barra.
 //
-// Empilhe seções dentro de um container com `divide-y divide-border/60` (a
-// própria Carteira.tsx faz isso) para que o filete apareça só ENTRE seções,
-// nunca ao redor de cada uma — "no máximo um filete", não uma moldura.
+// Mudança de conceito (2026-07-31): antes, `Section` era só respiro vertical
+// e um overline — hierarquia por tipografia e espaço, sem caixa. Isso é
+// correto num documento e errado num sistema: sem superfície, blocos
+// diferentes não têm limite, e a tela vira uma coluna de texto (foi o
+// veredito do CEO). Agora toda seção é uma superfície com começo e fim.
+//
+// A API é a mesma de antes de propósito — telas que já usavam `<Section
+// title=... />` ganham a moldura nova sem uma linha de edição.
+//
+// Empilhe seções com `space-y-4` (NUNCA mais `divide-y`: o filete era o que
+// separava seções quando não havia painel; agora o painel se separa sozinho).
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { Panel, PanelHeader, PanelBody } from './Panel';
 
 interface SectionProps {
-  /** Overline curto, maiúsculo — omita se a seção não precisar de rótulo (ex.: única seção da tela). */
+  /** Rótulo curto em caixa alta. Sem ele, a seção é um painel sem cabeçalho. */
   title?: string;
+  /** Contexto de uma linha, ao lado do título. */
   description?: string;
+  /** Controles no canto direito do cabeçalho. */
+  action?: ReactNode;
   children: ReactNode;
+  /** `flush` para quando o conteúdo é uma lista (`PanelRows`) coladinha à borda. */
+  flush?: boolean;
+  /** Fio de 2px no topo — só no bloco que pede ação agora. */
+  tone?: 'default' | 'accent' | 'signal';
   className?: string;
 }
 
-export function Section({ title, description, children, className }: SectionProps) {
+export function Section({ title, description, action, children, flush, tone = 'default', className }: SectionProps) {
   return (
-    <section className={cn('py-8 first:pt-0 space-y-4', className)}>
-      {(title || description) && (
-        <div className="space-y-0.5">
-          {title && (
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">{title}</h2>
-          )}
-          {description && <p className="text-xs text-muted-foreground/50">{description}</p>}
-        </div>
-      )}
-      {children}
-    </section>
+    <Panel tone={tone} className={cn(className)}>
+      {(title || action) && <PanelHeader title={title ?? ''} hint={description} action={action} />}
+      <PanelBody flush={flush}>{children}</PanelBody>
+    </Panel>
   );
 }

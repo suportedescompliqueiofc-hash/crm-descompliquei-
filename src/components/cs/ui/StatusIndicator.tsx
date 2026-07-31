@@ -1,28 +1,38 @@
-// Indicador de estado do app de CS — substitui o "badge trio" (fundo pastel
-// + borda + ícone Lucide embutido) da plataforma do cliente por um ponto de
-// cor + texto. Cor é exceção (princípio 5): o ponto carrega o significado,
-// nunca um ícone — ver design-cs.md.
+// Indicador de estado do console.
 //
-// `tone` usa o MESMO vocabulário de `cs_carteira.nivel_risco` que já existe
-// no banco (critico/atencao/saudavel/referencia) — não crie um mapeamento
-// novo em cada tela, importe este.
+// O `tone` continua usando o vocabulário de `cs_carteira.nivel_risco`
+// (critico/atencao/saudavel/referencia) porque é o que vem do banco — mas a
+// TRADUÇÃO visual mudou e é o ponto inteiro deste arquivo: não existe mais
+// semáforo. O CEO reprovou vermelho/âmbar/verde nominalmente em 2026-07-30
+// ("crítico, atenção, saudável... essas cores me incomodam") — ver
+// 05-operacoes-e-cs/sistema/design-cs.md.
+//
+// A escala nova tem duas posições, não quatro:
+//   • laranja  → exige ação (critico, atencao)
+//   • petróleo → o método está de pé (saudavel, referencia)
+//   • neutro   → sem medição
+// Perde-se granularidade de cor de propósito: a ordem da fila e a FRASE já
+// carregam a gravidade; a cor só responde "preciso agir?".
+//
+// E continua valendo: as palavras crítico/atenção/saudável NUNCA aparecem na
+// interface. O `label` que chega aqui é sempre uma frase traduzida.
 import { cn } from '@/lib/utils';
 
 export type StatusTone = 'critico' | 'atencao' | 'saudavel' | 'referencia' | 'neutro';
 
-const DOT_TONE: Record<StatusTone, string> = {
-  critico: 'bg-red-500',
-  atencao: 'bg-amber-500',
-  saudavel: 'bg-emerald-500',
-  referencia: 'bg-blue-500',
-  neutro: 'bg-muted-foreground/40',
+const MARK_TONE: Record<StatusTone, string> = {
+  critico: 'bg-[hsl(var(--cs-accent))]',
+  atencao: 'bg-[hsl(var(--cs-accent))]/45',
+  saudavel: 'bg-[hsl(var(--cs-signal))]',
+  referencia: 'bg-[hsl(var(--cs-signal))]/45',
+  neutro: 'bg-muted-foreground/30',
 };
 
 const TEXT_TONE: Record<StatusTone, string> = {
-  critico: 'text-red-700 dark:text-red-400',
-  atencao: 'text-amber-700 dark:text-amber-400',
-  saudavel: 'text-emerald-700 dark:text-emerald-400',
-  referencia: 'text-blue-700 dark:text-blue-400',
+  critico: 'text-[hsl(var(--cs-accent))]',
+  atencao: 'text-foreground/80',
+  saudavel: 'text-[hsl(var(--cs-signal))]',
+  referencia: 'text-foreground/80',
   neutro: 'text-muted-foreground',
 };
 
@@ -34,9 +44,14 @@ interface StatusIndicatorProps {
 
 export function StatusIndicator({ tone, label, className }: StatusIndicatorProps) {
   return (
-    <span className={cn('inline-flex items-center gap-1.5 text-[13px] font-medium', TEXT_TONE[tone], className)}>
-      <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', DOT_TONE[tone])} />
+    <span className={cn('inline-flex items-center gap-2 text-[12.5px] font-medium', TEXT_TONE[tone], className)}>
+      <span className={cn('h-[7px] w-[7px] rounded-[2px] shrink-0', MARK_TONE[tone])} />
       {label}
     </span>
   );
+}
+
+/** Só o marcador, para a calha do ListRow. */
+export function StatusMark({ tone, className }: { tone: StatusTone; className?: string }) {
+  return <span className={cn('block h-[7px] w-[7px] rounded-[2px] mt-1.5', MARK_TONE[tone], className)} />;
 }

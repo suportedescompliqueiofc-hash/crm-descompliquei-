@@ -19,7 +19,8 @@ import {
 
 export function RealidadeView() {
   return (
-    <div>
+    // space-y-4 entre painéis — ver nota em FundamentosView.tsx.
+    <div className="space-y-4">
       <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-3.5 py-2.5">
         <p className="text-[12.5px] text-amber-800 dark:text-amber-400 leading-relaxed">{AMOSTRA_DATADA_AVISO}</p>
       </div>

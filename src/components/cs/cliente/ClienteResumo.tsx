@@ -5,9 +5,16 @@
 // dois segundos a "esse cliente está bem ou mal, e por quê" — a pergunta que
 // abre o rito diário (ritos/00-o-mes-do-cs.md, passo 1).
 //
-// Redesign 2026-07-31 sobre a versão anterior (que só respondia "cliente
-// desde X, Y% do contrato" — metade da pergunta, sem o motivo de risco nem a
-// hipótese do elo, exatamente o que o CEO cobrou: "clico e não vejo nada").
+// Redesign 2026-07-31 (rodada "Console"): antes este bloco desenhava seu
+// próprio <h1> solto no branco — exatamente o "documento com título em cima"
+// que o CEO reprovou. Agora ele é a primeira coisa que a tela mostra e usa o
+// primitivo `PageTitle` (a segunda camada de cromo do console): eyebrow
+// "CLIENTE", o nome como título, a frase do contrato como descrição e até
+// três `<Readout>` à direita (dias restantes, % do contrato, aderência do
+// mês — quando há aderência calculada). O relógio do contrato desce para um
+// `<Rail>` logo abaixo do título (mesma semântica de antes: só tempo, nunca
+// risco) e o elo-restrição vira `<Chip tone="signal">` — petróleo porque é
+// vocabulário do MÉTODO, nunca laranja (isso seria fingir semáforo de risco).
 //
 // Fonte do elo-restrição: `cliente.elo_restricao` (useCarteira — o mesmo
 // valor que a Cadeia, bloco 2, usa) — não `contexto.elo_restricao` (que é o
@@ -20,6 +27,7 @@ import { formatInt, formatPct } from '@/lib/format';
 import { formatDataBR } from '../format';
 import { getEloInfo } from '../eloMeta';
 import { construirSituacao } from '../carteira/narrativa';
+import { PageTitle, Readout, Rail, Chip, LoadingState, EmptyState } from '@/components/cs/ui';
 
 interface ClienteResumoProps {
   cliente: ClienteCarteira | undefined;
@@ -31,20 +39,11 @@ const DIAS_CICLO_PCA = 180;
 
 export function ClienteResumo({ cliente, contexto, isLoading }: ClienteResumoProps) {
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm text-muted-foreground/50 animate-pulse">Carregando…</p>
-      </div>
-    );
+    return <LoadingState rows={3} label="Carregando o cliente…" />;
   }
 
   if (!cliente) {
-    return (
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold font-display tracking-tight text-foreground">Cliente não encontrado</h1>
-        <p className="text-sm text-muted-foreground">Este cliente não está na carteira PCA.</p>
-      </div>
-    );
+    return <EmptyState title="Cliente não encontrado" description="Este cliente não está na carteira PCA." />;
   }
 
   const pctBarra = Math.min(Math.max(cliente.pct_contrato ?? 0, 0), 100);
@@ -56,33 +55,37 @@ export function ClienteResumo({ cliente, contexto, isLoading }: ClienteResumoPro
   const motivo = emRisco ? construirSituacao(cliente).acao : null;
 
   return (
-    <div className="space-y-3">
-      <h1 className="text-2xl font-bold font-display tracking-tight text-foreground">{cliente.nome}</h1>
+    <div>
+      <PageTitle
+        eyebrow="CLIENTE"
+        title={cliente.nome}
+        description={`Cliente desde ${formatDataBR(cliente.cliente_desde)} — ${formatInt(cliente.dias_de_ciclo)} de ${formatInt(DIAS_CICLO_PCA)} dias do contrato.`}
+        stats={
+          <>
+            <Readout label="Dias restantes" value={formatInt(diasRestantes)} />
+            <Readout label="Contrato" value={formatPct(pctBarra, 0)} />
+            {cliente.aderencia_pct != null && (
+              <Readout label="Aderência do mês" value={formatPct(cliente.aderencia_pct, 0)} />
+            )}
+          </>
+        }
+      />
 
-      <div className="max-w-[520px] space-y-1.5">
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          Cliente desde {formatDataBR(cliente.cliente_desde)} —{' '}
-          <span className="font-display tabular-nums">{formatInt(cliente.dias_de_ciclo)}</span> de{' '}
-          <span className="font-display tabular-nums">{formatInt(DIAS_CICLO_PCA)}</span> dias do contrato (
-          <span className="font-display tabular-nums">{formatPct(pctBarra, 0)}</span>), {formatInt(diasRestantes)}{' '}
-          {diasRestantes === 1 ? 'dia restante' : 'dias restantes'}.
-        </p>
-        <div className="h-1 w-full rounded-full bg-muted/50 overflow-hidden" role="presentation">
-          <div className="h-full rounded-full bg-foreground/70" style={{ width: `${pctBarra}%` }} />
-        </div>
-      </div>
+      {/* Relógio do contrato: único trilho fora de contexto de painel na
+          ficha — de propósito, porque não é uma métrica de negócio, é tempo
+          decorrido, o único caso em que uma barra "de risco" continua certa. */}
+      <Rail value={pctBarra / 100} tone="ink" className="mb-4" />
 
-      <p className="text-sm text-foreground leading-relaxed">
-        Elo-restrição:{' '}
+      <div className="flex flex-wrap items-center gap-2.5 mb-2">
         {semDadoDeElo ? (
-          <span className="text-muted-foreground">ainda sem dado suficiente para calcular.</span>
+          <span className="text-[13px] text-muted-foreground">Elo-restrição: ainda sem dado suficiente para calcular.</span>
         ) : (
           <>
-            <span className="font-semibold">{eloLabel}</span>
-            {eloEhHipotese && <span className="text-muted-foreground"> (hipótese, a confirmar)</span>}.
+            <Chip tone="signal">{eloLabel}</Chip>
+            {eloEhHipotese && <Chip tone="neutral">Hipótese, a confirmar</Chip>}
           </>
         )}
-      </p>
+      </div>
 
       {motivo && <p className="text-sm text-muted-foreground leading-relaxed max-w-[620px]">{motivo}</p>}
     </div>

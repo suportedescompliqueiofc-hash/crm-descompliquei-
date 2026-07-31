@@ -4,10 +4,16 @@
 // como concluído é o cliente, na própria plataforma — o app de CS só lê (por
 // isso os checkboxes do checklist do cliente são reais, mas desabilitados).
 //
-// Redesign 2026-07-31 sobre a versão anterior (que já tinha aderência/elo/
-// critério, mas o passo concluído/não-concluído só se distinguia por cor
-// mais clara do texto — falhava o teste "objeto reconhecível sem ler cada
-// palavra"). Agora cada passo é uma linha com checkbox real.
+// Redesign 2026-07-31 (rodada "Console"): o painel ganha cabeçalho em barra
+// com o status de publicação como `<Chip>`, a aderência vira `<Rail>` +
+// texto (em vez de só texto), e cada passo é uma linha `<ListRow>` dentro de
+// `<PanelRows>` com um marcador de conclusão próprio (`PassoMark`, abaixo) —
+// petróleo quando concluído (o método confirmou), contorno neutro quando
+// pendente. NUNCA laranja aqui: concluir um passo do CLIENTE não é uma ação
+// do João. "Publicar plano" era um link sublinhado — agora é a ÚNICA
+// `<Action variant="accent">` desta ficha inteira (a regra do primitivo é no
+// máximo uma por tela, e esta é a ação mais importante do bloco mais
+// importante).
 //
 // DUAS FACES DO PLANO (acréscimo de 2026-07-31, decisão do Executor de Dados
 // sobre `cs_publicar_jornada`): um plano publicado grava em DOIS lugares
@@ -25,10 +31,6 @@
 //   face do plano ("Suas ações deste plano", abaixo) busca por
 //   `useTarefas({ jornadaId, dono: 'joao' })` — não por nenhuma coluna nova
 //   em `jornada_passos`.
-// (Nota histórica: cheguei a escrever aqui, antes desta rodada, que
-// `jornada_passos` não tinha coluna de dono — a coluna passou a existir na
-// tabela, mas `cs_plano_conteudo` não a seleciona e, pela invariante acima,
-// não precisa selecionar: todo passo aqui já é do cliente por construção.)
 //
 // PUBLICAR PLANO: ver `PublicarPlanoDialog.tsx` para a decisão completa —
 // resumo: `cs_publicar_jornada` recebe o plano INTEIRO como parâmetro (não
@@ -43,7 +45,8 @@ import { toast } from 'sonner';
 import { useConcluirTarefa, useReabrirTarefa, useTarefas } from '@/hooks/cs';
 import type { Aderencia, PlanoPasso } from '@/hooks/cs';
 import { formatInt, formatPct } from '@/lib/format';
-import { Section, LoadingState } from '@/components/cs/ui';
+import { cn } from '@/lib/utils';
+import { Panel, PanelHeader, PanelBody, PanelBand, PanelRows, ListRow, Chip, Action, Rail, LoadingState, EmptyState } from '@/components/cs/ui';
 import { PublicarPlanoDialog } from './PublicarPlanoDialog';
 
 interface EstagioAgrupado {
@@ -72,8 +75,32 @@ const STATUS_LABEL: Record<string, string> = {
   concluida: 'Concluída',
 };
 
+/**
+ * Marcador de conclusão de passo — a mesma linguagem visual do `<Checkline>`
+ * (quadrado 13px), embutido na calha do `<ListRow>`. Petróleo quando
+ * concluído (o método está de pé), contorno neutro quando pendente — nunca
+ * laranja: laranja é reservado a "isto exige uma ação do João".
+ */
+function PassoMark({ concluido }: { concluido: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'h-[13px] w-[13px] rounded-[3px] border shrink-0 flex items-center justify-center',
+        concluido ? 'bg-[hsl(var(--cs-signal))] border-[hsl(var(--cs-signal))]' : 'border-border bg-muted',
+      )}
+    >
+      {concluido && (
+        <svg viewBox="0 0 10 10" className="h-[9px] w-[9px] text-white" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M1.5 5.2 4 7.6 8.6 2.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
 // Suas ações deste plano — a segunda face (dono='joao'), que nunca aparece
-// em jornada_passos. Checkbox INTERATIVO de propósito (não desabilitado): é
+// em jornada_passos. Marcador INTERATIVO de propósito (não desabilitado): é
 // a mesma cs_tarefas do bloco 4, então marcar/desmarcar aqui é exatamente a
 // mesma ação — só a leitura é reaproveitada num contexto diferente.
 function AcoesDoJoaoNoPlano({ jornadaId }: { jornadaId: string }) {
@@ -92,32 +119,40 @@ function AcoesDoJoaoNoPlano({ jornadaId }: { jornadaId: string }) {
   if (isLoading) return <LoadingState label="Carregando suas ações do plano…" />;
 
   return (
-    <div>
-      <p className="text-sm font-medium text-foreground">Suas ações deste plano</p>
+    <PanelBand label="Suas ações deste plano">
       {tarefas.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground/70 mt-1">
-          Nenhuma ação sua neste plano — todos os passos são do cliente.
-        </p>
+        <p className="text-[13px] text-muted-foreground/70">Nenhuma ação sua neste plano — todos os passos são do cliente.</p>
       ) : (
-        <div className="mt-1 space-y-1">
+        <PanelRows className="-mx-4">
           {tarefas.map((t) => (
-            <label key={t.id} className="flex items-start gap-2.5 text-[13px]">
-              <input
-                type="checkbox"
-                checked={t.concluida}
-                onChange={() => toggle(t.id, t.concluida)}
-                className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-foreground cursor-pointer"
-                aria-label={t.concluida ? `Reabrir ${t.titulo}` : `Concluir ${t.titulo}`}
-              />
-              <span className={t.concluida ? 'text-muted-foreground/70 leading-relaxed line-through' : 'text-foreground leading-relaxed'}>
+            <ListRow
+              key={t.id}
+              mark={
+                <button
+                  type="button"
+                  onClick={() => toggle(t.id, t.concluida)}
+                  aria-label={t.concluida ? `Reabrir ${t.titulo}` : `Concluir ${t.titulo}`}
+                  className="cursor-pointer"
+                >
+                  <PassoMark concluido={t.concluida} />
+                </button>
+              }
+            >
+              <p
+                className={
+                  t.concluida
+                    ? 'text-[13px] text-muted-foreground/70 leading-relaxed line-through'
+                    : 'text-[13px] text-foreground leading-relaxed'
+                }
+              >
                 {t.titulo}
                 {t.prazo && !t.concluida && ` — vence ${format(parseISO(t.prazo), 'dd/MM')}`}
-              </span>
-            </label>
+              </p>
+            </ListRow>
           ))}
-        </div>
+        </PanelRows>
       )}
-    </div>
+    </PanelBand>
   );
 }
 
@@ -155,109 +190,106 @@ export function PlanoEmbutido({
   const planoComposto = useMemo(() => null, []);
 
   return (
-    <Section title={`Plano de ${mesLabel}`}>
-      {isLoading ? (
-        <LoadingState label="Carregando o plano…" />
-      ) : semPlano ? (
-        <div className="max-w-[620px] space-y-2">
-          <p className="text-sm text-foreground leading-relaxed">
-            Sem plano publicado neste mês. O plano nasce no fechamento mensal — em conversa, não nesta tela.
-          </p>
-          {mostrarAcoesPublicacao && (
-            <button
-              type="button"
-              onClick={() => setDialogPublicarAberto(true)}
-              className="text-sm font-medium text-foreground underline underline-offset-4 hover:no-underline"
-            >
-              Publicar plano
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4 max-w-[680px]">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-sm text-foreground leading-relaxed">
-              {jornadaStatus && <span className="font-medium">{STATUS_LABEL[jornadaStatus] ?? jornadaStatus}</span>}
-              {jornadaStatus && ' — '}
-              {formatPct(aderencia!.pct, 0)} de aderência ao plano deste mês —{' '}
-              {formatInt(aderencia!.passos_concluidos)} de {formatInt(aderencia!.total_passos)} passos concluídos.
-            </p>
-          </div>
+    <Panel>
+      <PanelHeader
+        title="Plano do mês"
+        hint={mesLabel}
+        action={jornadaStatus ? <Chip tone="neutral">{STATUS_LABEL[jornadaStatus] ?? jornadaStatus}</Chip> : undefined}
+      />
+      <PanelBody flush={!isLoading && !semPlano}>
+        {isLoading ? (
+          <LoadingState label="Carregando o plano…" />
+        ) : semPlano ? (
+          <EmptyState
+            title="Sem plano publicado neste mês"
+            description="O plano nasce no fechamento mensal — em conversa, não nesta tela."
+            action={
+              mostrarAcoesPublicacao ? (
+                <Action variant="accent" onClick={() => setDialogPublicarAberto(true)}>
+                  Publicar plano
+                </Action>
+              ) : undefined
+            }
+          />
+        ) : (
+          <>
+            <PanelBand>
+              <p className="text-sm text-foreground leading-relaxed">
+                {formatPct(aderencia!.pct, 0)} de aderência ao plano deste mês — {formatInt(aderencia!.passos_concluidos)} de{' '}
+                {formatInt(aderencia!.total_passos)} passos concluídos.
+              </p>
+              <Rail value={(aderencia!.pct ?? 0) / 100} tone="signal" className="mt-2" />
 
-          {passos[0]?.jornada_elo_alvo || passos[0]?.jornada_criterio_sucesso ? (
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Este mês ataca <span className="text-foreground font-medium">{passos[0]?.jornada_elo_alvo ?? '—'}</span>.
-              Critério de sucesso: {passos[0]?.jornada_criterio_sucesso ?? '—'}.
-            </p>
-          ) : (
-            <p className="text-[13px] text-muted-foreground/70 leading-relaxed">
-              Este plano foi publicado sem elo declarado e sem critério de sucesso — lacuna real do método, nenhum
-              fechamento mensal definiu isso ainda para este cliente.
-            </p>
-          )}
+              {passos[0]?.jornada_elo_alvo || passos[0]?.jornada_criterio_sucesso ? (
+                <p className="text-sm text-muted-foreground leading-relaxed mt-2 max-w-[640px]">
+                  Este mês ataca <span className="text-foreground font-medium">{passos[0]?.jornada_elo_alvo ?? '—'}</span>.
+                  Critério de sucesso: {passos[0]?.jornada_criterio_sucesso ?? '—'}.
+                </p>
+              ) : (
+                <p className="text-[13px] text-muted-foreground/70 leading-relaxed mt-2 max-w-[640px]">
+                  Este plano foi publicado sem elo declarado e sem critério de sucesso — lacuna real do método, nenhum
+                  fechamento mensal definiu isso ainda para este cliente.
+                </p>
+              )}
+            </PanelBand>
 
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">
-              O que o cliente vê e faz
-            </p>
-            {agruparPorEstagio(passos).map((estagio) => {
-              const concluidos = estagio.passos.filter((p) => p.concluido).length;
-              return (
-                <div key={estagio.estagio_id} className="mb-3 last:mb-0">
-                  <p className="text-sm font-medium text-foreground">
-                    {estagio.estagio_titulo}{' '}
-                    <span className="text-muted-foreground font-normal font-display tabular-nums">
-                      ({formatInt(concluidos)}/{formatInt(estagio.passos.length)})
-                    </span>
-                  </p>
-                  <div className="mt-1 space-y-1">
-                    {estagio.passos.map((p) => (
-                      <label key={p.passo_id} className="flex items-start gap-2.5 text-[13px]">
-                        <input
-                          type="checkbox"
-                          checked={p.concluido}
-                          disabled
-                          readOnly
-                          className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-foreground disabled:opacity-100"
-                          aria-label={p.passo_titulo}
-                        />
-                        <span
-                          className={p.concluido ? 'text-muted-foreground/70 leading-relaxed' : 'text-foreground leading-relaxed'}
-                        >
-                          {p.passo_titulo}
-                          {!p.obrigatorio && ' (opcional)'}
-                          {p.concluido &&
-                            p.concluido_em &&
-                            ` — concluído em ${format(new Date(p.concluido_em), "d 'de' MMM", { locale: ptBR })}`}
+            <PanelBand label="O que o cliente vê e faz">
+              <div className="space-y-3">
+                {agruparPorEstagio(passos).map((estagio) => {
+                  const concluidos = estagio.passos.filter((p) => p.concluido).length;
+                  return (
+                    <div key={estagio.estagio_id}>
+                      <p className="text-[12.5px] font-medium text-foreground mb-1">
+                        {estagio.estagio_titulo}{' '}
+                        <span className="text-muted-foreground font-normal font-display tabular-nums">
+                          ({formatInt(concluidos)}/{formatInt(estagio.passos.length)})
                         </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {mostrarAcoesPublicacao && jornadaId && (
-            <div className="pt-1 border-t border-border/40">
-              <div className="pt-3">
-                <AcoesDoJoaoNoPlano jornadaId={jornadaId} />
+                      </p>
+                      <PanelRows className="-mx-4">
+                        {estagio.passos.map((p) => (
+                          <ListRow key={p.passo_id} mark={<PassoMark concluido={p.concluido} />}>
+                            <p
+                              className={
+                                p.concluido
+                                  ? 'text-[13px] text-muted-foreground/70 leading-relaxed'
+                                  : 'text-[13px] text-foreground leading-relaxed'
+                              }
+                            >
+                              {p.passo_titulo}
+                              {!p.obrigatorio && ' (opcional)'}
+                              {p.concluido &&
+                                p.concluido_em &&
+                                ` — concluído em ${format(new Date(p.concluido_em), "d 'de' MMM", { locale: ptBR })}`}
+                            </p>
+                          </ListRow>
+                        ))}
+                      </PanelRows>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            </PanelBand>
+
+            {mostrarAcoesPublicacao && jornadaId && <AcoesDoJoaoNoPlano jornadaId={jornadaId} />}
+          </>
+        )}
+      </PanelBody>
 
       {mostrarLinksArquivo && (
-        <div className="flex items-center gap-3 text-sm">
-          <Link to={`/plano/${orgId}`} className="font-medium text-foreground underline underline-offset-4 hover:no-underline">
+        <PanelBand className="flex items-center gap-2">
+          <Link
+            to={`/plano/${orgId}`}
+            className="inline-flex items-center h-7 px-2.5 rounded-md text-[11.5px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          >
             Ver plano completo
           </Link>
-          <span className="text-muted-foreground/40">·</span>
-          <Link to={`/plano/${orgId}`} className="font-medium text-foreground underline underline-offset-4 hover:no-underline">
+          <Link
+            to={`/plano/${orgId}`}
+            className="inline-flex items-center h-7 px-2.5 rounded-md text-[11.5px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          >
             Ver meses anteriores
           </Link>
-        </div>
+        </PanelBand>
       )}
 
       {mostrarAcoesPublicacao && (
@@ -267,6 +299,6 @@ export function PlanoEmbutido({
           planoComposto={planoComposto}
         />
       )}
-    </Section>
+    </Panel>
   );
 }

@@ -1,26 +1,19 @@
 // Ficha do Cliente — rota "/cliente/:orgId" do app de CS. A tela mais
-// importante do sistema. Reconstruída em 2026-07-31 sobre a especificação
-// aprovada pelo CEO (05-operacoes-e-cs/sistema/arquitetura-app-cs.md) depois
-// de duas rodadas reprovadas: a primeira parecia painel super admin (tabelas,
-// badges, cartões de KPI); a segunda tirou o ruído mas tirou a estrutura
-// junto (prosa bonita sobre um cômodo vazio — sem tarefas, sem linha do
-// tempo, sem plano publicável, sem materiais).
+// importante do sistema.
 //
-// Os 9 blocos da especificação (seção B), nesta ordem — orientar,
-// diagnosticar, agir, revisar histórico, planejar o próximo passo, consultar
-// o pano de fundo:
-//   1. Cabeçalho — relógio do contrato + elo-restrição + motivo da fila
-//   2. A cadeia — Camada 0 (checklist) + os 8 elos (prosa numérica)
-//   3. Plano do mês — checklist real, status de publicação, ação de publicar
-//   4. Tarefas deste cliente
-//   5. Linha do tempo unificada
-//   6. Materiais do cliente
-//   7. Próxima reunião — com checklist de prontidão quando é a mensal
-//   8. Contexto e promessa da venda
-//   9. Percepção do CEO e a divergência
-// Rolagem única, sem abas — coluna única `max-w-[760px]` (justificativa na
-// seção D do documento). Todo dado vem exclusivamente dos hooks de
-// src/hooks/cs/ — nunca consulta direta a tabela de cliente.
+// Redesign 2026-07-31 (rodada "Console"): a sistemática (os blocos, a ordem,
+// as regras) já estava aprovada — o que muda aqui é só a forma. A coluna
+// única de 760px empurrava tudo para uma rolagem infinita e não deixava
+// nenhum bloco respirar como painel; agora a ficha usa os 1200px inteiros do
+// `CsLayout` em DUAS COLUNAS:
+//   - esquerda (fluida): A cadeia → Plano do mês → Tarefas → Linha do tempo
+//     → Materiais — nesta ordem porque é a ordem de TRABALHO (diagnosticar,
+//     agir no plano, agir nas tarefas, olhar o histórico, olhar o material).
+//   - direita (340px, sticky): Próxima reunião → Contexto e promessa da
+//     venda → Percepção do CEO — é CONSULTA, não trabalho: fica fixa
+//     enquanto se rola a coluna da esquerda porque não muda com a rolagem.
+// Todo dado continua vindo exclusivamente dos hooks de src/hooks/cs/ — nunca
+// consulta direta a tabela de cliente.
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -87,57 +80,63 @@ export default function ClienteDetalhe() {
   if (!orgId) return null;
 
   return (
-    <div className="max-w-[760px] mx-auto pb-16">
-      {/* 1. Cabeçalho */}
-      <div className="pb-8">
+    <div className="pb-16">
+      {/* 1. Cabeçalho — fora das duas colunas: fala pela ficha inteira. */}
+      <div className="mb-6">
         <ClienteResumo cliente={cliente} contexto={contexto} isLoading={carteiraLoading} />
       </div>
 
-      <div className="divide-y divide-border/60">
-        {/* 2. A cadeia */}
-        <CadeiaNarrativa
-          adocao={adocao}
-          adocaoLoading={adocaoLoading}
-          elos={elos}
-          elosLoading={elosLoading}
-          serie={serie}
-          serieLoading={serieLoading}
-          eloRestricao={eloAtual}
-          camada0Passa={camada0Passa}
-        />
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-5 items-start">
+        {/* Coluna principal — trabalho, na ordem do rito diário. */}
+        <div className="space-y-5 min-w-0">
+          {/* 2. A cadeia */}
+          <CadeiaNarrativa
+            adocao={adocao}
+            adocaoLoading={adocaoLoading}
+            elos={elos}
+            elosLoading={elosLoading}
+            serie={serie}
+            serieLoading={serieLoading}
+            eloRestricao={eloAtual}
+            camada0Passa={camada0Passa}
+          />
 
-        {/* 3. Plano do mês */}
-        <PlanoEmbutido
-          orgId={orgId}
-          aderencia={aderencia}
-          passos={passos}
-          isLoading={aderenciaLoading || passosLoading}
-          mesLabel={mesLabel}
-        />
+          {/* 3. Plano do mês */}
+          <PlanoEmbutido
+            orgId={orgId}
+            aderencia={aderencia}
+            passos={passos}
+            isLoading={aderenciaLoading || passosLoading}
+            mesLabel={mesLabel}
+          />
 
-        {/* 4. Tarefas deste cliente */}
-        <TarefasCliente orgId={orgId} clienteNome={cliente?.nome ?? 'Cliente'} clientes={carteira} />
+          {/* 4. Tarefas deste cliente */}
+          <TarefasCliente orgId={orgId} clienteNome={cliente?.nome ?? 'Cliente'} clientes={carteira} />
 
-        {/* 5. Linha do tempo */}
-        <TimelineCliente orgId={orgId} />
+          {/* 5. Linha do tempo */}
+          <TimelineCliente orgId={orgId} />
 
-        {/* 6. Materiais do cliente */}
-        <MateriaisCliente orgId={orgId} eloSugerido={eloSugeridoMaterial} jornadaIdAtual={jornadaIdAtual} />
+          {/* 6. Materiais do cliente */}
+          <MateriaisCliente orgId={orgId} eloSugerido={eloSugeridoMaterial} jornadaIdAtual={jornadaIdAtual} />
+        </div>
 
-        {/* 7. Próxima reunião */}
-        <ProximaReuniao
-          orgId={orgId}
-          clientes={carteira}
-          aderencia={aderencia}
-          aderenciaLoading={aderenciaLoading}
-          eloAtual={eloAtual}
-        />
+        {/* Coluna lateral — consulta, fixa enquanto se rola o trabalho. */}
+        <div className="space-y-5 lg:sticky lg:top-[68px]">
+          {/* 7. Próxima reunião */}
+          <ProximaReuniao
+            orgId={orgId}
+            clientes={carteira}
+            aderencia={aderencia}
+            aderenciaLoading={aderenciaLoading}
+            eloAtual={eloAtual}
+          />
 
-        {/* 8. Contexto e promessa da venda */}
-        <ContextoNegocio contexto={contexto} isLoading={contextoLoading} />
+          {/* 8. Contexto e promessa da venda */}
+          <ContextoNegocio contexto={contexto} isLoading={contextoLoading} />
 
-        {/* 9. Percepção do CEO e a divergência */}
-        <PercepcaoCeo organizationId={orgId} percepcoes={contexto?.percepcoes_recentes ?? []} isLoading={contextoLoading} />
+          {/* 9. Percepção do CEO e a divergência */}
+          <PercepcaoCeo organizationId={orgId} percepcoes={contexto?.percepcoes_recentes ?? []} isLoading={contextoLoading} />
+        </div>
       </div>
     </div>
   );

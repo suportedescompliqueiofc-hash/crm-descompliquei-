@@ -50,8 +50,9 @@ export function RitosView() {
   const [rito, setRito] = useState<RitoId>('mes');
 
   return (
-    <div>
-      <nav className="flex flex-wrap gap-x-5 gap-y-2 mb-2">
+    // space-y-4 entre painéis — ver nota em FundamentosView.tsx.
+    <div className="space-y-4">
+      <nav className="flex flex-wrap gap-x-5 gap-y-2">
         {RITOS.map((r) => (
           <button
             key={r.id}
@@ -68,7 +69,7 @@ export function RitosView() {
       </nav>
 
       {rito === 'mes' && (
-        <div>
+        <div className="space-y-4">
           <Section title="O mês é do cliente, não da empresa">
             <p className="text-sm leading-relaxed text-foreground">{O_MES_E_DO_CLIENTE_NAO_DA_EMPRESA}</p>
           </Section>
@@ -148,7 +149,7 @@ export function RitosView() {
       )}
 
       {rito === 'risco' && (
-        <div>
+        <div className="space-y-4">
           <Section title="Os seis sinais">
             <div className="divide-y divide-border/50">
               {SINAIS_RISCO.map((s) => (
@@ -232,7 +233,7 @@ export function RitosView() {
       )}
 
       {rito === 'onboarding' && (
-        <div>
+        <div className="space-y-4">
           <Section title="Onboarding" description={ONBOARDING.duracao}>
             <p className="text-sm leading-relaxed text-foreground">{ONBOARDING.tese}</p>
           </Section>
@@ -315,7 +316,7 @@ export function RitosView() {
       )}
 
       {rito === 'fim-de-ciclo' && (
-        <div>
+        <div className="space-y-4">
           <Section title="Fim de ciclo — os últimos 30 dias dos 180">
             <p className="text-sm leading-relaxed text-foreground">{FIM_DE_CICLO.restricaoDoDocumento}</p>
             <p className="text-[13px] text-muted-foreground leading-relaxed mt-2">{FIM_DE_CICLO.prazo}</p>
@@ -381,7 +382,7 @@ export function RitosView() {
       )}
 
       {rito === 'reuniao-mensal' && (
-        <div>
+        <div className="space-y-4">
           <Section title="A reunião mensal individual">
             <p className="text-sm leading-relaxed text-foreground">{REUNIAO_MENSAL_INTRO}</p>
           </Section>
@@ -447,7 +448,7 @@ export function RitosView() {
       )}
 
       {rito === 'sessao-tatica' && (
-        <div>
+        <div className="space-y-4">
           <Section title="A sessão tática semanal em grupo" description={SESSAO_TATICA_GRUPO.diaHorario}>
             <p className="text-sm leading-relaxed text-foreground">{SESSAO_TATICA_GRUPO.oQueE}</p>
             <p className="text-[13px] text-muted-foreground leading-relaxed mt-2">{SESSAO_TATICA_GRUPO.problemaAtual}</p>

@@ -1,8 +1,10 @@
 // Clientes há muito tempo sem reunião — "é o tipo de coisa que só aparece se
-// alguém olhar, e ninguém olha". Redesign 2026-07-30: sentença, sem ícone
-// nem cor; peso de fonte no número de dias no lugar de vermelho/âmbar.
+// alguém olhar, e ninguém olha". Vira Panel com tone="accent": é o bloco
+// desta tela que pede ação AGORA (agendar). O número de dias vira
+// <Metric tone="accent"> no trailing de cada linha — todo número do console
+// passa por Metric, nunca por peso de fonte cru.
 import { formatInt } from '@/lib/format';
-import { Section } from '@/components/cs/ui';
+import { Panel, PanelHeader, PanelBody, PanelRows, ListRow, Metric } from '@/components/cs/ui';
 
 export interface ClienteAtrasoAgenda {
   organization_id: string;
@@ -20,22 +22,27 @@ export function ClientesAtencaoAgenda({ atrasados, onSelecionar }: ClientesAtenc
   if (atrasados.length === 0) return null;
 
   return (
-    <Section title="Há muito tempo sem reunião" description="Clique para agendar uma reunião com o cliente.">
-      <div className="divide-y divide-border/40">
-        {atrasados.map((c) => (
-          <button
-            key={c.organization_id}
-            type="button"
-            onClick={() => onSelecionar(c.organization_id)}
-            className="w-full flex items-center justify-between gap-3 py-2.5 text-left hover:bg-muted/30 -mx-2 px-2 rounded-lg transition-colors"
-          >
-            <span className="text-sm text-foreground">{c.nome}</span>
-            <span className="text-[12px] font-display tabular-nums font-semibold text-foreground shrink-0">
-              {c.diasSemReuniao === null ? 'Nunca teve reunião' : `${formatInt(c.diasSemReuniao)} dias sem reunião`}
-            </span>
-          </button>
-        ))}
-      </div>
-    </Section>
+    <Panel tone="accent">
+      <PanelHeader title="Sem reunião há muito tempo" hint="clique para agendar" />
+      <PanelBody flush>
+        <PanelRows>
+          {atrasados.map((c) => (
+            <ListRow
+              key={c.organization_id}
+              onClick={() => onSelecionar(c.organization_id)}
+              trailing={
+                <Metric
+                  size="sm"
+                  tone="accent"
+                  value={c.diasSemReuniao === null ? 'nunca' : `${formatInt(c.diasSemReuniao)}d`}
+                />
+              }
+            >
+              <p className="text-[13px] text-foreground">{c.nome}</p>
+            </ListRow>
+          ))}
+        </PanelRows>
+      </PanelBody>
+    </Panel>
   );
 }

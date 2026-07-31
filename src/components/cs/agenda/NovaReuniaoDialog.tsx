@@ -1,16 +1,21 @@
 // Agendar reunião — kickoff/semanal/mensal/sob_demanda/tatica_grupo. A tática
 // em grupo não pertence a um cliente (organization_id nulo) e sugere a
 // cadência fixa (segunda-feira, 8h) ao ser selecionada.
+//
+// Alinhamento visual ao Console (2026-07-31): título em font-display
+// (herdado), rótulo de campo na caixa alta/tracking do PanelHeader, botões
+// viraram <Action> — lógica de agendamento intacta.
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { useAgendarReuniao } from '@/hooks/cs';
 import type { ClienteCarteira, TipoReuniao } from '@/hooks/cs';
+import { Action } from '@/components/cs/ui';
 import { TIPO_LABEL, proximaSegundaAs8h, toLocalInputValue } from './reuniaoMeta';
 
+const LABEL_CLASS = 'text-[10.5px] font-bold uppercase tracking-[0.12em] text-muted-foreground/70';
 const TIPOS: TipoReuniao[] = ['kickoff', 'semanal', 'mensal', 'sob_demanda', 'tatica_grupo'];
 
 interface NovaReuniaoDialogProps {
@@ -80,7 +85,7 @@ export function NovaReuniaoDialog({ open, onOpenChange, clientes, defaultOrgId }
 
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo</label>
+            <label className={LABEL_CLASS}>Tipo</label>
             <Select value={tipo} onValueChange={(v) => handleTipoChange(v as TipoReuniao)}>
               <SelectTrigger className="h-10 text-sm rounded-lg border-border/60">
                 <SelectValue />
@@ -96,7 +101,7 @@ export function NovaReuniaoDialog({ open, onOpenChange, clientes, defaultOrgId }
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Cliente</label>
+            <label className={LABEL_CLASS}>Cliente</label>
             {isGrupo ? (
               <p className="text-[13px] text-muted-foreground bg-muted/30 rounded-lg border border-border/60 px-3 py-2.5">
                 Sessão tática — carteira inteira convidada, sem cliente único.
@@ -118,9 +123,7 @@ export function NovaReuniaoDialog({ open, onOpenChange, clientes, defaultOrgId }
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Data e horário
-            </label>
+            <label className={LABEL_CLASS}>Data e horário</label>
             <input
               type="datetime-local"
               value={dataHora}
@@ -135,7 +138,7 @@ export function NovaReuniaoDialog({ open, onOpenChange, clientes, defaultOrgId }
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Pauta</label>
+            <label className={LABEL_CLASS}>Pauta</label>
             <Textarea
               value={pauta}
               onChange={(e) => setPauta(e.target.value)}
@@ -146,20 +149,12 @@ export function NovaReuniaoDialog({ open, onOpenChange, clientes, defaultOrgId }
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="h-9 rounded-lg text-[11px] font-medium border-border/60"
-          >
+          <Action variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={agendar.isPending}
-            className="h-9 rounded-lg text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 px-5"
-          >
+          </Action>
+          <Action variant="solid" onClick={handleSubmit} disabled={agendar.isPending}>
             {agendar.isPending ? 'Agendando…' : 'Agendar'}
-          </Button>
+          </Action>
         </DialogFooter>
       </DialogContent>
     </Dialog>

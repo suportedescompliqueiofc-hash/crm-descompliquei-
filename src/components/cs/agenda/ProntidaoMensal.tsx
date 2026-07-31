@@ -22,8 +22,11 @@ interface ProntidaoMensalProps {
   dataHora: string;
 }
 
+// `pronto` usa a mesma régua do resto do console: quando falta algo, é
+// "exige ação" — laranja, não peso de fonte cru. Quando está pronto, fica no
+// texto neutro do parágrafo (não precisa de destaque, só confirma).
 function ItemProntidao({ label, pronto }: { label: string; pronto: boolean }) {
-  return <span className={cn(!pronto && 'text-foreground font-medium')}>{label}</span>;
+  return <span className={cn(!pronto && 'text-[hsl(var(--cs-accent))] font-medium')}>{label}</span>;
 }
 
 export function ProntidaoMensal({ organizationId, dataHora }: ProntidaoMensalProps) {

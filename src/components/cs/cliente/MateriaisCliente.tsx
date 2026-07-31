@@ -12,12 +12,17 @@
 // linhas na base inteira) — o estado vazio abaixo é o estado REAL para
 // Derek Gonçalves, Jhonatan Dutra e Anna Clara (e para qualquer outro
 // cliente), não um bug de carregamento.
+//
+// Redesign 2026-07-31 (rodada "Console"): cada material vira uma
+// `<ListRow>` dentro de `<PanelRows>`, com o status como `<Chip>` à direita
+// (petróleo só para "Entregue" — o método completou o ciclo; neutro para os
+// demais estados, nunca laranja/vermelho de progresso).
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useMateriaisCliente } from '@/hooks/cs';
 import type { CSMaterial, EloMaterial } from '@/hooks/cs';
-import { Section, LoadingState, EmptyState } from '@/components/cs/ui';
+import { Panel, PanelHeader, PanelBody, PanelRows, ListRow, Chip, Action, LoadingState, EmptyState } from '@/components/cs/ui';
 import { PedirMaterialDialog } from './PedirMaterialDialog';
 
 const TIPO_LABEL: Record<CSMaterial['tipo'], string> = {
@@ -63,52 +68,56 @@ export function MateriaisCliente({ orgId, eloSugerido, jornadaIdAtual }: Materia
   const visiveis = mostrarTodos ? materiais : materiais.slice(0, FATIA_INICIAL);
 
   return (
-    <Section title="Materiais">
-      <button
-        type="button"
-        onClick={() => setDialogAberto(true)}
-        className="text-sm font-medium text-foreground underline underline-offset-4 hover:no-underline mb-1"
-      >
-        + pedir material
-      </button>
+    <Panel>
+      <PanelHeader
+        title="Materiais"
+        action={
+          <>
+            <Chip>{materiais.length}</Chip>
+            <Action size="sm" variant="outline" onClick={() => setDialogAberto(true)}>
+              Pedir material
+            </Action>
+          </>
+        }
+      />
+      <PanelBody flush={!isLoading && materiais.length > 0}>
+        {isLoading ? (
+          <LoadingState label="Carregando os materiais…" />
+        ) : materiais.length === 0 ? (
+          <EmptyState
+            title="Nenhum material registrado ainda para este cliente"
+            description="Pedir material aqui cria o registro e já entra na fila de produção do Claude (tela Semana, dono Claude)."
+          />
+        ) : (
+          <>
+            <PanelRows>
+              {visiveis.map((m) => {
+                const entrega = dataEntrega(m);
+                return (
+                  <ListRow
+                    key={m.id}
+                    trailing={<Chip tone={m.status === 'entregue' ? 'signal' : 'neutral'}>{STATUS_LABEL[m.status]}</Chip>}
+                  >
+                    <p className="text-sm text-foreground">{m.titulo}</p>
+                    <p className="text-[12px] text-muted-foreground mt-0.5">
+                      {m.elo} · {TIPO_LABEL[m.tipo]} · {CANAL_LABEL[m.canal_entrega]}
+                      {entrega && ` · entregue em ${entrega}`}
+                    </p>
+                  </ListRow>
+                );
+              })}
+            </PanelRows>
 
-      {isLoading ? (
-        <LoadingState label="Carregando os materiais…" />
-      ) : materiais.length === 0 ? (
-        <EmptyState
-          title="Nenhum material registrado ainda para este cliente"
-          description="Pedir material aqui cria o registro e já entra na fila de produção do Claude (tela Semana, dono Claude)."
-        />
-      ) : (
-        <div className="max-w-[680px] space-y-1">
-          <div className="divide-y divide-border/40">
-            {visiveis.map((m) => {
-              const entrega = dataEntrega(m);
-              return (
-                <div key={m.id} className="py-3">
-                  <p className="text-sm text-foreground">
-                    {m.titulo} <span className="text-muted-foreground">— {m.elo} — {TIPO_LABEL[m.tipo]}</span>
-                  </p>
-                  <p className="text-[12px] text-muted-foreground/70 mt-0.5">
-                    {STATUS_LABEL[m.status]} · {CANAL_LABEL[m.canal_entrega]} ·{' '}
-                    {entrega ? `entregue em ${entrega}` : 'ainda não entregue'}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          {!mostrarTodos && materiais.length > FATIA_INICIAL && (
-            <button
-              type="button"
-              onClick={() => setMostrarTodos(true)}
-              className="text-sm font-medium text-foreground underline underline-offset-4 hover:no-underline"
-            >
-              Ver todos os materiais ({materiais.length})
-            </button>
-          )}
-        </div>
-      )}
+            {!mostrarTodos && materiais.length > FATIA_INICIAL && (
+              <div className="px-4 py-3 border-t border-border/70">
+                <Action size="sm" variant="outline" onClick={() => setMostrarTodos(true)}>
+                  Ver todos os materiais ({materiais.length})
+                </Action>
+              </div>
+            )}
+          </>
+        )}
+      </PanelBody>
 
       <PedirMaterialDialog
         open={dialogAberto}
@@ -117,6 +126,6 @@ export function MateriaisCliente({ orgId, eloSugerido, jornadaIdAtual }: Materia
         eloSugerido={eloSugerido}
         jornadaIdAtual={jornadaIdAtual}
       />
-    </Section>
+    </Panel>
   );
 }

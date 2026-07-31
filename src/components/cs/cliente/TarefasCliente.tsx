@@ -5,12 +5,20 @@
 // filtro `organizationId` nesta tela e reaproveitar `GrupoTarefas`/
 // `TarefaItem` (já usados por Semana.tsx) com escopo de um cliente só.
 //
+// Redesign 2026-07-31 (rodada "Console"): o bloco vira `<Panel>` com contador
+// (`<Chip>`) e ação ("Nova tarefa") no cabeçalho em vez de um link
+// sublinhado solto no corpo. `GrupoTarefas`/`TarefaItem` (src/components/cs/
+// semana/) ficam FORA do escopo desta rodada (são compartilhados com a tela
+// Semana, e a tarefa restringe a edição a `ClienteDetalhe.tsx` + `cliente/`)
+// — continuam com a aparência anterior por dentro do painel novo. Reportado
+// como pendência de uma rodada futura de conformidade, não escondido.
+//
 // Fecha o loop com Materiais (bloco 6): quando o João pede um material, a
 // tarefa criada para o Claude (`dono='claude'`) aparece aqui também, não só
 // na agregação da tela Semana.
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { format, parseISO, startOfWeek, endOfWeek, differenceInCalendarDays } from 'date-fns';
+import { format, parseISO, endOfWeek, differenceInCalendarDays } from 'date-fns';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +31,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useExcluirTarefa, useTarefas } from '@/hooks/cs';
 import type { ClienteCarteira, CSTarefa } from '@/hooks/cs';
-import { Section, LoadingState, EmptyState } from '@/components/cs/ui';
+import { Panel, PanelHeader, PanelBody, Chip, Action, LoadingState, EmptyState } from '@/components/cs/ui';
 import { GrupoTarefas } from '@/components/cs/semana/GrupoTarefas';
 import { TarefaFormDialog } from '@/components/cs/semana/TarefaFormDialog';
 
@@ -85,59 +93,64 @@ export function TarefasCliente({ orgId, clienteNome, clientes }: TarefasClienteP
   }
 
   return (
-    <Section title="Tarefas deste cliente">
-      <button
-        type="button"
-        onClick={abrirNova}
-        className="text-sm font-medium text-foreground underline underline-offset-4 hover:no-underline mb-1"
-      >
-        + nova tarefa
-      </button>
-
-      {isLoading ? (
-        <LoadingState label="Carregando as tarefas…" />
-      ) : abertas.length === 0 ? (
-        <EmptyState
-          title="Nenhuma tarefa aberta para este cliente"
-          description="Fila limpa — ou ainda não foi criada nenhuma tarefa aqui."
-        />
-      ) : (
-        <>
-          <GrupoTarefas
-            titulo="Atrasadas"
-            tarefas={grupoAtrasadas}
-            destaque
-            clientesMap={clientesMap}
-            dataLabelFor={dataLabelAtrasada}
-            onEditar={abrirEdicao}
-            onExcluir={setTarefaExcluindo}
+    <Panel>
+      <PanelHeader
+        title="Tarefas deste cliente"
+        action={
+          <>
+            <Chip>{abertas.length}</Chip>
+            <Action size="sm" variant="outline" onClick={abrirNova}>
+              Nova tarefa
+            </Action>
+          </>
+        }
+      />
+      <PanelBody>
+        {isLoading ? (
+          <LoadingState label="Carregando as tarefas…" />
+        ) : abertas.length === 0 ? (
+          <EmptyState
+            title="Nenhuma tarefa aberta para este cliente"
+            description="Fila limpa — ou ainda não foi criada nenhuma tarefa aqui."
           />
-          <GrupoTarefas
-            titulo="Hoje"
-            tarefas={grupoHoje}
-            clientesMap={clientesMap}
-            dataLabelFor={dataLabelHoje}
-            onEditar={abrirEdicao}
-            onExcluir={setTarefaExcluindo}
-          />
-          <GrupoTarefas
-            titulo="Esta semana"
-            tarefas={grupoSemana}
-            clientesMap={clientesMap}
-            dataLabelFor={dataLabelSemana}
-            onEditar={abrirEdicao}
-            onExcluir={setTarefaExcluindo}
-          />
-          <GrupoTarefas
-            titulo="Depois"
-            tarefas={grupoDepois}
-            clientesMap={clientesMap}
-            dataLabelFor={dataLabelDepois}
-            onEditar={abrirEdicao}
-            onExcluir={setTarefaExcluindo}
-          />
-        </>
-      )}
+        ) : (
+          <>
+            <GrupoTarefas
+              titulo="Atrasadas"
+              tarefas={grupoAtrasadas}
+              destaque
+              clientesMap={clientesMap}
+              dataLabelFor={dataLabelAtrasada}
+              onEditar={abrirEdicao}
+              onExcluir={setTarefaExcluindo}
+            />
+            <GrupoTarefas
+              titulo="Hoje"
+              tarefas={grupoHoje}
+              clientesMap={clientesMap}
+              dataLabelFor={dataLabelHoje}
+              onEditar={abrirEdicao}
+              onExcluir={setTarefaExcluindo}
+            />
+            <GrupoTarefas
+              titulo="Esta semana"
+              tarefas={grupoSemana}
+              clientesMap={clientesMap}
+              dataLabelFor={dataLabelSemana}
+              onEditar={abrirEdicao}
+              onExcluir={setTarefaExcluindo}
+            />
+            <GrupoTarefas
+              titulo="Depois"
+              tarefas={grupoDepois}
+              clientesMap={clientesMap}
+              dataLabelFor={dataLabelDepois}
+              onEditar={abrirEdicao}
+              onExcluir={setTarefaExcluindo}
+            />
+          </>
+        )}
+      </PanelBody>
 
       <TarefaFormDialog
         open={dialogAberto}
@@ -173,6 +186,6 @@ export function TarefasCliente({ orgId, clienteNome, clientes }: TarefasClienteP
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Section>
+    </Panel>
   );
 }
