@@ -21,8 +21,7 @@
 // (mês/ano → valor), não um gráfico: o objetivo é tendência lida em uma
 // linha, não um recharts.
 import { useMemo } from 'react';
-import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatMesCurto } from '../format';
 import type { ClienteAdocaoItem, ClienteElo, ClienteSerieMes } from '@/hooks/cs';
 import {
   Panel,
@@ -210,10 +209,10 @@ export function CadeiaNarrativa({
                 <p className="text-[12px] text-muted-foreground/75 leading-relaxed mt-3">
                   Nos últimos meses:{' '}
                   {trendPontos
-                    .map(
-                      (p) =>
-                        `${format(parseISO(`${p.mes}-01`), 'MMM/yy', { locale: ptBR })} ${formatEloValor(p.elo, p.valor)}`,
-                    )
+                    // `p.mes` vem do banco como DATE ('2026-07-01'), não como
+                    // 'YYYY-MM' — concatenar '-01' aqui gerava data inválida e
+                    // derrubava a ficha inteira. Ver formatMesCurto em ../format.
+                    .map((p) => `${formatMesCurto(p.mes)} ${formatEloValor(p.elo, p.valor)}`)
                     .join(' · ')}
                   .
                 </p>

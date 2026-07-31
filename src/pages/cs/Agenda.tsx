@@ -15,7 +15,7 @@
 // sentido: como segunda linha discreta dentro de `ReuniaoRow`, só quando a
 // própria linha é uma mensal ainda agendada.
 import { useMemo, useState } from 'react';
-import { differenceInCalendarDays, endOfWeek, isSameMonth, startOfWeek } from 'date-fns';
+import { addMonths, differenceInCalendarDays, endOfWeek, isSameMonth, startOfMonth, startOfWeek, subMonths } from 'date-fns';
 import { formatInt } from '@/lib/format';
 import { useCarteira, useReunioes } from '@/hooks/cs';
 import type { CSReuniao } from '@/hooks/cs';
@@ -36,8 +36,11 @@ import { NovaReuniaoDialog } from '@/components/cs/agenda/NovaReuniaoDialog';
 import { ReuniaoDetalheDialog } from '@/components/cs/agenda/ReuniaoDetalheDialog';
 import { ClientesAtencaoAgenda } from '@/components/cs/agenda/ClientesAtencaoAgenda';
 import type { ClienteAtrasoAgenda } from '@/components/cs/agenda/ClientesAtencaoAgenda';
+import { CalendarioMes } from '@/components/cs/agenda/CalendarioMes';
 
 const DIAS_ATRASO_ALERTA = 21;
+
+type VisaoAgenda = 'calendario' | 'lista';
 
 export default function Agenda() {
   const { data: carteira = [], isLoading: carteiraLoading } = useCarteira();
@@ -46,6 +49,14 @@ export default function Agenda() {
   const [novaAberta, setNovaAberta] = useState(false);
   const [defaultOrgId, setDefaultOrgId] = useState<string | null>(null);
   const [selecionada, setSelecionada] = useState<CSReuniao | null>(null);
+
+  // "Calendário" é a visão nova pedida pelo CEO em 2026-07-31 ("faz muito
+  // sentido a gente ter... pra conseguir analisar" a distribuição do mês) —
+  // vira o padrão da tela. "Lista" continua existindo inteira, só um clique
+  // de distância (ver o par de <Action> no PageTitle). O mês em foco é
+  // estado local desta tela (não do CalendarioMes), por isso mora aqui.
+  const [visao, setVisao] = useState<VisaoAgenda>('calendario');
+  const [mesAtual, setMesAtual] = useState<Date>(() => startOfMonth(new Date()));
 
   const isLoading = carteiraLoading || reunioesLoading;
   const agora = new Date();
@@ -126,6 +137,14 @@ export default function Agenda() {
     setNovaAberta(true);
   }
 
+  // `NovaReuniaoDialog` não aceita data inicial hoje (só `defaultOrgId`) —
+  // clicar num dia vazio da grade abre o diálogo padrão, sem inventar prop
+  // nem lógica nova nele (briefing: "se não aceitar, apenas abra-o
+  // normalmente").
+  function abrirNovaAPartirDoDia() {
+    abrirNova(null);
+  }
+
   return (
     <div className="pb-12">
       <PageTitle
@@ -145,65 +164,97 @@ export default function Agenda() {
           )
         }
         action={
-          <Action variant="accent" onClick={() => abrirNova(null)}>
-            Agendar reunião
-          </Action>
+          <>
+            <Action variant={visao === 'calendario' ? 'solid' : 'ghost'} size="sm" onClick={() => setVisao('calendario')}>
+              Calendário
+            </Action>
+            <Action variant={visao === 'lista' ? 'solid' : 'ghost'} size="sm" onClick={() => setVisao('lista')}>
+              Lista
+            </Action>
+            <Action variant="accent" onClick={() => abrirNova(null)}>
+              Agendar reunião
+            </Action>
+          </>
         }
       />
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-5 items-start">
         <div className="space-y-5">
-          <Panel>
-            <PanelHeader title="Próximas reuniões" action={!isLoading && <Chip>{proximas.length}</Chip>} />
-            <PanelBody flush>
-              {isLoading ? (
-                <div className="px-4 py-4">
-                  <LoadingState rows={4} label="Carregando as próximas reuniões…" />
-                </div>
-              ) : proximas.length === 0 ? (
-                <div className="px-4 py-4">
-                  <EmptyState title="Nada agendado" description="Assim que houver reuniões marcadas, elas aparecem aqui." />
-                </div>
-              ) : (
-                <PanelRows>
-                  {proximas.map((r) => (
-                    <ReuniaoRow
-                      key={r.id}
-                      reuniao={r}
-                      clienteNome={r.organization_id ? nomesPorOrg.get(r.organization_id) ?? null : null}
-                      onClick={() => setSelecionada(r)}
-                    />
-                  ))}
-                </PanelRows>
-              )}
-            </PanelBody>
-          </Panel>
+          {visao === 'calendario' ? (
+            isLoading ? (
+              <Panel>
+                <PanelHeader title="Calendário" />
+                <PanelBody>
+                  <LoadingState rows={5} label="Carregando o calendário…" />
+                </PanelBody>
+              </Panel>
+            ) : (
+              <CalendarioMes
+                mesReferencia={mesAtual}
+                reunioes={reunioes}
+                nomesPorOrg={nomesPorOrg}
+                onSelecionarReuniao={setSelecionada}
+                onDiaVazio={abrirNovaAPartirDoDia}
+                onMesAnterior={() => setMesAtual((m) => subMonths(m, 1))}
+                onProximoMes={() => setMesAtual((m) => addMonths(m, 1))}
+                onHoje={() => setMesAtual(startOfMonth(new Date()))}
+              />
+            )
+          ) : (
+            <>
+              <Panel>
+                <PanelHeader title="Próximas reuniões" action={!isLoading && <Chip>{proximas.length}</Chip>} />
+                <PanelBody flush>
+                  {isLoading ? (
+                    <div className="px-4 py-4">
+                      <LoadingState rows={4} label="Carregando as próximas reuniões…" />
+                    </div>
+                  ) : proximas.length === 0 ? (
+                    <div className="px-4 py-4">
+                      <EmptyState title="Nada agendado" description="Assim que houver reuniões marcadas, elas aparecem aqui." />
+                    </div>
+                  ) : (
+                    <PanelRows>
+                      {proximas.map((r) => (
+                        <ReuniaoRow
+                          key={r.id}
+                          reuniao={r}
+                          clienteNome={r.organization_id ? nomesPorOrg.get(r.organization_id) ?? null : null}
+                          onClick={() => setSelecionada(r)}
+                        />
+                      ))}
+                    </PanelRows>
+                  )}
+                </PanelBody>
+              </Panel>
 
-          <Panel>
-            <PanelHeader title="Histórico" hint="realizadas e canceladas" />
-            <PanelBody flush>
-              {isLoading ? (
-                <div className="px-4 py-4">
-                  <LoadingState rows={4} label="Carregando o histórico…" />
-                </div>
-              ) : historico.length === 0 ? (
-                <div className="px-4 py-4">
-                  <EmptyState title="Nada por aqui ainda" description="Reuniões realizadas ou canceladas aparecem aqui." />
-                </div>
-              ) : (
-                <PanelRows>
-                  {historico.map((r) => (
-                    <ReuniaoRow
-                      key={r.id}
-                      reuniao={r}
-                      clienteNome={r.organization_id ? nomesPorOrg.get(r.organization_id) ?? null : null}
-                      onClick={() => setSelecionada(r)}
-                    />
-                  ))}
-                </PanelRows>
-              )}
-            </PanelBody>
-          </Panel>
+              <Panel>
+                <PanelHeader title="Histórico" hint="realizadas e canceladas" />
+                <PanelBody flush>
+                  {isLoading ? (
+                    <div className="px-4 py-4">
+                      <LoadingState rows={4} label="Carregando o histórico…" />
+                    </div>
+                  ) : historico.length === 0 ? (
+                    <div className="px-4 py-4">
+                      <EmptyState title="Nada por aqui ainda" description="Reuniões realizadas ou canceladas aparecem aqui." />
+                    </div>
+                  ) : (
+                    <PanelRows>
+                      {historico.map((r) => (
+                        <ReuniaoRow
+                          key={r.id}
+                          reuniao={r}
+                          clienteNome={r.organization_id ? nomesPorOrg.get(r.organization_id) ?? null : null}
+                          onClick={() => setSelecionada(r)}
+                        />
+                      ))}
+                    </PanelRows>
+                  )}
+                </PanelBody>
+              </Panel>
+            </>
+          )}
         </div>
 
         <div className="space-y-5">

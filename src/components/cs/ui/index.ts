@@ -14,7 +14,7 @@ export { Panel, PanelHeader, PanelBody, PanelFooter, PanelBand, PanelRows } from
 export { Section } from './Section';
 
 // Cabeçalho de tela
-export { PageTitle } from './PageTitle';
+export { PageTitle, type TrilhaItem } from './PageTitle';
 
 // Listas
 export { ListRow, RowIndex } from './ListRow';

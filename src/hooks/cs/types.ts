@@ -126,7 +126,14 @@ export interface ClienteElo {
  * como divergência em aberto no relatório final do Executor de Hooks.
  */
 export interface ClienteSerieMes extends ClienteElo {
-  mes: string; // YYYY-MM
+  /**
+   * `date` no banco → chega como **'YYYY-MM-DD'** (primeiro dia do mês), NÃO
+   * como 'YYYY-MM'. Conferido em 2026-07-31 por `pg_get_function_result` de
+   * `cs_cliente_serie`; o comentário anterior dizia 'YYYY-MM' e uma tela
+   * concatenou '-01' em cima, derrubando a ficha em tela branca. Para exibir,
+   * use `formatMesCurto` de `@/components/cs/format` — nunca monte a data à mão.
+   */
+  mes: string;
 }
 
 export interface ClienteAdocaoItem {

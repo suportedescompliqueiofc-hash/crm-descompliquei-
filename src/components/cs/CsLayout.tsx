@@ -14,13 +14,15 @@
 // Mantida a decisão de NÃO forçar `perfis.organization_id` para a org master
 // (o AdminLayout do app do cliente faz isso; aqui seria arrancar a org do
 // João de baixo de outra aba aberta). O aviso de impersonação é informativo.
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { CsTopNav } from './CsSidebar';
+import CsErrorBoundary from './CsErrorBoundary';
 import { useProfile } from '@/hooks/useProfile';
 import { MASTER_ORG_ID } from '@/lib/constants';
 
 export default function CsLayout() {
   const { profile, isLoading: profileLoading } = useProfile();
+  const location = useLocation();
 
   const showImpersonationNotice =
     !profileLoading && !!profile?.organization_id && profile.organization_id !== MASTER_ORG_ID;
@@ -40,9 +42,15 @@ export default function CsLayout() {
         </div>
       )}
 
+      {/* A barreira envolve só o conteúdo: se uma tela quebrar, o cromo do
+          topo continua de pé e dá para ir a outro cliente sem recarregar.
+          `resetKey` na rota rearma a barreira ao navegar — sem isso, a área
+          de conteúdo ficaria travada no erro da tela anterior. */}
       <main className="flex-1 px-5 sm:px-8 py-7">
         <div className="max-w-[1200px] mx-auto">
-          <Outlet />
+          <CsErrorBoundary resetKey={location.pathname}>
+            <Outlet />
+          </CsErrorBoundary>
         </div>
       </main>
     </div>

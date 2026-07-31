@@ -1,14 +1,43 @@
 // Fonte: 05-operacoes-e-cs/sistema/ritos/00-o-mes-do-cs.md
-// O calendário operacional: rito diário, semanal, as 4 semanas do mês de
-// CADA CLIENTE (não um mês de calendário compartilhado) e a cadência individual.
+// O calendário operacional: rito diário, semanal, as 4 semanas do MÊS DO
+// CALENDÁRIO (compartilhado pela carteira inteira, não o ciclo de cada
+// cliente) e a cadência individual.
+//
+// CORREÇÃO DE CONCEITO (2026-07-31): este arquivo definia o "mês do CS" como
+// o mês de ciclo de CADA CLIENTE (ancorado em `cliente_desde`), com cada
+// cliente na sua própria semana 1-4 num dado momento. Estava errado. O CEO
+// corrigiu: "A gente tinha falado que todos os clientes iam seguir a mesma
+// ideia de carteira: toda semana, todo mundo tá na semana 1, todo mundo tá na
+// semana 2, todo mundo tá na semana 3, todo mundo tá na semana 4. Essa
+// divisão não faz muito sentido. Todos os clientes vão viver a mesma semana,
+// até porque a gente tem 4 semanas no mês, as semanas são sequenciais." As
+// quatro semanas são as semanas do MÊS CORRENTE e a carteira inteira vive a
+// mesma semana ao mesmo tempo — é isso que sustenta a sessão tática em grupo
+// existir. O que NÃO muda: o ciclo individual de 180 dias de cada cliente
+// (`dias_de_ciclo`, ancorado em `cliente_desde`) continua existindo — é o
+// relógio do CONTRATO (quanto falta, em que mês do PCA o cliente está), não
+// o ritmo semanal do rito. Ver também o cabeçalho de
+// `src/components/cs/semana/ritoDoMes.ts`, que implementa o cálculo.
 import type { SemanaDoMes } from './types';
 
+/**
+ * Nome do export mantido por compatibilidade — é importado por
+ * `src/components/cs/metodo/RitosView.tsx` (tela de Método, fora do escopo
+ * desta correção). O CONTEÚDO abaixo já está corrigido; só o identificador
+ * ficou desatualizado. Quem editar RitosView.tsx deveria renomear para algo
+ * como `MES_E_DA_CARTEIRA_NAO_DE_CADA_CLIENTE` e também corrigir os títulos
+ * hardcoded "O mês é do cliente, não da empresa" e "As quatro semanas do mês
+ * (de cada cliente)" que aparecem nesse arquivo.
+ */
 export const O_MES_E_DO_CLIENTE_NAO_DA_EMPRESA =
-  'O "mês" de que este rito fala é o mês de ciclo de CADA CLIENTE, não um mês de calendário ' +
-  'compartilhado pela carteira inteira. Cada cliente entrou no PCA num dia diferente e está na ' +
-  'sua própria semana 1, 2, 3 ou 4 num dado momento — dois clientes podem estar em semanas ' +
-  'diferentes na mesma segunda-feira. A única peça deste rito que roda no calendário da ' +
-  'empresa é a sessão tática em grupo.';
+  'O "mês" de que este rito fala é o mês do CALENDÁRIO, não o mês de ciclo de cada cliente. A ' +
+  'carteira inteira vive a mesma semana ao mesmo tempo: numa dada segunda-feira, todo cliente ' +
+  'está na semana 1, ou todo cliente está na semana 2, e assim por diante — as quatro semanas ' +
+  'são sequenciais dentro do mês corrente (decisão do CEO, 2026-07-31: "todos os clientes vão ' +
+  'viver a mesma semana"). É essa sincronia que sustenta a sessão tática em grupo existir. O ' +
+  'ciclo individual de 180 dias de cada cliente (ancorado em `cliente_desde`) continua ' +
+  'existindo, mas é o relógio do CONTRATO — quanto falta, em que mês do PCA o cliente está —, ' +
+  'não o ritmo semanal do rito.';
 
 export const RITO_DIARIO = {
   duracao: '15 minutos',
@@ -30,7 +59,7 @@ export const RITO_SEMANAL = {
   descricao: 'Uma vez por semana, tempo maior e mais deliberado que o diário.',
   oQueSeDecide: [
     'Quem sobe para cadência semanal individual e quem volta para mensal, aplicando os critérios da régua de risco.',
-    'Em que semana do mês cada cliente está, já que os ciclos são individuais.',
+    'Em que semana do mês do calendário a carteira inteira está — as quatro semanas são sequenciais e compartilhadas, não por cliente.',
     'O tema da sessão tática em grupo da semana.',
     'Aderência agregada da carteira, como leitura de saúde do próprio sistema de CS.',
   ],
@@ -105,7 +134,8 @@ export const SEMANAS_DO_MES: SemanaDoMes[] = [
 export const SESSAO_TATICA_CALENDARIO = {
   quandoCai: 'Segunda-feira, 8h (decidido pelo CEO em 2026-07-30)',
   porNaoPertenceASemanaDeNenhumCliente:
-    'Ela atende clientes que estão em semanas diferentes do próprio ciclo ao mesmo tempo.',
+    'Ela é possível exatamente porque a carteira inteira vive a mesma semana ao mesmo tempo — ' +
+    'não haveria sessão de grupo se cada cliente estivesse numa fase diferente do próprio ciclo.',
   comoOTemaEEscolhido:
     'O tema sai do elo-restrição mais frequente entre os diagnósticos ativos da carteira ' +
     'naquela semana — apurado na varredura semanal, contando quantos clientes têm hoje aquele ' +

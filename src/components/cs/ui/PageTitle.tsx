@@ -13,10 +13,30 @@
 //
 // Use no topo de TODA tela do console — nunca reconstrua um título na mão.
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+
+export interface TrilhaItem {
+  label: string;
+  /** Sem `to`, é o item atual (não vira link). */
+  to?: string;
+}
 
 interface PageTitleProps {
   title: string;
+  /**
+   * Caminho de volta. Toda tela que se chega a partir de outra DEVE ter — o
+   * console não tem barra lateral e a barra de topo só conhece as quatro
+   * rotas raiz, então sem trilha a única saída de uma ficha era o botão do
+   * navegador (pedido do CEO em 2026-07-31: "senti falta de uns botões de
+   * navegação pra conseguir voltar pra página anterior").
+   *
+   * Deliberadamente NÃO é um "voltar" genérico (`navigate(-1)`): voltar no
+   * histórico é imprevisível — depois de abrir um cliente a partir da Semana,
+   * "voltar" e "ir para a Carteira" são coisas diferentes. A trilha diz onde
+   * você está na estrutura, que é estável, em vez de onde você esteve.
+   */
+  trilha?: TrilhaItem[];
   /** Rótulo minúsculo acima do título — o "onde estou" (ex.: CLIENTE, MÊS). */
   eyebrow?: string;
   /** Frase corrida abaixo do título. Pode conter <Metric> inline. */
@@ -28,9 +48,29 @@ interface PageTitleProps {
   className?: string;
 }
 
-export function PageTitle({ title, eyebrow, description, stats, action, className }: PageTitleProps) {
+export function PageTitle({ title, trilha, eyebrow, description, stats, action, className }: PageTitleProps) {
   return (
     <div className={cn('pb-5 mb-6 border-b border-border', className)}>
+      {trilha && trilha.length > 0 && (
+        <nav aria-label="Trilha de navegação" className="flex items-center gap-1.5 mb-3 text-[12px] min-w-0">
+          {trilha.map((item, i) => (
+            <span key={`${item.label}-${i}`} className="flex items-center gap-1.5 min-w-0">
+              {i > 0 && <span className="text-muted-foreground/35 select-none">/</span>}
+              {item.to ? (
+                <Link
+                  to={item.to}
+                  className="text-muted-foreground hover:text-foreground underline-offset-[5px] hover:underline shrink-0 transition-colors"
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <span className="text-muted-foreground/50 truncate">{item.label}</span>
+              )}
+            </span>
+          ))}
+        </nav>
+      )}
+
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">
           {eyebrow && (

@@ -14,14 +14,16 @@
 //
 // tone="accent" (fio laranja) vive só no Panel de "Atrasadas" quando há
 // itens — é o único bloco desta tela que pede ação AGORA (mais de um por
-// tela anula o efeito, ver Panel.tsx). O rito do mês (em que semana do
-// PRÓPRIO ciclo cada cliente está — 05-operacoes-e-cs/sistema/ritos/00-o-mes-do-cs.md)
+// tela anula o efeito, ver Panel.tsx). O rito do mês (em que semana do MÊS
+// DO CALENDÁRIO a carteira INTEIRA está — ver correção de conceito no
+// cabeçalho de ritoDoMes.ts e 05-operacoes-e-cs/sistema/ritos/00-o-mes-do-cs.md)
 // e "clientes sem plano" seguem abaixo, em largura cheia.
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { format, parseISO, startOfWeek, endOfWeek, differenceInCalendarDays } from 'date-fns';
 import { formatInt } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog,
@@ -35,12 +37,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useCarteira, useExcluirTarefa, useTarefas } from '@/hooks/cs';
 import type { CSTarefa, DonoTarefa } from '@/hooks/cs';
-import { PageTitle, Panel, PanelBody, Readout, Action, EmptyState, LoadingState, Section } from '@/components/cs/ui';
+import { PageTitle, Panel, PanelBody, Readout, Action, EmptyState, LoadingState, Section, Metric } from '@/components/cs/ui';
 import { TarefaFormDialog } from '@/components/cs/semana/TarefaFormDialog';
 import { GrupoTarefas } from '@/components/cs/semana/GrupoTarefas';
 import { ClientesSemPlano } from '@/components/cs/semana/ClientesSemPlano';
 import { DONO_CONFIG } from '@/components/cs/semana/constants';
-import { agruparPorSemanaDoRito } from '@/components/cs/semana/ritoDoMes';
+import { getSemanaCorrente } from '@/components/cs/semana/ritoDoMes';
 import { getSemanaDoMes } from '@/content/cs';
 
 type FiltroDono = 'todos' | DonoTarefa;
@@ -127,7 +129,10 @@ export default function Semana() {
     }
   }
 
-  const gruposRito = useMemo(() => agruparPorSemanaDoRito(clientes), [clientes]);
+  // Semana do MÊS DO CALENDÁRIO — a mesma para a carteira inteira (ver
+  // correção de conceito no cabeçalho de ritoDoMes.ts).
+  const semanaAtual = getSemanaCorrente(hoje);
+  const semPlanoTotal = clientes.filter((c) => c.aderencia_pct === null).length;
 
   return (
     <div className="pb-12">
@@ -237,35 +242,76 @@ export default function Semana() {
 
         <Section
           title="Onde a carteira está no mês"
-          description="Cada cliente tem o próprio ciclo — semana 1 instala, 2 corrige, 3 aprofunda ou escala, 4 fecha e planeja."
+          description="Mês do calendário, não o ciclo de cada cliente — a carteira inteira vive a mesma semana ao mesmo tempo."
+          tone="signal"
         >
           {isLoading ? (
             <LoadingState />
           ) : (
             <div className="space-y-4">
-              {[1, 2, 3, 4].map((semana) => {
-                const itens = gruposRito.get(semana) ?? [];
-                if (itens.length === 0) return null;
-                const objetivo = getSemanaDoMes(semana as 1 | 2 | 3 | 4)?.objetivo;
-                return (
-                  <div key={semana}>
-                    <p className="text-sm leading-relaxed">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigate(`/metodo?secao=ritos&busca=${encodeURIComponent(`Semana ${semana}`)}`)
-                        }
-                        className="font-medium text-foreground underline underline-offset-4 hover:no-underline"
-                      >
-                        Semana {semana} — {itens[0].rito.faseLabel}
-                      </button>
-                      <span className="text-foreground">:</span>{' '}
-                      <span className="text-muted-foreground">{itens.map((i) => i.cliente.nome).join(', ')}.</span>
+              <div className="flex flex-wrap items-start justify-between gap-6">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60">
+                    Semana corrente
+                  </p>
+                  <p className="mt-1 flex items-baseline gap-2 flex-wrap">
+                    <Metric size="lg" tone="accent" value={`Semana ${semanaAtual.numero}`} />
+                    <span className="text-[15px] font-semibold text-foreground">— {semanaAtual.titulo}</span>
+                  </p>
+                  {semanaAtual.objetivo && (
+                    <p className="text-[13px] text-muted-foreground mt-1.5 leading-relaxed max-w-[62ch]">
+                      {semanaAtual.objetivo}
                     </p>
-                    {objetivo && <p className="text-[12px] text-muted-foreground/60 mt-0.5">{objetivo}</p>}
-                  </div>
-                );
-              })}
+                  )}
+                </div>
+                <Readout
+                  label="Sem plano publicado"
+                  value={formatInt(semPlanoTotal)}
+                  tone={semPlanoTotal > 0 ? 'accent' : 'muted'}
+                  caption="da carteira, no mês corrente"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-3 border-t border-border/60">
+                {[1, 2, 3, 4].map((numero) => {
+                  const semana = getSemanaDoMes(numero as 1 | 2 | 3 | 4);
+                  const estado =
+                    numero < semanaAtual.numero ? 'passada' : numero === semanaAtual.numero ? 'atual' : 'futura';
+                  return (
+                    <button
+                      key={numero}
+                      type="button"
+                      onClick={() =>
+                        navigate(`/metodo?secao=ritos&busca=${encodeURIComponent(`Semana ${numero}`)}`)
+                      }
+                      className={cn(
+                        'flex-1 min-w-[150px] rounded-lg border px-3 py-2.5 text-left transition-colors',
+                        estado === 'atual'
+                          ? 'border-[hsl(var(--cs-accent-line))] bg-[hsl(var(--cs-accent-soft))]'
+                          : 'border-border/70 bg-muted/30 hover:bg-muted/50',
+                      )}
+                    >
+                      <p
+                        className={cn(
+                          'text-[10px] font-bold uppercase tracking-[0.12em]',
+                          estado === 'atual' ? 'text-[hsl(var(--cs-accent))]' : 'text-muted-foreground/60',
+                        )}
+                      >
+                        Semana {numero}
+                        {estado === 'atual' && ' — agora'}
+                      </p>
+                      <p
+                        className={cn(
+                          'text-[12.5px] mt-0.5',
+                          estado === 'passada' ? 'text-muted-foreground/60' : 'text-foreground font-medium',
+                        )}
+                      >
+                        {semana?.titulo}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </Section>
