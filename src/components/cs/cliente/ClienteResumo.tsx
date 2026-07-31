@@ -57,6 +57,11 @@ export function ClienteResumo({ cliente, contexto, isLoading }: ClienteResumoPro
   return (
     <div>
       <PageTitle
+        // A ficha é a única tela profunda do console (chega-se a ela pela
+        // Carteira, pela Semana ou pela Agenda) e a barra de topo só conhece
+        // as quatro rotas raiz — sem trilha, a única saída era o botão do
+        // navegador. Ver PageTitle.tsx para o porquê de trilha e não "voltar".
+        trilha={[{ label: 'Carteira', to: '/' }, { label: cliente.nome }]}
         eyebrow="CLIENTE"
         title={cliente.nome}
         description={`Cliente desde ${formatDataBR(cliente.cliente_desde)} — ${formatInt(cliente.dias_de_ciclo)} de ${formatInt(DIAS_CICLO_PCA)} dias do contrato.`}

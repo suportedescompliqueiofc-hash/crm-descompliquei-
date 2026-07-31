@@ -29,7 +29,7 @@ import type { SemanaDoMes } from './types';
  * hardcoded "O mês é do cliente, não da empresa" e "As quatro semanas do mês
  * (de cada cliente)" que aparecem nesse arquivo.
  */
-export const O_MES_E_DO_CLIENTE_NAO_DA_EMPRESA =
+export const O_MES_E_O_MESMO_PARA_A_CARTEIRA =
   'O "mês" de que este rito fala é o mês do CALENDÁRIO, não o mês de ciclo de cada cliente. A ' +
   'carteira inteira vive a mesma semana ao mesmo tempo: numa dada segunda-feira, todo cliente ' +
   'está na semana 1, ou todo cliente está na semana 2, e assim por diante — as quatro semanas ' +

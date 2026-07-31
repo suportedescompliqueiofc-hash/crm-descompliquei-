@@ -59,6 +59,15 @@ export default function PlanoCliente() {
   return (
     <div className="pb-16 space-y-6">
       <PageTitle
+        // Trilha em três níveis quando há cliente: a ficha dele é o caminho
+        // natural de volta (foi de lá que se chegou aqui pelo "ver plano
+        // completo"), e a Carteira é a saída de cima. Sem cliente na URL, a
+        // tela é só um arquivo genérico e a trilha para na Carteira.
+        trilha={
+          cliente
+            ? [{ label: 'Carteira', to: '/' }, { label: cliente.nome, to: `/cliente/${cliente.organization_id}` }, { label: 'Plano' }]
+            : [{ label: 'Carteira', to: '/' }, { label: 'Plano' }]
+        }
         title="Plano"
         eyebrow="PLANO"
         description="O plano publicado em cada mês do ciclo — arquivo histórico. O mês corrente vive na ficha do cliente."

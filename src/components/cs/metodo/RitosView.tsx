@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Section, ListRow, StatusIndicator } from '@/components/cs/ui';
 import { cn } from '@/lib/utils';
 import {
-  O_MES_E_DO_CLIENTE_NAO_DA_EMPRESA,
+  O_MES_E_O_MESMO_PARA_A_CARTEIRA,
   RITO_DIARIO,
   RITO_SEMANAL,
   SEMANAS_DO_MES,
@@ -70,8 +70,8 @@ export function RitosView() {
 
       {rito === 'mes' && (
         <div className="space-y-4">
-          <Section title="O mês é do cliente, não da empresa">
-            <p className="text-sm leading-relaxed text-foreground">{O_MES_E_DO_CLIENTE_NAO_DA_EMPRESA}</p>
+          <Section title="O mês é o mesmo para a carteira inteira">
+            <p className="text-sm leading-relaxed text-foreground">{O_MES_E_O_MESMO_PARA_A_CARTEIRA}</p>
           </Section>
 
           <Section title="Rito diário" description={RITO_DIARIO.duracao}>
@@ -97,7 +97,7 @@ export function RitosView() {
             </ul>
           </Section>
 
-          <Section title="As quatro semanas do mês (de cada cliente)">
+          <Section title="As quatro semanas do mês">
             <div className="divide-y divide-border/50">
               {SEMANAS_DO_MES.map((s) => (
                 <ListRow key={s.numero}>
