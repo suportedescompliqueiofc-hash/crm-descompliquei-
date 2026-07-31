@@ -398,3 +398,148 @@ export interface SalvarNotasReuniaoInput {
   id: string;
   notas: string;
 }
+
+// ─── Materiais por cliente e Timeline unificada ────────────────────────────
+//
+// Contrato publicado pelo Executor de Dados em 2026-07-30. REVALIDADO AO VIVO
+// (projeto noncbgdczgcboronmcah, `pg_get_functiondef` das 6 funções +
+// `pg_get_constraintdef`/`information_schema.columns` de `cs_materiais`) —
+// os valores de `elo`/`tipo`/`status` abaixo batem exatamente com os CHECK
+// constraints reais da tabela, sem divergência. Testado com as 7 orgs PCA
+// (`cs_materiais_cliente` e `cs_cliente_timeline`, incluindo Dr. Derek
+// Gonçalves e Dr. Jhonatan Dutra — devolvem lista vazia, nunca erro, porque
+// `cs_materiais` está 100% vazia hoje e a timeline só depende de dado
+// existente por org). Escrita testada em transação com `ROLLBACK` (INSERT +
+// UPDATE de status + UPDATE de entrega + erro de canal inválido), confirmado
+// por SELECT depois que não sobrou nenhuma linha de teste.
+//
+// `cs_materiais_cliente`/`cs_material` devolvem MAIS colunas do que o
+// contrato original citava: além de `canal_entrega` (computado), a função
+// também devolve as colunas cruas `entregue_nota`/`entregue_nota_em`/
+// `entregue_html`/`entregue_html_em`/`html_referencia`/`pagina_id` — úteis
+// para a UI decidir, por exemplo, se um material Estratégico já tem o HTML
+// gerado sem precisar decompor a string de `canal_entrega`.
+
+/** Valores reais do CHECK constraint `cs_materiais_elo_check`. */
+export type EloMaterial =
+  | 'Adoção (Camada 0)'
+  | 'Demanda'
+  | 'Agendamento'
+  | 'Resgate de Lead Frio'
+  | 'Comparecimento'
+  | 'Fechamento'
+  | 'Ticket'
+  | 'Ciclo de Venda'
+  | 'Recompra';
+
+/** Valores reais do CHECK constraint `cs_materiais_tipo_check`. */
+export type TipoMaterial = 'estrategico' | 'operacional';
+
+/** Valores reais do CHECK constraint `cs_materiais_status_check`. */
+export type StatusMaterial = 'solicitado' | 'em_producao' | 'pronto' | 'entregue';
+
+/** Computado na leitura (`CASE` dentro da RPC) — não é coluna da tabela. */
+export type CanalEntregaMaterial = 'nenhuma' | 'nota' | 'html' | 'ambos';
+
+/**
+ * Retorno REAL de `cs_materiais_cliente(p_org_id)` e `cs_material(p_id)` —
+ * mesmo shape nas duas (`cs_material` devolve 0 ou 1 linha, nunca erro para
+ * id inexistente).
+ */
+export interface CSMaterial {
+  id: string;
+  organization_id: string;
+  titulo: string;
+  elo: EloMaterial;
+  tipo: TipoMaterial;
+  status: StatusMaterial;
+  jornada_id: string | null;
+  /** Nullable na coluna, mas a RPC de escrita nunca deixa passar vazio — ver `cs_registrar_material`. */
+  analise_previa: string | null;
+  conteudo: string | null;
+  pagina_id: string | null;
+  entregue_nota: boolean;
+  entregue_nota_em: string | null; // timestamptz ISO
+  entregue_html: boolean;
+  entregue_html_em: string | null; // timestamptz ISO
+  html_referencia: string | null;
+  canal_entrega: CanalEntregaMaterial;
+  criado_em: string; // timestamptz ISO
+  atualizado_em: string; // timestamptz ISO
+}
+
+export interface RegistrarMaterialInput {
+  organizationId: string;
+  titulo: string;
+  elo: EloMaterial;
+  tipo: TipoMaterial;
+  /**
+   * OBRIGATÓRIA — o banco lança exceção (`P0001`) se vier vazia/em branco.
+   * Ver `useRegistrarMaterial`, que valida no cliente antes de ir ao banco
+   * e traduz o erro do banco (se ainda assim chegar lá) na mesma mensagem
+   * amigável, via `AnalisePreviaObrigatoriaError`.
+   */
+  analisePrevia: string;
+  conteudo?: string | null;
+  jornadaId?: string | null;
+  /** Default no banco: 'solicitado'. */
+  status?: StatusMaterial;
+}
+
+export interface AtualizarStatusMaterialInput {
+  id: string;
+  status: StatusMaterial;
+}
+
+export interface RegistrarEntregaMaterialInput {
+  id: string;
+  canal: 'nota' | 'html';
+  paginaId?: string | null;
+  htmlReferencia?: string | null;
+  /** timestamptz ISO — default no banco: `now()`. */
+  quando?: string;
+}
+
+/** Valores reais do `tipo` devolvido por `cs_cliente_timeline`. */
+export type TipoEventoTimeline =
+  | 'continuidade'
+  | 'reuniao'
+  | 'material'
+  | 'tarefa_concluida'
+  | 'plano_publicado'
+  | 'cliente_entrou'
+  | 'primeira_venda';
+
+/** Valores reais de `origem` devolvido por `cs_cliente_timeline`. */
+export type OrigemTimeline =
+  | 'cs_continuidade'
+  | 'cs_reunioes'
+  | 'cs_materiais'
+  | 'cs_tarefas'
+  | 'jornadas'
+  | 'organizations'
+  | 'vendas';
+
+/**
+ * Retorno REAL de `cs_cliente_timeline(p_org_id, p_limite, p_desde)` — mais
+ * recente primeiro (`ORDER BY data DESC`). Uma linha de material representa
+ * o material INTEIRO (não um evento por entrega) — a `data` e a `descricao`
+ * dessa linha mudam quando o material é entregue (a função usa
+ * `COALESCE(GREATEST(entregue_nota_em, entregue_html_em), atualizado_em)`),
+ * então `useRegistrarEntregaMaterial` invalida a timeline para refletir isso.
+ */
+export interface TimelineEvento {
+  data: string; // timestamptz ISO
+  tipo: TipoEventoTimeline;
+  titulo: string;
+  descricao: string | null;
+  origem: OrigemTimeline;
+  registro_origem_id: string;
+}
+
+export interface TimelineFiltros {
+  /** Default no banco: 100. */
+  limite?: number;
+  /** date (YYYY-MM-DD) — limite inferior de `data`. */
+  desde?: string | null;
+}

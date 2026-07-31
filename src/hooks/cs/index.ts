@@ -34,3 +34,14 @@ export {
   useMarcarReuniaoRealizada,
   useSalvarNotasReuniao,
 } from './useCsReunioes';
+
+export {
+  useMateriaisCliente,
+  useMaterial,
+  useRegistrarMaterial,
+  useAtualizarStatusMaterial,
+  useRegistrarEntregaMaterial,
+  AnalisePreviaObrigatoriaError,
+} from './useCsMateriais';
+
+export { useTimelineCliente } from './useCsTimeline';
