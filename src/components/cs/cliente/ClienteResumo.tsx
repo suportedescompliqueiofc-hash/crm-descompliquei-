@@ -27,7 +27,10 @@ import { formatInt, formatPct } from '@/lib/format';
 import { formatDataBR } from '../format';
 import { getEloInfo } from '../eloMeta';
 import { construirSituacao } from '../carteira/narrativa';
-import { PageTitle, Readout, Rail, Chip, LoadingState, EmptyState } from '@/components/cs/ui';
+import { PageTitle, Readout, Rail, Chip, Action, LoadingState, EmptyState } from '@/components/cs/ui';
+import { useProfile } from '@/hooks/useProfile';
+import { MASTER_ORG_ID } from '@/lib/constants';
+import { useAbrirCrmCliente } from '@/hooks/cs/useAbrirCrmCliente';
 
 interface ClienteResumoProps {
   cliente: ClienteCarteira | undefined;
@@ -38,6 +41,16 @@ interface ClienteResumoProps {
 const DIAS_CICLO_PCA = 180;
 
 export function ClienteResumo({ cliente, contexto, isLoading }: ClienteResumoProps) {
+  // Botão "Abrir CRM do cliente" (PageTitle.action): mesma regra de quem
+  // pode impersonar que o Super Admin usa — só com MASTER_ORG_ID ativo no
+  // perfil agora. Se o perfil já está preso numa organização de cliente (de
+  // outra impersonação), o botão simplesmente não aparece — nunca finge que
+  // vai funcionar (ver useAbrirCrmCliente.ts para a checagem real, feita de
+  // novo no clique).
+  const { profile } = useProfile();
+  const { abrir, abrindo } = useAbrirCrmCliente();
+  const podeAbrirCrm = profile?.organization_id === MASTER_ORG_ID;
+
   if (isLoading) {
     return <LoadingState rows={3} label="Carregando o cliente…" />;
   }
@@ -73,6 +86,17 @@ export function ClienteResumo({ cliente, contexto, isLoading }: ClienteResumoPro
               <Readout label="Aderência do mês" value={formatPct(cliente.aderencia_pct, 0)} />
             )}
           </>
+        }
+        action={
+          podeAbrirCrm ? (
+            <Action
+              variant="outline"
+              onClick={() => abrir(cliente.organization_id)}
+              disabled={abrindo}
+            >
+              {abrindo ? 'Abrindo…' : 'Abrir CRM do cliente'}
+            </Action>
+          ) : undefined
         }
       />
 
