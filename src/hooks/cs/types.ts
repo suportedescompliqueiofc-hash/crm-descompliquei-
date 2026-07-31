@@ -543,3 +543,81 @@ export interface TimelineFiltros {
   /** date (YYYY-MM-DD) — limite inferior de `data`. */
   desde?: string | null;
 }
+
+// ─── Publicar plano (cs_publicar_jornada) e Marcos do CRM (cs_cliente_marcos) ──
+//
+// Contrato desta rodada (2026-07-31) — o Executor de Dados e Hooks é o mesmo
+// agente que criou a função no banco e o hook que a consome, então não há
+// repasse entre dois contratos divergentes (motivo declarado no brief desta
+// tarefa). Testado ao vivo (projeto noncbgdczgcboronmcah): publicação real em
+// transação com ROLLBACK usando a org do Dr. Derek Gonçalves
+// (f1015744-992f-4db5-aac3-566e4cbd8d18), período 2026-09-01 — ver comentário
+// de `usePublicarJornada` para o resultado campo a campo. `cs_cliente_marcos`
+// testada com as 7 orgs PCA reais, incluindo Dr. Derek Gonçalves e Dr.
+// Jhonatan Dutra (que devolve `[]`, zero marcos, nunca erro — a org tem
+// praticamente nenhum dado ainda).
+
+export type DonoPasso = 'cliente' | 'joao';
+
+export interface PublicarJornadaPassoInput {
+  titulo: string;
+  descricao?: string | null;
+  /** Default no banco: índice do passo dentro do estágio (0-based). */
+  ordem?: number;
+  /** Default no banco: 'acao_livre'. Mesmos valores de `jornada_passos.tipo`. */
+  tipo?: string;
+  /** Default no banco: true. */
+  obrigatorio?: boolean;
+  prazoDias?: number | null;
+  /**
+   * OBRIGATÓRIO — sem valor válido ('cliente'|'joao'), o banco lança exceção
+   * citando o título do passo (04-plano-de-acao.md §4.2: "dono... nunca 'a
+   * equipe' de forma genérica"). Passos 'joao' NÃO viram jornada_passos —
+   * viram cs_tarefas(dono='joao', origem='plano') — ver COMMENT de
+   * `usePublicarJornada` para a divergência declarada com a arquitetura.
+   */
+  dono: DonoPasso;
+}
+
+export interface PublicarJornadaEstagioInput {
+  /** Default no banco: "Semana N" (N = posição no array, 1-based) se omitido/vazio. */
+  titulo?: string;
+  descricao?: string | null;
+  /** Default no banco: índice do estágio no array (0-based). */
+  ordem?: number;
+  /** Default no banco: 7. Usado também como fallback de prazo dos passos 'joao' sem prazoDias próprio. */
+  prazoDias?: number;
+  /** date (YYYY-MM-DD). Sem ela, passos 'joao' deste estágio não recebem prazo calculado em cs_tarefas.prazo (fica NULL). */
+  dataInicio?: string | null;
+  passos: PublicarJornadaPassoInput[];
+}
+
+export interface PublicarJornadaInput {
+  organizationId: string;
+  /** date (YYYY-MM-DD) — primeiro dia do mês do plano, ex.: '2026-09-01'. Usado para a checagem de duplicata (mesma org + mesmo mês + status=ativa). */
+  periodoRef: string;
+  /** Default no banco: 'Plano de Ação — YYYY-MM' se omitido/vazio. */
+  titulo?: string;
+  /** OBRIGATÓRIO — o banco lança exceção se vazio (04-plano-de-acao.md §2: todo plano ataca um elo declarado). */
+  eloAlvo: string;
+  /** OBRIGATÓRIO — o banco lança exceção se vazio (04-plano-de-acao.md §4.3: uma métrica só, com alvo numérico único). */
+  criterioSucesso: string;
+  /** Ao menos 1 estágio — o banco lança exceção se o array vier vazio. */
+  estagios: PublicarJornadaEstagioInput[];
+}
+
+/** Valores reais devolvidos por `cs_cliente_marcos` — ver COMMENT da função no banco para o critério de "relevante" na demanda. */
+export type TipoMarcoCliente =
+  | 'primeira_venda'
+  | 'primeiro_agendamento'
+  | 'primeira_mensagem'
+  | 'salto_demanda'
+  | 'queda_demanda';
+
+/** Retorno REAL de `cs_cliente_marcos(p_org_id)` — sem ordem fixa de tipos, ordenado por `data DESC`. */
+export interface ClienteMarco {
+  tipo: TipoMarcoCliente;
+  titulo: string;
+  descricao: string | null;
+  data: string; // date (YYYY-MM-DD)
+}

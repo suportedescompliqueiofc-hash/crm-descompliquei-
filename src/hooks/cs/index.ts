@@ -45,3 +45,7 @@ export {
 } from './useCsMateriais';
 
 export { useTimelineCliente } from './useCsTimeline';
+
+export { usePublicarJornada } from './usePublicarJornada';
+
+export { useClienteMarcos } from './useClienteMarcos';

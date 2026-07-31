@@ -7,6 +7,7 @@
 // em que semana do PRÓPRIO ciclo cada cliente está — 1 instala, 2 corrige,
 // 3 aprofunda ou escala, 4 fecha e planeja.
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { format, parseISO, startOfWeek, endOfWeek, differenceInCalendarDays } from 'date-fns';
 import { formatInt } from '@/lib/format';
@@ -37,6 +38,7 @@ const TODOS_CLIENTES = '__todos__';
 const SEM_CLIENTE = '__sem_cliente__';
 
 export default function Semana() {
+  const navigate = useNavigate();
   const { data: tarefas = [], isLoading: isLoadingTarefas } = useTarefas();
   const { data: clientes = [], isLoading: isLoadingClientes } = useCarteira();
   const excluirTarefa = useExcluirTarefa();
@@ -236,9 +238,16 @@ export default function Semana() {
                 return (
                   <div key={semana}>
                     <p className="text-sm leading-relaxed">
-                      <span className="font-medium text-foreground">
-                        Semana {semana} — {itens[0].rito.faseLabel}:
-                      </span>{' '}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(`/metodo?secao=ritos&busca=${encodeURIComponent(`Semana ${semana}`)}`)
+                        }
+                        className="font-medium text-foreground underline underline-offset-4 hover:no-underline"
+                      >
+                        Semana {semana} — {itens[0].rito.faseLabel}
+                      </button>
+                      <span className="text-foreground">:</span>{' '}
                       <span className="text-muted-foreground">{itens.map((i) => i.cliente.nome).join(', ')}.</span>
                     </p>
                     {objetivo && <p className="text-[12px] text-muted-foreground/60 mt-0.5">{objetivo}</p>}

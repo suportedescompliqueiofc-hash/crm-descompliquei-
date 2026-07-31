@@ -10,7 +10,7 @@
 // teste de qualidade de uma ação — útil quando o João está lendo ou
 // redigindo ações, não empilhado como bloco de texto permanente na tela.
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { format, isSameMonth, parseISO, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAderencia, useCarteira, useClienteElos, usePlanoConteudo } from '@/hooks/cs';
@@ -69,10 +69,12 @@ export default function PlanoCliente() {
         <PlanoVazio mesLabel={mesLabel} />
       ) : (
         <PlanoEmbutido
+          orgId={orgId!}
           aderencia={aderencia}
           passos={passos}
           isLoading={aderenciaLoading || passosLoading}
           mesLabel={mesLabel}
+          mostrarLinksArquivo={false}
         />
       )}
 
@@ -96,6 +98,12 @@ export default function PlanoCliente() {
                 ))}
               </ul>
             </div>
+            <Link
+              to="/metodo?secao=artefatos"
+              className="inline-block text-foreground underline underline-offset-2 hover:no-underline"
+            >
+              Ver o plano de ação completo, com os 9 exemplos por elo, no Método
+            </Link>
           </div>
         </details>
       </Section>

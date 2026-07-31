@@ -1,9 +1,16 @@
-// O que os números dizem — quarta peça do dossiê. Substitui por completo
-// CamadaZeroPortao.tsx + CadeiaElos.tsx + SerieHistorica.tsx (removidos
-// neste redesign): em vez de uma faixa vermelha/verde e uma grade de cartões
-// com ponto de cor por camada, a Camada 0 e os 8 elos viram parágrafos
-// corridos. O aviso de adoção pendente é resolvido inteiramente em texto —
-// "o diagnóstico comercial não é confiável" — sem faixa colorida.
+// Bloco 2 da Ficha (arquitetura-app-cs.md, seção B.2) — "A cadeia". Substitui
+// por completo CamadaZeroPortao.tsx + CadeiaElos.tsx + SerieHistorica.tsx
+// (removidos no redesign anterior): em vez de uma faixa vermelha/verde e uma
+// grade de cartões com ponto de cor por camada, os 8 elos viram parágrafos
+// corridos (isso já funcionava bem e é mantido).
+//
+// Redesign 2026-07-31: a Camada 0 deixa de ser só uma frase corrida com os
+// itens desligados separados por vírgula (era preciso ler a frase inteira
+// para saber QUAL item falta) e vira um checklist real — 7 linhas com
+// checkbox (marcado/riscado), a mesma forma mínima que a especificação exige
+// para todo estado binário verificável. O texto de julgamento ("o
+// diagnóstico comercial não é confiável") continua em prosa — é leitura, não
+// um booleano.
 //
 // O elo-restrição do mês é destacado por PESO de fonte (negrito), nunca por
 // cor ou badge. A série histórica vira uma linha de texto compacta (mês/ano
@@ -38,8 +45,6 @@ export function CadeiaNarrativa({
   eloRestricao,
   camada0Passa,
 }: CadeiaNarrativaProps) {
-  const itensDesligados = adocao.filter((i) => !i.ligado);
-
   // O método (src/content/cs) explica o que o elo-restrição significa e o
   // catálogo de materiais previsto para ele — resolve o problema descrito
   // pelo CEO: ler "elo: Ticket" sem ter como saber o que fazer com isso.
@@ -58,21 +63,44 @@ export function CadeiaNarrativa({
   }, [serie, eloRestricao]);
 
   return (
-    <Section title="O que os números dizem">
+    <Section title="A cadeia">
       {adocaoLoading || elosLoading ? (
         <LoadingState label="Carregando os números…" />
       ) : (
         <div className="space-y-4 max-w-[680px]">
+          <div>
+            <p className="text-sm font-medium text-foreground">Camada 0 — Adoção</p>
+            {adocao.length === 0 ? (
+              <p className="text-sm text-muted-foreground mt-1">Sem checklist de adoção disponível para este cliente.</p>
+            ) : (
+              <div className="mt-1.5 space-y-1">
+                {adocao.map((item) => (
+                  <label key={item.item} className="flex items-start gap-2.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={item.ligado}
+                      disabled
+                      readOnly
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-foreground disabled:opacity-100"
+                      aria-label={item.item}
+                    />
+                    <span className="min-w-0">
+                      <span className={item.ligado ? 'text-foreground' : 'text-foreground font-medium'}>{item.item}</span>
+                      {item.evidencia && (
+                        <span className="text-[12px] text-muted-foreground/70"> — {item.evidencia}</span>
+                      )}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
           {camada0Passa === false && (
             <p className="text-sm text-foreground leading-relaxed">
-              A plataforma ainda não está configurada nem sendo usada de forma confiável por este cliente
-              {itensDesligados.length > 0 && (
-                <>
-                  : {itensDesligados.map((i) => i.item.toLowerCase()).join(', ')}
-                </>
-              )}
-              . Enquanto isso não for corrigido, o diagnóstico comercial abaixo não é confiável — os números podem
-              refletir falta de uso da plataforma, não o resultado real da clínica.
+              A plataforma ainda não está configurada nem sendo usada de forma confiável por este cliente. Enquanto
+              isso não for corrigido, o diagnóstico comercial abaixo não é confiável — os números podem refletir
+              falta de uso da plataforma, não o resultado real da clínica.
             </p>
           )}
 

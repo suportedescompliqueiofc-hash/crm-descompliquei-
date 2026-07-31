@@ -40,6 +40,27 @@ export interface SituacaoCliente {
   acao: string;
 }
 
+/**
+ * O acréscimo de sinal pedido pela arquitetura (arquitetura-app-cs.md, seção
+ * D — "Carteira"): se o cliente não tem plano publicado no mês corrente, ou
+ * tem tarefas atrasadas, isso vira uma segunda linha discreta na
+ * `CarteiraRow` — reaproveitando o mesmo campo que `ClientesSemPlano` já usa
+ * (`aderencia_pct === null`) e uma contagem de `cs_tarefas` calculada pelo
+ * chamador (Carteira.tsx já carrega `useTarefas()` para a tela Semana; aqui
+ * só agrega por cliente). `null` quando não há nada para sinalizar — o
+ * chamador não renderiza a linha.
+ */
+export function construirSinal(cliente: ClienteCarteira, tarefasAtrasadas: number): string | null {
+  const partes: string[] = [];
+  if (cliente.aderencia_pct == null) partes.push('sem plano publicado neste mês');
+  if (tarefasAtrasadas > 0) {
+    partes.push(`${formatInt(tarefasAtrasadas)} ${tarefasAtrasadas === 1 ? 'tarefa atrasada' : 'tarefas atrasadas'}`);
+  }
+  if (partes.length === 0) return null;
+  const texto = partes.join(' · ');
+  return texto.charAt(0).toUpperCase() + texto.slice(1) + '.';
+}
+
 // Mesmos limiares de 05-operacoes-e-cs/sistema/ritos/01-regua-de-risco.md.
 const DIAS_CONTATO_ATENCAO = 14;
 const DIAS_CONTATO_CRITICO = 21;
@@ -65,11 +86,12 @@ export function construirSituacao(cliente: ClienteCarteira): SituacaoCliente {
     );
   }
 
-  frases.push(
-    cliente.aderencia_pct == null
-      ? 'Sem plano ativo neste mês.'
-      : `${formatPct(cliente.aderencia_pct, 0)} de aderência ao plano deste mês.`,
-  );
+  // "Sem plano" não repete aqui — vira a linha de sinal (construirSinal),
+  // junto com tarefas atrasadas. A frase corrida só fala de aderência
+  // quando há um número real para relatar.
+  if (cliente.aderencia_pct != null) {
+    frases.push(`${formatPct(cliente.aderencia_pct, 0)} de aderência ao plano deste mês.`);
+  }
 
   if (cliente.dias_sem_contato == null) {
     frases.push('Nenhum contato registrado ainda.');

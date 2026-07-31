@@ -8,6 +8,7 @@
 // mesmo a qualquer momento. Sessão tática em grupo (sem organization_id) não
 // tem cliente único — a opção não aparece nesse caso.
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -208,6 +209,12 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
                   </li>
                 ))}
               </ol>
+              <Link
+                to="/metodo?secao=ritos"
+                className="mt-2 inline-block text-[12px] font-medium text-foreground underline underline-offset-2 hover:no-underline"
+              >
+                Ver o roteiro completo, com as conversas difíceis, no Método
+              </Link>
             </details>
           )}
 

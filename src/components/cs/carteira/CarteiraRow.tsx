@@ -7,11 +7,23 @@
 import { useNavigate } from 'react-router-dom';
 import type { ClienteCarteira } from '@/hooks/cs';
 import { ListRow } from '@/components/cs/ui';
-import { construirSituacao } from './narrativa';
+import { construirSituacao, construirSinal } from './narrativa';
 
-export function CarteiraRow({ cliente }: { cliente: ClienteCarteira }) {
+interface CarteiraRowProps {
+  cliente: ClienteCarteira;
+  /**
+   * Tarefas abertas com prazo vencido deste cliente — calculado pelo
+   * chamador (Carteira.tsx) a partir de `useTarefas()`. Ver arquitetura-app-cs.md
+   * seção D: "se o cliente não tem plano publicado no mês corrente, ou tem
+   * tarefas atrasadas, isso vira uma segunda linha discreta".
+   */
+  tarefasAtrasadas?: number;
+}
+
+export function CarteiraRow({ cliente, tarefasAtrasadas = 0 }: CarteiraRowProps) {
   const navigate = useNavigate();
   const { frase, acao } = construirSituacao(cliente);
+  const sinal = construirSinal(cliente, tarefasAtrasadas);
 
   return (
     <ListRow onClick={() => navigate(`/cliente/${cliente.organization_id}`)}>
@@ -19,6 +31,7 @@ export function CarteiraRow({ cliente }: { cliente: ClienteCarteira }) {
         <p className="text-[15px] font-semibold font-display text-foreground">{cliente.nome}</p>
         <p className="text-sm text-muted-foreground leading-relaxed">{frase}</p>
         <p className="text-sm font-medium text-foreground">{acao}</p>
+        {sinal && <p className="text-[13px] text-muted-foreground/70">{sinal}</p>}
       </div>
     </ListRow>
   );

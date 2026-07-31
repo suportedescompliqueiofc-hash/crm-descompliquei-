@@ -10,17 +10,31 @@
 // aqui, nem em CarteiraRow.tsx/narrativa.ts. Urgência vem da ordem
 // (ordem_fila, já calculada pelo banco) e do texto, nunca de cor.
 //
-// Fonte de dado: exclusivamente `useCarteira()`.
+// Fonte de dado: `useCarteira()` para a fila em si; `useTarefas()` só para o
+// acréscimo de sinal por linha (tarefas atrasadas — arquitetura-app-cs.md,
+// seção D). Nenhuma outra fonte entra nesta tela.
 import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 import { formatInt } from '@/lib/format';
-import { useCarteira } from '@/hooks/cs';
+import { useCarteira, useTarefas } from '@/hooks/cs';
 import { PageTitle, Section, Metric, EmptyState, LoadingState, ErrorState } from '@/components/cs/ui';
 import { CarteiraRow } from '@/components/cs/carteira/CarteiraRow';
 
 export default function Carteira() {
   const { data: carteira, isLoading, isError } = useCarteira();
+  const { data: tarefas = [] } = useTarefas();
   const lista = carteira ?? [];
+
+  const hojeStr = format(new Date(), 'yyyy-MM-dd');
+  const atrasadasPorCliente = useMemo(() => {
+    const mapa = new Map<string, number>();
+    for (const t of tarefas) {
+      if (t.concluida || !t.organization_id || !t.prazo || t.prazo >= hojeStr) continue;
+      mapa.set(t.organization_id, (mapa.get(t.organization_id) ?? 0) + 1);
+    }
+    return mapa;
+  }, [tarefas, hojeStr]);
 
   useEffect(() => {
     if (isError) {
@@ -69,7 +83,11 @@ export default function Carteira() {
         ) : (
           <div className="divide-y divide-border/50">
             {lista.map((cliente) => (
-              <CarteiraRow key={cliente.organization_id} cliente={cliente} />
+              <CarteiraRow
+                key={cliente.organization_id}
+                cliente={cliente}
+                tarefasAtrasadas={atrasadasPorCliente.get(cliente.organization_id) ?? 0}
+              />
             ))}
           </div>
         )}
