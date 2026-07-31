@@ -28,8 +28,7 @@ import { formatDataBR } from '../format';
 import { getEloInfo } from '../eloMeta';
 import { construirSituacao } from '../carteira/narrativa';
 import { PageTitle, Readout, Rail, Chip, Action, LoadingState, EmptyState } from '@/components/cs/ui';
-import { useProfile } from '@/hooks/useProfile';
-import { MASTER_ORG_ID } from '@/lib/constants';
+import { useIsInternalUser } from '@/hooks/cs/useIsInternalUser';
 import { useAbrirCrmCliente } from '@/hooks/cs/useAbrirCrmCliente';
 
 interface ClienteResumoProps {
@@ -41,15 +40,20 @@ interface ClienteResumoProps {
 const DIAS_CICLO_PCA = 180;
 
 export function ClienteResumo({ cliente, contexto, isLoading }: ClienteResumoProps) {
-  // Botão "Abrir CRM do cliente" (PageTitle.action): mesma regra de quem
-  // pode impersonar que o Super Admin usa — só com MASTER_ORG_ID ativo no
-  // perfil agora. Se o perfil já está preso numa organização de cliente (de
-  // outra impersonação), o botão simplesmente não aparece — nunca finge que
-  // vai funcionar (ver useAbrirCrmCliente.ts para a checagem real, feita de
-  // novo no clique).
-  const { profile } = useProfile();
+  // Botão "Abrir CRM do cliente" (PageTitle.action) — revisto em 2026-07-31.
+  // ANTES: só aparecia com `perfis.organization_id === MASTER_ORG_ID`, o que
+  // fazia o botão SUMIR de toda a ficha assim que o primeiro clique trocava
+  // a org ativa para a do cliente — o CEO não conseguia ir direto de um
+  // cliente para o outro. AGORA: a mesma permissão que já protege o console
+  // inteiro (`useIsInternalUser` — is_super_admin()/is_admin(), que leem
+  // `auth.uid()` e não dependem de qual organização está ativa). Quem chega
+  // até esta tela já passou pelo `CsGuard` com essa checagem, então o botão
+  // fica visível sempre, mesmo com um cliente já aberto — trocar de A para B
+  // é seguro porque o retorno usa MASTER_ORG_ID hardcoded (ver
+  // useAbrirCrmCliente.ts), nunca a organização do cliente anterior.
+  const { status: internalStatus } = useIsInternalUser();
   const { abrir, abrindo } = useAbrirCrmCliente();
-  const podeAbrirCrm = profile?.organization_id === MASTER_ORG_ID;
+  const podeAbrirCrm = internalStatus === 'authorized';
 
   if (isLoading) {
     return <LoadingState rows={3} label="Carregando o cliente…" />;

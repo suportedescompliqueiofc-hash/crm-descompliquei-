@@ -52,9 +52,18 @@ export function TarefaItem({ tarefa, clienteNome, dataLabel, dataDestaque, onEdi
         />
       }
       trailing={
-        <div className="flex flex-col items-end gap-1.5">
+        <div className="flex flex-col items-end gap-1.5 max-w-[160px]">
           <Metric size="sm" tone={dataDestaque ? 'accent' : 'muted'} value={dataLabel} />
-          <Chip tone="neutral">{clienteNome ?? 'Interna'}</Chip>
+          {/* Nome de cliente é texto livre (não vocabulário curto como um
+              status) — sem largura máxima + truncate, um nome comprido
+              alargava a coluna do trailing e espremia o título da tarefa ao
+              lado (o `Chip` em si é `whitespace-nowrap`, então nunca quebra
+              linha sozinho). `max-w-full overflow-hidden` no Chip + `min-w-0
+              truncate` no span interno: os dois precisam ceder para o
+              texto realmente truncar com reticências em vez de só cortar. */}
+          <Chip tone="neutral" className="max-w-full overflow-hidden">
+            <span className="min-w-0 truncate">{clienteNome ?? 'Interna'}</span>
+          </Chip>
         </div>
       }
     >

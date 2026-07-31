@@ -89,7 +89,11 @@ export function ClienteCard({ cliente, index, tarefasAtrasadas = 0 }: ClienteCar
               {index + 1}
             </span>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <p className="text-[15px] font-semibold font-display text-foreground truncate">{cliente.nome}</p>
+              {/* `min-w-0 flex-1` no nome (não só no container): um nome de
+                  clínica comprido é um flex item e, sem isso, não encolhe
+                  abaixo do próprio conteúdo — o `truncate` fica sem efeito e
+                  o texto extrapola a largura do cartão. */}
+              <p className="min-w-0 flex-1 truncate text-[15px] font-semibold font-display text-foreground">{cliente.nome}</p>
               {eloChip && eloChip !== '—' && <Chip tone="signal">{eloChip}</Chip>}
             </div>
           </div>

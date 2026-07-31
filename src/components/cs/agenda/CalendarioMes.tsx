@@ -302,9 +302,14 @@ function Pilula({
           value={format(d, 'HH:mm')}
         />
       )}
+      {/* `min-w-0` é obrigatório aqui: sem ele, um flex item com `truncate`
+          (white-space: nowrap) não tem como encolher abaixo do seu próprio
+          conteúdo (min-width: auto por padrão em flexbox) — o nome do
+          cliente cortava sem reticências no limite do botão em vez de
+          truncar de verdade. */}
       <span
         className={cn(
-          'text-[10.5px] text-foreground/80 truncate',
+          'min-w-0 flex-1 truncate text-[10.5px] text-foreground/80',
           cancelada && 'line-through text-muted-foreground/70',
         )}
       >

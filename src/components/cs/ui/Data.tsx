@@ -26,12 +26,24 @@ interface KeyValueProps {
   className?: string;
 }
 
+/**
+ * Correção de 2026-07-31: o valor era `shrink-0`, o que é certo para número
+ * ("49%" nunca deve quebrar no meio) e ERRADO para texto — um valor longo
+ * (ex.: "Atende só particular — informação repassada na venda") não cabia,
+ * não quebrava e vazava para fora do painel, que foi o que o CEO viu na
+ * coluna lateral da Ficha.
+ *
+ * A solução mantém as duas leituras: `flex-wrap` deixa o valor cair inteiro
+ * para a linha de baixo quando não couber ao lado do rótulo (em vez de
+ * espremer os dois), e `break-words` garante que nem uma palavra sem espaços
+ * estoure a caixa. Número curto continua na mesma linha, como antes.
+ */
 export function KeyValue({ label, value, hint, leader = true, className }: KeyValueProps) {
   return (
-    <div className={cn('flex items-baseline gap-2 py-[7px] text-[13px]', className)}>
+    <div className={cn('flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-[7px] text-[13px]', className)}>
       <span className="text-muted-foreground shrink-0">{label}</span>
-      {leader && <span className="flex-1 border-b border-dotted border-border/80 translate-y-[-3px]" />}
-      <span className={cn('shrink-0 text-right', !leader && 'ml-auto')}>{value}</span>
+      {leader && <span className="flex-1 min-w-[16px] border-b border-dotted border-border/80 translate-y-[-3px]" />}
+      <span className={cn('min-w-0 max-w-full text-right break-words', !leader && 'ml-auto')}>{value}</span>
       {hint && <span className="sr-only">{hint}</span>}
     </div>
   );

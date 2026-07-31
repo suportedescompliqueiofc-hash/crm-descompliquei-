@@ -10,13 +10,35 @@
 // CLAUDE.md, seção "Impersonation (Acessar CRM)". A troca de organização é um
 // UPDATE em `perfis.organization_id`: estado GLOBAL do usuário, não da aba.
 //
+// ── Permissão (revisto em 2026-07-31) ────────────────────────────────────
+// Este hook NÃO checa mais se a org ativa do perfil é a MASTER_ORG_ID antes
+// de trocar. A permissão de quem pode abrir o CRM do cliente já é garantida
+// ANTES de qualquer tela do console renderizar — é o `CsGuard`
+// (`useIsInternalUser`, is_super_admin()/is_admin()), que barra quem não é
+// da equipe interna sem depender de qual organização está ativa no perfil.
+// Exigir MASTER_ORG_ID aqui era o bug: assim que o primeiro clique trocava
+// a org ativa para a do cliente A, o botão sumia da ficha de TODOS os
+// outros clientes — o CEO não conseguia ir direto de A para B. Ver
+// `ClienteResumo.tsx` para a mesma troca de regra na visibilidade do botão.
+// É seguro afrouxar porque: (1) quem chega até aqui já passou pelo CsGuard;
+// (2) a restauração para a org master (`original_master_org_id` abaixo, e
+// "Devolver à org master" no `CsLayout`) usa MASTER_ORG_ID **hardcoded**,
+// nunca a organização do cliente anterior — trocar de A para B não corrompe
+// o caminho de volta. A regra antiga (só a partir da master) existe no app
+// do CLIENTE para impedir que um admin de clínica impersone outro cliente;
+// esse cenário não existe aqui, quem usa este console já é interno.
+//
 // Sequência (a ordem importa, e os dois primeiros passos são contraintuitivos):
 //   1. Abre a aba VAZIA imediatamente, ainda dentro do clique.
-//   2. Confere a permissão relendo `perfis.organization_id` (não confia em
-//      cache) — só quem está com MASTER_ORG_ID ativo pode impersonar.
+//   2. Relê `perfis.organization_id` (não confia em cache) — só para saber
+//      se a org alvo JÁ é a ativa (evita um UPDATE desnecessário), não para
+//      autorizar.
 //   3. Grava `original_master_org_id` no localStorage (sempre MASTER_ORG_ID
-//      hardcoded, nunca lido do perfil).
-//   4. UPDATE `perfis.organization_id` = org do cliente.
+//      hardcoded, nunca lido do perfil — mesmo trocando de cliente A para
+//      cliente B, o caminho de volta continua sendo a master).
+//   4. Se a org ativa já é a org alvo, pula o UPDATE. Senão, UPDATE
+//      `perfis.organization_id` = org do cliente (troca direta, mesmo se a
+//      org ativa hoje já for a de outro cliente).
 //   5. Invalida `['profile', user.id]` — sem isso o aviso de impersonação do
 //      CsLayout só apareceria num refetch natural, já que o console roda com
 //      `refetchOnWindowFocus: false`.
@@ -121,23 +143,22 @@ export function useAbrirCrmCliente(): UseAbrirCrmClienteResult {
           .single();
         if (profileError) throw profileError;
 
-        if (myProfile?.organization_id !== MASTER_ORG_ID) {
-          aba.close();
-          toast.error('Não é possível abrir o CRM do cliente agora.', {
-            description: 'Este perfil já está com outra organização ativa. Devolva-o à org master primeiro.',
-          });
-          return;
-        }
-
+        // Sempre hardcoded — mesmo indo de um cliente já impersonado (A)
+        // direto para outro (B), o caminho de volta continua sendo a master.
         localStorage.setItem('original_master_org_id', MASTER_ORG_ID);
 
-        const { error: updateError } = await supabase
-          .from('perfis')
-          .update({ organization_id: targetOrgId as any })
-          .eq('id', user.id);
-        if (updateError) throw updateError;
+        // Só faz o UPDATE se a org ativa ainda não for a do alvo — troca de
+        // A para B é uma troca de verdade, mas reabrir o mesmo cliente não
+        // precisa gravar nada de novo.
+        if (myProfile?.organization_id !== targetOrgId) {
+          const { error: updateError } = await supabase
+            .from('perfis')
+            .update({ organization_id: targetOrgId as any })
+            .eq('id', user.id);
+          if (updateError) throw updateError;
 
-        queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
+          queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
+        }
 
         aba.location.replace(`${resolverBasePlataforma()}/crm`);
         toast.success('CRM deste cliente aberto em outra aba.', {
