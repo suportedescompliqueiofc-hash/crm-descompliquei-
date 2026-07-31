@@ -1,20 +1,21 @@
 // Ponto de entrada do app de CS (cs.descompliqueiofc.com).
-// Espelha src/main.tsx — mesmo bootstrap de tema, montando App-cs.tsx em vez de App.tsx.
+// Espelha src/main.tsx no bootstrap, com DUAS diferenças deliberadas:
+//
+//   1. `data-cs` no <html> — é o escopo do tema próprio do console
+//      (src/styles/cs-theme.css). Sem esse atributo o app cai no tema da
+//      plataforma do cliente e a casca inteira perde a identidade.
+//   2. Tema SEMPRE claro. O app do cliente guarda a preferência em
+//      localStorage e, em desenvolvimento, os dois rodam no mesmo domínio
+//      (localhost) — sem forçar aqui, quem usa o CRM no escuro abriria o
+//      console num tema escuro que ele não tem. O `cs-theme.css` ainda
+//      neutraliza `.dark` por baixo, mas o certo é nem chegar lá.
 import { createRoot } from "react-dom/client";
 import AppCs from "./App-cs.tsx";
 import "./index.css";
+import "./styles/cs-theme.css";
 
-// Garante que o tema padrão é 'light' na primeira visita
-const savedTheme = localStorage.getItem('theme') || localStorage.getItem('vite-ui-theme');
-const activeTheme = savedTheme || 'light';
-
-// Aplica o tema imediatamente no HTML (evita flash de tema errado)
-document.documentElement.classList.remove('light', 'dark');
-document.documentElement.classList.add(activeTheme);
-
-// Se não havia nada salvo, persiste o padrão 'light'
-if (!savedTheme) {
-  localStorage.setItem('theme', 'light');
-}
+document.documentElement.setAttribute('data-cs', '');
+document.documentElement.classList.remove('dark');
+document.documentElement.classList.add('light');
 
 createRoot(document.getElementById("root")!).render(<AppCs />);

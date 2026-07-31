@@ -1,0 +1,149 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Tema do app de CS — "Console"
+   ─────────────────────────────────────────────────────────────────────────
+   Carregado DEPOIS de index.css, apenas no bundle do CS (src/main-cs.tsx).
+   Escopo `:root[data-cs]` — especificidade (0,2,0), maior que `:root` e
+   igual a `:root.dark`, e como este arquivo é importado depois, vence.
+   O app do cliente NUNCA carrega este arquivo: nada aqui vaza para lá.
+
+   O conceito, em uma frase: é uma MESA DE TRABALHO, não uma folha de papel.
+   Três decisões estruturais que produzem isso:
+
+   1. CANVAS TINGIDO + PAINEL BRANCO. O fundo é areia quente (não branco);
+      os painéis são brancos e flutuam sobre ele. É esse contraste — e não
+      sombra pesada — que faz a tela ler como sistema. Numa folha branca com
+      texto preto não existe "painel": tudo é o mesmo plano.
+
+   2. CROMO ESCURO NO TOPO. A barra superior é grafite quente, largura
+      total. Duas camadas de moldura (cromo escuro + barra de contexto na
+      cor do canvas) é o que separa "aplicação" de "documento".
+
+   3. DUAS CORES COM CARGO, ZERO SEMÁFORO. Laranja Descompliquei = ação e
+      atenção (é onde a plataforma do cliente aparece aqui). Petróleo = o
+      método (cadeia, elos, medição). Vermelho/âmbar/verde de risco estão
+      BANIDOS — foram reprovados explicitamente pelo CEO em 2026-07-30
+      ("crítico, atenção, saudável, essas cores me incomodam"). Vermelho
+      sobrevive só para erro técnico e ação destrutiva.
+
+   Regra de manutenção: nenhuma tela do CS escreve cor crua (`bg-[#...]`,
+   `text-emerald-600`). Tudo sai daqui, via classe semântica do Tailwind
+   (`bg-card`, `border-border`) ou via var `--cs-*`.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root[data-cs] {
+  /* ── Base: sobrescreve os tokens do shadcn ────────────────────────────
+     Consequência deliberada: todo componente que já usa `bg-background`,
+     `bg-card`, `border-border` muda de aparência sem uma única edição. */
+
+  /* Canvas — areia quente. ~6% mais escuro que o painel: é o suficiente
+     para o branco "subir" e o olho ler camadas, sem virar bege sujo. */
+  --background: 36 20% 94%;
+  --foreground: 24 10% 12%;
+
+  /* Painel */
+  --card: 0 0% 100%;
+  --card-foreground: 24 10% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 24 10% 12%;
+
+  /* Laranja Descompliquei — mantido de propósito: é o fio de ligação com a
+     plataforma do cliente ("ela deve aparecer"). Continua sendo recurso
+     escasso: ação primária, marcador de atenção, fio do elo-restrição. */
+  --primary: 18 80% 53%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 24 12% 13%;
+  --secondary-foreground: 36 20% 96%;
+
+  /* Neutros quentes — chips, trilhos, fundos de linha */
+  --muted: 36 16% 91%;
+  --muted-foreground: 25 7% 40%;
+  --accent: 36 16% 91%;
+  --accent-foreground: 24 10% 12%;
+
+  --destructive: 2 72% 48%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Fio visível de propósito. O tema do cliente usa filete quase invisível
+     porque lá a estrutura vem do cartão; aqui a estrutura É o fio. */
+  --border: 32 14% 86%;
+  --input: 32 14% 88%;
+  --ring: 18 80% 53%;
+
+  --radius: 0.75rem;
+
+  /* ── Tokens próprios do CS ──────────────────────────────────────────── */
+
+  /* Cromo — a barra de topo e qualquer superfície escura */
+  --cs-ink: 24 13% 11%;
+  --cs-ink-2: 24 10% 17%;
+  --cs-ink-line: 30 8% 24%;
+
+  /* Petróleo — a cor do MÉTODO. Cadeia, elos, medição, evidência de banco.
+     Nunca é cor de ação (isso é o laranja) nem de risco (não existe). */
+  --cs-signal: 192 44% 26%;
+  --cs-signal-soft: 192 30% 93%;
+
+  /* Laranja em superfície — fundo de destaque de atenção/ação */
+  --cs-accent: 18 80% 53%;
+  --cs-accent-soft: 22 90% 96%;
+  --cs-accent-line: 20 78% 88%;
+
+  /* Fios: o normal e o de separação forte (entre grupos, não entre linhas) */
+  --cs-rule: 32 14% 87%;
+  --cs-rule-strong: 30 12% 78%;
+
+  /* Elevação — sombra quente e curta. Painel é plano apoiado, não cartão
+     boiando: 1px de fio faz mais trabalho que 16px de blur. */
+  --cs-shadow: 0 1px 2px hsl(28 20% 20% / 0.06), 0 0 0 1px hsl(30 14% 88% / 0.6);
+  --cs-shadow-raised: 0 4px 14px hsl(28 20% 20% / 0.08), 0 0 0 1px hsl(30 14% 86% / 0.7);
+}
+
+/* O CS é sempre claro. O bootstrap do main-cs.tsx pode encontrar `dark`
+   salvo no localStorage pelo app do cliente (mesmo domínio em dev) — esta
+   regra impede que o tema escuro do cliente sequestre o console. */
+:root[data-cs].dark {
+  --background: 36 20% 94%;
+  --foreground: 24 10% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 24 10% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 24 10% 12%;
+  --muted: 36 16% 91%;
+  --muted-foreground: 25 7% 40%;
+  --accent: 36 16% 91%;
+  --accent-foreground: 24 10% 12%;
+  --border: 32 14% 86%;
+  --input: 32 14% 88%;
+}
+
+/* Números: `font-display tabular-nums` é obrigatório no CS inteiro (ver
+   Metric.tsx). Esta regra é a rede de segurança para número que escape do
+   primitivo — largura de dígito fixa evita a coluna "dançar" ao atualizar. */
+:root[data-cs] .tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Barra de rolagem discreta — detalhe de cromo. Sem isso, a barra cinza
+   padrão do Windows corta o canvas quente e denuncia "página web". */
+:root[data-cs] * {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(30 10% 78%) transparent;
+}
+:root[data-cs] *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+:root[data-cs] *::-webkit-scrollbar-thumb {
+  background-color: hsl(30 10% 80%);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+:root[data-cs] *::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(30 10% 70%);
+}
+:root[data-cs] *::-webkit-scrollbar-track {
+  background: transparent;
+}
