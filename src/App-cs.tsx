@@ -24,6 +24,7 @@ import ClienteDetalhe from '@/pages/cs/ClienteDetalhe';
 import Semana from '@/pages/cs/Semana';
 import Agenda from '@/pages/cs/Agenda';
 import PlanoCliente from '@/pages/cs/PlanoCliente';
+import Metodo from '@/pages/cs/Metodo'; // TEMP — só para medir o tamanho do bundle nesta entrega, revertido em seguida
 
 // Mesmas opções de cache do App.tsx (staleTime 5min, sem refetch no foco) —
 // instância própria, não compartilhada entre os dois bundles.
@@ -53,6 +54,7 @@ const AppCs = () => (
                 <Route path="/semana" element={<Semana />} />
                 <Route path="/agenda" element={<Agenda />} />
                 <Route path="/plano/:orgId" element={<PlanoCliente />} />
+                <Route path="/metodo" element={<Metodo />} />
               </Route>
             </Route>
 

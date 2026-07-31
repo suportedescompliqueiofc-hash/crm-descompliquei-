@@ -111,12 +111,18 @@ export function useAderencia(orgId: string | null | undefined, periodo: string |
 // jornadas/jornada_estagios/jornada_passos diretamente. Zero linhas = sem
 // plano no período (nunca erro).
 //
-// `elo_alvo` / `criterio_sucesso`: conferido ao vivo em 2026-07-30 (projeto
-// noncbgdczgcboronmcah) — a tabela `jornadas` ainda NÃO tem essas colunas, e
-// a definição de `cs_plano_conteudo` lida direto do banco ainda não as
-// devolve. Nenhum campo foi adicionado a `PlanoPasso` por isso — quando a
-// RPC passar a devolvê-los, adicionar `jornada_elo_alvo`/
-// `jornada_criterio_sucesso` (ou equivalente) e mapear aqui.
+// `elo_alvo` / `criterio_sucesso`: REVALIDADO ao vivo em 2026-07-30 (projeto
+// noncbgdczgcboronmcah). PENDÊNCIA — a tabela `jornadas` GANHOU as duas
+// colunas (`elo_alvo text`, `criterio_sucesso text`, ambas nullable,
+// confirmado via information_schema), mas a função `cs_plano_conteudo`
+// (lida de novo direto do banco com `pg_get_functiondef`, mesma definição de
+// antes) ainda NÃO foi atualizada para devolvê-las — o `RETURNS TABLE`
+// continua com as mesmas 14 colunas de sempre, sem `elo_alvo`/
+// `criterio_sucesso`. Por isso nenhum campo foi adicionado a `PlanoPasso`.
+// Reportado ao maestro: é decisão dele pedir ao Executor de Dados para
+// atualizar a função. Quando isso acontecer, adicionar
+// `jornada_elo_alvo`/`jornada_criterio_sucesso` (ou equivalente) e mapear
+// aqui.
 export function usePlanoConteudo(orgId: string | null | undefined, periodo: string | null | undefined) {
   return useQuery({
     queryKey: ['cs-plano-conteudo', orgId, periodo],

@@ -168,20 +168,19 @@ export interface PlanoPasso {
 
 // ─── Contexto, Continuidade e Percepção (mesa de trabalho do cliente) ──────
 //
-// ATENÇÃO — divergência aberta (checada ao vivo em 2026-07-30, projeto
-// noncbgdczgcboronmcah): nenhuma das RPCs desta seção
-// (`cs_cliente_contexto`, `cs_cliente_continuidade`, `cs_registrar_continuidade`,
-// `cs_salvar_contexto`, `cs_registrar_percepcao`, `cs_dias_sem_contato`) e
-// nenhuma das tabelas (`cs_contexto`, `cs_continuidade`, `cs_percepcao`)
-// existiam no banco no momento em que este hook foi escrito — `select
-// routine_name from information_schema.routines where routine_name like
-// 'cs_%'` só devolveu cs_aderencia, cs_carteira, cs_cliente_adocao,
-// cs_cliente_elos, cs_cliente_ganho_simulado, cs_cliente_serie,
-// cs_plano_conteudo, cs_set_client_meta, cs_snapshot_crm. Os tipos abaixo
-// seguem o contrato passado pelo maestro (nomes de campo em snake_case,
-// literais das frases do contrato) no formato flat-TABLE já usado por todas
-// as outras RPCs `cs_*` — mas **NADA aqui foi validado contra um retorno
-// real**. CONFIRMAR campo a campo assim que a função existir no banco.
+// REVALIDADO AO VIVO em 2026-07-30 (projeto noncbgdczgcboronmcah), depois que
+// o Executor de Dados publicou as funções: li `pg_get_functiondef` de cada
+// RPC, testei SELECT com organizações reais (as 7 PCA, migradas do dossiê
+// antigo em 2026-07-29) e testei os 3 INSERTs dentro de `BEGIN; ...;
+// ROLLBACK;` (confirmado por SELECT que não sobrou linha nenhuma). Os nomes
+// de campo abaixo são os REAIS — vários divergem do que o contrato descrevia
+// em português informal, documentado caso a caso.
+//
+// Comportamento crítico do INSERT: `cs_continuidade` e `cs_percepcao` têm
+// trigger `trg_*_bloquear_alteracao` que RAISE EXCEPTION em qualquer UPDATE
+// ou DELETE ("Esta tabela só recebe entradas novas... Para corrigir uma
+// entrada anterior, registre uma entrada nova") — não existem (e não devem
+// existir) hooks de editar/apagar essas duas tabelas nesta pasta.
 
 export type TipoContinuidade =
   | 'conversa'
@@ -190,76 +189,145 @@ export type TipoContinuidade =
   | 'observacao'
   | 'divergencia'
   | 'fechamento';
+// Confirmado ao vivo: o dado migrado (7 linhas) usa só 'observacao'.
+// 'conversa' foi testado explicitamente via INSERT em transação com
+// ROLLBACK e foi aceito pelo banco (não há CHECK constraint bloqueando os
+// demais valores do contrato) — os outros 4 não foram testados, mas nada
+// indica que sejam rejeitados.
 
+/** Um item de `percepcoes_recentes` — sub-objeto JSONB dentro de `cs_cliente_contexto`. */
 export interface PercepcaoRecente {
-  data: string; // timestamptz ISO
-  percepcao: string;
-  divergente: boolean;
+  id: string;
+  texto: string;
+  /** date (YYYY-MM-DD) — nulo quando só a data aproximada é conhecida (ver `data_aproximada`). Nos 7 registros migrados vem sempre null. */
+  data_percepcao: string | null;
+  data_aproximada: boolean;
+  /** Confirmado boolean real (true/false) — é o marcador de divergência citado no pedido do maestro. */
+  diverge_do_dado: boolean;
+  divergencia_nota: string | null;
+  registrada_em: string; // timestamptz ISO
 }
 
-/** Retorno assumido de `cs_cliente_contexto(p_org_id)` — ver aviso acima. */
+/**
+ * Retorno REAL de `cs_cliente_contexto(p_org_id)` — nomes de coluna
+ * confirmados via `pg_get_functiondef` + chamada real.
+ *
+ * Diferenças em relação ao que eu tinha assumido antes da validação:
+ * - `modelo_negocio` não existe → é `convenio_particular`.
+ * - `equipe` não existe → é `tem_equipe`.
+ * - `elo_declarado`/`elo_declarado_desde` não existem → são `elo_restricao`/
+ *   `elo_restricao_desde` (mesmo nome de campo usado em `ClienteCarteira`,
+ *   é o mesmo conceito).
+ * - `elo_restricao_desde` é TEXTO LIVRE, não uma data — visto em produção:
+ *   "não se aplica ainda — nenhum fechamento (/cs-mes) rodou no sistema
+ *   novo para este cliente". Não formatar como data.
+ * - Ganhou `elo_restricao_status` (visto em produção: 'hipotese' | null —
+ *   só esses dois valores observados; 'confirmado' é esperado depois do
+ *   primeiro /cs-mes mas não foi visto ainda) e `atualizado_em`, que eu não
+ *   tinha previsto.
+ */
 export interface ClienteContexto {
   organization_id: string;
   nome: string;
   cidade: string | null;
   cliente_desde: string; // date
   promessa_venda: string | null;
-  /** String livre vinda do banco (ex.: 'convenio' | 'particular' | 'misto') — sem enum confirmado no contrato. */
-  modelo_negocio: string | null;
+  /** String livre vinda do banco — sem enum confirmado. */
+  convenio_particular: string | null;
   quem_atende: string | null;
   quem_vende: string | null;
-  equipe: string | null;
-  elo_declarado: string | null;
-  elo_declarado_desde: string | null; // date
+  tem_equipe: string | null;
+  elo_restricao: string | null;
+  /** Valores observados em produção: 'hipotese' | null. */
+  elo_restricao_status: string | null;
+  /** TEXTO LIVRE — não é data. */
+  elo_restricao_desde: string | null;
   restricoes_conhecidas: string | null;
+  atualizado_em: string; // timestamptz ISO
   percepcoes_recentes: PercepcaoRecente[];
 }
 
 /**
- * Retorno assumido de `cs_cliente_continuidade(p_org_id, p_limite)` — mais
- * recente primeiro. `reuniao_id` é o vínculo opcional com `cs_reunioes`. Ver
- * aviso de divergência acima.
+ * Retorno REAL de `cs_cliente_continuidade(p_org_id, p_limite)` — mais
+ * recente primeiro (`ORDER BY data_evento DESC, criada_em DESC`).
+ *
+ * Diferenças em relação ao que eu tinha assumido antes da validação:
+ * - NÃO devolve `organization_id` (o chamador já sabe qual org pediu).
+ * - `data` não existe → é `data_evento`, e é DATE (YYYY-MM-DD), não
+ *   timestamptz — o timestamp real do registro é `criada_em`.
+ * - `o_que_ficou_combinado`/`com_quem` não existem → são `ficou_combinado`/
+ *   `combinado_com`.
+ * - Ganhou `reuniao_tipo`/`reuniao_data_hora` (do LEFT JOIN com
+ *   `cs_reunioes` — null quando `reuniao_id` é null) e `criada_em`, que eu
+ *   não tinha previsto.
  */
 export interface ContinuidadeItem {
   id: string;
-  organization_id: string;
-  data: string; // timestamptz ISO
+  data_evento: string; // date (YYYY-MM-DD)
   tipo: TipoContinuidade;
   o_que_aconteceu: string;
-  o_que_ficou_combinado: string | null;
-  com_quem: string | null;
+  ficou_combinado: string | null;
+  combinado_com: string | null;
+  /** Valor observado em produção: 'registro_manual' (default da RPC de escrita). */
   origem: string | null;
   reuniao_id: string | null;
+  reuniao_tipo: string | null;
+  reuniao_data_hora: string | null; // timestamptz ISO
+  criada_em: string; // timestamptz ISO
 }
 
 // ─── Payloads de contexto / continuidade / percepção ───────────────────────
+//
+// Nomes de parâmetro abaixo confirmados via `pg_get_functiondef` de cada RPC
+// de escrita (2026-07-30) — os hooks usam exatamente estes `p_*` nas
+// chamadas `.rpc(...)`.
 
+/**
+ * `cs_salvar_contexto` é um UPSERT por `organization_id` que faz
+ * `COALESCE(EXCLUDED.campo, cs_contexto.campo)` — ou seja, passar `null`/
+ * `undefined` NUNCA apaga um valor já salvo, só mantém o que já existia.
+ * Não há hoje uma forma de limpar um campo de contexto para null por esta
+ * RPC; só de substituir por outro valor não-nulo.
+ */
 export interface SalvarContextoInput {
   organizationId: string;
   cidade?: string | null;
+  clienteDesde?: string | null; // date (YYYY-MM-DD)
   promessaVenda?: string | null;
-  modeloNegocio?: string | null;
+  convenioParticular?: string | null;
   quemAtende?: string | null;
   quemVende?: string | null;
-  equipe?: string | null;
-  eloDeclarado?: string | null;
+  temEquipe?: string | null;
+  eloRestricao?: string | null;
+  eloRestricaoStatus?: string | null;
+  /** TEXTO LIVRE — não precisa ser data. */
+  eloRestricaoDesde?: string | null;
   restricoesConhecidas?: string | null;
 }
 
 export interface RegistrarContinuidadeInput {
   organizationId: string;
+  /** date (YYYY-MM-DD) — OBRIGATÓRIO no banco, sem default (`p_data_evento date` sem `DEFAULT`). */
+  dataEvento: string;
   tipo: TipoContinuidade;
   oQueAconteceu: string;
-  oQueFicouCombinado?: string | null;
-  comQuem?: string | null;
-  origem?: string | null;
+  ficouCombinado?: string | null;
+  combinadoCom?: string | null;
+  /** Default no banco: 'registro_manual'. */
+  origem?: string;
   reuniaoId?: string | null;
 }
 
 export interface RegistrarPercepcaoInput {
   organizationId: string;
-  percepcao: string;
-  divergente?: boolean;
+  texto: string;
+  /** date (YYYY-MM-DD) — omitir quando só se sabe a data aproximada. */
+  dataPercepcao?: string | null;
+  /** Default no banco: false. */
+  dataAproximada?: boolean;
+  /** Default no banco: false. É o marcador de divergência. */
+  divergeDoDado?: boolean;
+  divergenciaNota?: string | null;
 }
 
 // ─── Filtros de query ───────────────────────────────────────────────────────

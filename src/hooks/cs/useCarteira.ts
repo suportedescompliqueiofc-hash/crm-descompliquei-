@@ -6,13 +6,15 @@ import type { ClienteCarteira } from './types';
 // Única fonte permitida de dado de cliente agregado — nunca leads/vendas/
 // agendamentos/mensagens/metas/organizations/perfis direto (ver types.ts).
 //
-// `dias_sem_contato`: o parse abaixo já tolera tanto `null` quanto um número
-// real, então nenhuma mudança de código é necessária quando a função passar
-// a derivar o valor de verdade da continuidade (`cs_dias_sem_contato`).
-// Conferido ao vivo em 2026-07-30 (projeto noncbgdczgcboronmcah): a
-// `cs_carteira()` hoje em produção ainda devolve `NULL::int` hardcoded
-// (`WITH final AS (... NULL::int AS dias_sem_contato ...)` na definição da
-// função) — o contrato ainda não foi implementado no banco.
+// `dias_sem_contato`: REVALIDADO ao vivo em 2026-07-30 (projeto
+// noncbgdczgcboronmcah) — `cs_carteira()` foi substituída e agora deriva o
+// valor de verdade via `cs_dias_sem_contato(organization_id)` (que por sua
+// vez lê `max(cs_continuidade.data_evento)`). Chamada real com as 7 orgs PCA
+// devolveu `dias_sem_contato: 2` para todas (todas migradas no mesmo dia,
+// 2026-07-29). `cs_dias_sem_contato` devolve `null` quando a org não tem
+// nenhuma entrada de continuidade ainda — o parse abaixo já tolerava esse
+// caso desde antes (`r.dias_sem_contato == null ? null : Number(...)`), e
+// segue correto sem nenhuma mudança de tipo ou de parse.
 export function useCarteira() {
   return useQuery({
     queryKey: ['cs-carteira'],

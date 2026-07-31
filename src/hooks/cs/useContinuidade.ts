@@ -7,11 +7,17 @@ import type { ContinuidadeItem, RegistrarContinuidadeInput } from './types';
 // 05-operacoes-e-cs/sistema/00-como-funciona.md). Via RPC `cs_*` — nunca
 // leads/vendas/agendamentos/mensagens/organizations/perfis direto.
 //
-// ATENÇÃO: `cs_cliente_continuidade` e `cs_registrar_continuidade` ainda NÃO
-// existem no banco (confirmado ao vivo em 2026-07-30, projeto
-// noncbgdczgcboronmcah — ver nota de divergência em types.ts). Hooks
-// escritos contra o contrato do maestro; NÃO testados. CONFIRMAR campo a
-// campo assim que a função existir.
+// REVALIDADO AO VIVO em 2026-07-30 (projeto noncbgdczgcboronmcah) — nomes de
+// campo e de parâmetro conferidos com `pg_get_functiondef` + chamada real
+// (SELECT com as 7 orgs PCA migradas; INSERT testado em transação com
+// ROLLBACK, confirmado sem sobra por SELECT depois). Ver comentários em
+// `types.ts` para o detalhe campo a campo — vários nomes divergiam do que eu
+// tinha assumido antes da validação (`data`→`data_evento`,
+// `o_que_ficou_combinado`→`ficou_combinado`, `com_quem`→`combinado_com`, sem
+// `organization_id` no retorno).
+//
+// `cs_continuidade` tem trigger que bloqueia UPDATE/DELETE — não existe (nem
+// deve existir) hook de editar/apagar entrada de continuidade aqui.
 export function useContinuidade(orgId: string | null | undefined, limite: number = 30) {
   return useQuery({
     queryKey: ['cs-continuidade', orgId, limite],
@@ -26,14 +32,16 @@ export function useContinuidade(orgId: string | null | undefined, limite: number
       return ((data ?? []) as any[]).map(
         (r): ContinuidadeItem => ({
           id: r.id,
-          organization_id: r.organization_id,
-          data: r.data,
+          data_evento: r.data_evento,
           tipo: r.tipo,
           o_que_aconteceu: r.o_que_aconteceu,
-          o_que_ficou_combinado: r.o_que_ficou_combinado ?? null,
-          com_quem: r.com_quem ?? null,
+          ficou_combinado: r.ficou_combinado ?? null,
+          combinado_com: r.combinado_com ?? null,
           origem: r.origem ?? null,
           reuniao_id: r.reuniao_id ?? null,
+          reuniao_tipo: r.reuniao_tipo ?? null,
+          reuniao_data_hora: r.reuniao_data_hora ?? null,
+          criada_em: r.criada_em,
         }),
       );
     },
@@ -44,34 +52,46 @@ export function useContinuidade(orgId: string | null | undefined, limite: number
 // qualquer sessão de CS. Otimista — a entrada aparece na hora, prefixada em
 // todas as queries de continuidade cacheadas para esta org, independente do
 // `limite` usado para buscá-las — e invalida a carteira junto, porque
-// `dias_sem_contato` é derivado da continuidade (`cs_dias_sem_contato`).
+// `dias_sem_contato` é derivado da continuidade (`cs_dias_sem_contato`,
+// confirmado ao vivo: `cs_carteira()` agora chama essa função de verdade em
+// vez de devolver NULL fixo).
+//
+// `cs_registrar_continuidade` devolve só o `uuid` da linha criada (não a
+// linha inteira) — o item otimista/de retorno é montado no cliente a partir
+// do input, o que é seguro porque os únicos campos que o banco poderia
+// preencher diferente (defaults) já são resolvidos aqui do lado do cliente
+// antes de mandar (`origem` cai em 'registro_manual' se omitido, igual ao
+// default do banco).
 export function useRegistrarContinuidade() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: RegistrarContinuidadeInput): Promise<ContinuidadeItem> => {
+      const origem = input.origem ?? 'registro_manual';
       const { data, error } = await (supabase as any).rpc('cs_registrar_continuidade', {
         p_org_id: input.organizationId,
+        p_data_evento: input.dataEvento,
         p_tipo: input.tipo,
         p_o_que_aconteceu: input.oQueAconteceu,
-        p_o_que_ficou_combinado: input.oQueFicouCombinado ?? null,
-        p_com_quem: input.comQuem ?? null,
-        p_origem: input.origem ?? null,
+        p_ficou_combinado: input.ficouCombinado ?? null,
+        p_combinado_com: input.combinadoCom ?? null,
+        p_origem: origem,
         p_reuniao_id: input.reuniaoId ?? null,
       });
       if (error) throw error;
-      // A RPC pode devolver a linha criada (record) ou nada (void) —
-      // cobrimos os dois casos sem assumir qual das duas será a real.
-      const row = Array.isArray(data) ? data[0] : data;
+      // A RPC devolve o uuid escalar da linha criada — não um record.
+      const novoId = (data as string | null) ?? `temp-${Date.now()}`;
       return {
-        id: row?.id ?? `temp-${Date.now()}`,
-        organization_id: input.organizationId,
-        data: row?.data ?? new Date().toISOString(),
+        id: novoId,
+        data_evento: input.dataEvento,
         tipo: input.tipo,
         o_que_aconteceu: input.oQueAconteceu,
-        o_que_ficou_combinado: input.oQueFicouCombinado ?? null,
-        com_quem: input.comQuem ?? null,
-        origem: input.origem ?? null,
+        ficou_combinado: input.ficouCombinado ?? null,
+        combinado_com: input.combinadoCom ?? null,
+        origem,
         reuniao_id: input.reuniaoId ?? null,
+        reuniao_tipo: null,
+        reuniao_data_hora: null,
+        criada_em: new Date().toISOString(),
       };
     },
     onMutate: async (input: RegistrarContinuidadeInput) => {
@@ -81,14 +101,16 @@ export function useRegistrarContinuidade() {
       });
       const otimista: ContinuidadeItem = {
         id: `temp-${Date.now()}`,
-        organization_id: input.organizationId,
-        data: new Date().toISOString(),
+        data_evento: input.dataEvento,
         tipo: input.tipo,
         o_que_aconteceu: input.oQueAconteceu,
-        o_que_ficou_combinado: input.oQueFicouCombinado ?? null,
-        com_quem: input.comQuem ?? null,
-        origem: input.origem ?? null,
+        ficou_combinado: input.ficouCombinado ?? null,
+        combinado_com: input.combinadoCom ?? null,
+        origem: input.origem ?? 'registro_manual',
         reuniao_id: input.reuniaoId ?? null,
+        reuniao_tipo: null,
+        reuniao_data_hora: null,
+        criada_em: new Date().toISOString(),
       };
       qc.setQueriesData<ContinuidadeItem[]>(
         { queryKey: ['cs-continuidade', input.organizationId] },
