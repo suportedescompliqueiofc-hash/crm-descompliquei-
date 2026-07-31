@@ -6,22 +6,32 @@
 // o antigo HistoricoContinuidade.tsx, que só mostrava a metade disso (só
 // continuidade, digitada à mão).
 //
-// Fonte: useTimelineCliente() (RPC cs_cliente_timeline) — confirmado ao vivo
-// em 2026-07-31 que o campo `tipo` só distingue os 7 grupos GROSSOS
-// (continuidade/reuniao/material/tarefa_concluida/plano_publicado/
-// cliente_entrou/primeira_venda), não os subtipos de continuidade (CONVERSA/
-// DECISÃO/ENTREGA/OBSERVAÇÃO/DIVERGÊNCIA/FECHAMENTO) que a seção C do
-// documento lista como linhas próprias — a RPC devolve o subtipo só embutido
-// no `titulo` ("Conversa registrada", "Decisão registrada"...), nunca como
-// campo próprio. Este componente deriva o rótulo de exibição a partir desse
-// texto (ver `rotuloEvento`) para mostrar o subtipo de qualquer forma, mas o
-// FILTRO por tipo só opera nos 7 grupos reais que a RPC expõe — o caso de
-// uso principal do filtro (silenciar TAREFA) continua 100% coberto.
+// Fonte principal: useTimelineCliente() (RPC cs_cliente_timeline) —
+// confirmado ao vivo em 2026-07-31 que o campo `tipo` só distingue os 7
+// grupos GROSSOS (continuidade/reuniao/material/tarefa_concluida/
+// plano_publicado/cliente_entrou/primeira_venda), não os subtipos de
+// continuidade (CONVERSA/DECISÃO/ENTREGA/OBSERVAÇÃO/DIVERGÊNCIA/FECHAMENTO)
+// que a seção C do documento lista como linhas próprias — a RPC devolve o
+// subtipo só embutido no `titulo` ("Conversa registrada", "Decisão
+// registrada"...), nunca como campo próprio. Este componente deriva o
+// rótulo de exibição a partir desse texto (ver `rotuloEvento`) para mostrar
+// o subtipo de qualquer forma, mas o FILTRO por tipo só opera nos grupos
+// reais expostos — o caso de uso principal do filtro (silenciar TAREFA)
+// continua 100% coberto.
+//
+// Marcos do CRM (acréscimo de 2026-07-31): useClienteMarcos() (RPC
+// cs_cliente_marcos) devolve primeira venda, primeiro agendamento, primeira
+// mensagem e saltos/quedas relevantes de demanda — testado ao vivo com as 7
+// orgs PCA, incluindo a Dra. Monção (+470% de leads em um mês: 83 → 473,
+// confirmado por SELECT direto em `leads`, não é erro de cálculo). O tipo
+// `primeira_venda` que essa RPC devolve é DESCARTADO na junção abaixo —
+// `cs_cliente_timeline` já cobre esse mesmo marco (fonte `vendas`), e
+// mostrar os dois criaria uma linha duplicada na mesma data.
 import { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useTimelineCliente } from '@/hooks/cs';
-import type { TimelineEvento, TipoEventoTimeline } from '@/hooks/cs';
+import { useClienteMarcos, useTimelineCliente } from '@/hooks/cs';
+import type { TipoEventoTimeline, TipoMarcoCliente } from '@/hooks/cs';
 import { Section, LoadingState, EmptyState } from '@/components/cs/ui';
 import { cn } from '@/lib/utils';
 import { RegistrarContinuidadeDialog } from './RegistrarContinuidadeDialog';
@@ -29,16 +39,32 @@ import { RegistrarContinuidadeDialog } from './RegistrarContinuidadeDialog';
 const LIMITE_INICIAL = 150;
 const GRUPOS_VISIVEIS_INICIAL = 2;
 
-const TIPO_TIMELINE_LABEL: Partial<Record<TipoEventoTimeline, string>> = {
+/** Subtipos de marco que sobram depois de descartar 'primeira_venda' (já coberto por cs_cliente_timeline). */
+type TipoMarcoExtra = Exclude<TipoMarcoCliente, 'primeira_venda'>;
+type TipoUnificado = TipoEventoTimeline | TipoMarcoExtra;
+
+interface EventoUnificado {
+  data: string;
+  tipo: TipoUnificado;
+  titulo: string;
+  descricao: string | null;
+  id: string;
+}
+
+const TIPO_TIMELINE_LABEL: Partial<Record<TipoUnificado, string>> = {
   reuniao: 'REUNIÃO',
   material: 'MATERIAL',
   tarefa_concluida: 'TAREFA',
   plano_publicado: 'PLANO',
   cliente_entrou: 'MARCO',
   primeira_venda: 'MARCO',
+  primeiro_agendamento: 'MARCO',
+  primeira_mensagem: 'MARCO',
+  salto_demanda: 'MARCO',
+  queda_demanda: 'MARCO',
 };
 
-function rotuloEvento(e: TimelineEvento): string {
+function rotuloEvento(e: EventoUnificado): string {
   if (e.tipo === 'continuidade') {
     const m = /^(.*?)\s+registrada$/i.exec(e.titulo);
     return (m ? m[1] : e.titulo).toUpperCase();
@@ -46,13 +72,16 @@ function rotuloEvento(e: TimelineEvento): string {
   return TIPO_TIMELINE_LABEL[e.tipo] ?? e.tipo.toUpperCase();
 }
 
-const GRUPOS_FILTRO: { label: string; tipos: TipoEventoTimeline[] }[] = [
+const GRUPOS_FILTRO: { label: string; tipos: TipoUnificado[] }[] = [
   { label: 'Continuidade', tipos: ['continuidade'] },
   { label: 'Reunião', tipos: ['reuniao'] },
   { label: 'Material', tipos: ['material'] },
   { label: 'Tarefa', tipos: ['tarefa_concluida'] },
   { label: 'Plano', tipos: ['plano_publicado'] },
-  { label: 'Marco', tipos: ['cliente_entrou', 'primeira_venda'] },
+  {
+    label: 'Marco',
+    tipos: ['cliente_entrou', 'primeira_venda', 'primeiro_agendamento', 'primeira_mensagem', 'salto_demanda', 'queda_demanda'],
+  },
 ];
 
 function capitalizar(s: string): string {
@@ -66,18 +95,45 @@ interface TimelineClienteProps {
 export function TimelineCliente({ orgId }: TimelineClienteProps) {
   const [limite, setLimite] = useState(LIMITE_INICIAL);
   const [gruposVisiveis, setGruposVisiveis] = useState(GRUPOS_VISIVEIS_INICIAL);
-  const [tiposExcluidos, setTiposExcluidos] = useState<Set<TipoEventoTimeline>>(new Set());
+  const [tiposExcluidos, setTiposExcluidos] = useState<Set<TipoUnificado>>(new Set());
   const [dialogAberto, setDialogAberto] = useState(false);
 
-  const { data: eventos = [], isLoading } = useTimelineCliente(orgId, { limite });
+  const { data: eventos = [], isLoading: timelineLoading } = useTimelineCliente(orgId, { limite });
+  const { data: marcos = [], isLoading: marcosLoading } = useClienteMarcos(orgId);
+  const isLoading = timelineLoading || marcosLoading;
+
+  // Junta os dois feeds (mesma forma) e reordena por data real — não por
+  // comparação de string, que erraria entre um `data` DATE ("2026-07-08") e
+  // um `data` timestamptz ("2026-07-08T13:29:46+00"): o primeiro é prefixo
+  // do segundo e sempre "perderia" a comparação lexicográfica, mesmo quando
+  // deveria vir depois no mesmo dia.
+  const eventosUnificados = useMemo((): EventoUnificado[] => {
+    const daTimeline: EventoUnificado[] = eventos.map((e) => ({
+      data: e.data,
+      tipo: e.tipo,
+      titulo: e.titulo,
+      descricao: e.descricao,
+      id: `${e.origem}-${e.registro_origem_id}`,
+    }));
+    const dosMarcos: EventoUnificado[] = marcos
+      .filter((m) => m.tipo !== 'primeira_venda')
+      .map((m) => ({
+        data: m.data,
+        tipo: m.tipo as TipoMarcoExtra,
+        titulo: m.titulo,
+        descricao: m.descricao,
+        id: `marco-${m.tipo}-${m.data}`,
+      }));
+    return [...daTimeline, ...dosMarcos].sort((a, b) => parseISO(b.data).getTime() - parseISO(a.data).getTime());
+  }, [eventos, marcos]);
 
   const eventosFiltrados = useMemo(
-    () => eventos.filter((e) => !tiposExcluidos.has(e.tipo)),
-    [eventos, tiposExcluidos],
+    () => eventosUnificados.filter((e) => !tiposExcluidos.has(e.tipo)),
+    [eventosUnificados, tiposExcluidos],
   );
 
   const gruposPorMes = useMemo(() => {
-    const indice = new Map<string, { mesLabel: string; eventos: TimelineEvento[] }>();
+    const indice = new Map<string, { mesLabel: string; eventos: EventoUnificado[] }>();
     for (const e of eventosFiltrados) {
       const d = parseISO(e.data);
       const chave = format(d, 'yyyy-MM');
@@ -89,16 +145,19 @@ export function TimelineCliente({ orgId }: TimelineClienteProps) {
       grupo.eventos.push(e);
     }
     // Map preserva a ordem de inserção — eventosFiltrados já vem ordenado
-    // (mais recente primeiro) pela RPC, então os grupos nascem na ordem certa.
+    // (mais recente primeiro), então os grupos nascem na ordem certa.
     return Array.from(indice.entries()).map(([chave, g]) => ({ chave, ...g }));
   }, [eventosFiltrados]);
 
   const gruposParaMostrar = gruposPorMes.slice(0, gruposVisiveis);
   const haMaisGruposLocais = gruposPorMes.length > gruposVisiveis;
+  // A paginação (`limite`) só existe no lado de cs_cliente_timeline —
+  // cs_cliente_marcos não pagina (devolve tudo sempre) — por isso o teto de
+  // "pode ter mais no banco" olha só a contagem crua da timeline.
   const podeTerMaisNoBanco = eventos.length === limite;
   const mostrarCarregarMais = haMaisGruposLocais || (!haMaisGruposLocais && podeTerMaisNoBanco);
 
-  function alternarGrupoFiltro(tipos: TipoEventoTimeline[]) {
+  function alternarGrupoFiltro(tipos: TipoUnificado[]) {
     setTiposExcluidos((atual) => {
       const algumAtivo = tipos.some((t) => !atual.has(t));
       const novo = new Set(atual);
@@ -155,10 +214,10 @@ export function TimelineCliente({ orgId }: TimelineClienteProps) {
 
       {isLoading ? (
         <LoadingState label="Carregando a linha do tempo…" />
-      ) : eventos.length === 0 ? (
+      ) : eventosUnificados.length === 0 ? (
         <EmptyState
           title="Nenhum evento registrado ainda"
-          description="Continuidade, reuniões, materiais, tarefas concluídas e planos publicados aparecem aqui a partir de agora."
+          description="Continuidade, reuniões, materiais, tarefas concluídas, planos publicados e marcos do CRM aparecem aqui a partir de agora."
         />
       ) : eventosFiltrados.length === 0 ? (
         <EmptyState title="Nenhum evento com os filtros atuais" description="Ative algum tipo acima para ver o histórico." />
@@ -171,7 +230,7 @@ export function TimelineCliente({ orgId }: TimelineClienteProps) {
               </p>
               <div className="divide-y divide-border/40">
                 {grupo.eventos.map((e) => (
-                  <div key={`${e.origem}-${e.registro_origem_id}`} className="py-2.5 flex items-start gap-3">
+                  <div key={e.id} className="py-2.5 flex items-start gap-3">
                     <span className="shrink-0 w-[92px] pt-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
                       {rotuloEvento(e)}
                     </span>

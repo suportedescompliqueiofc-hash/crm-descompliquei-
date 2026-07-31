@@ -75,6 +75,7 @@ export default function PlanoCliente() {
           isLoading={aderenciaLoading || passosLoading}
           mesLabel={mesLabel}
           mostrarLinksArquivo={false}
+          mostrarAcoesPublicacao={false}
         />
       )}
 
