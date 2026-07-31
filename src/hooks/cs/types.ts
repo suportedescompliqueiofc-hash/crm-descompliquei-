@@ -166,6 +166,102 @@ export interface PlanoPasso {
   concluido_em: string | null;
 }
 
+// ─── Contexto, Continuidade e Percepção (mesa de trabalho do cliente) ──────
+//
+// ATENÇÃO — divergência aberta (checada ao vivo em 2026-07-30, projeto
+// noncbgdczgcboronmcah): nenhuma das RPCs desta seção
+// (`cs_cliente_contexto`, `cs_cliente_continuidade`, `cs_registrar_continuidade`,
+// `cs_salvar_contexto`, `cs_registrar_percepcao`, `cs_dias_sem_contato`) e
+// nenhuma das tabelas (`cs_contexto`, `cs_continuidade`, `cs_percepcao`)
+// existiam no banco no momento em que este hook foi escrito — `select
+// routine_name from information_schema.routines where routine_name like
+// 'cs_%'` só devolveu cs_aderencia, cs_carteira, cs_cliente_adocao,
+// cs_cliente_elos, cs_cliente_ganho_simulado, cs_cliente_serie,
+// cs_plano_conteudo, cs_set_client_meta, cs_snapshot_crm. Os tipos abaixo
+// seguem o contrato passado pelo maestro (nomes de campo em snake_case,
+// literais das frases do contrato) no formato flat-TABLE já usado por todas
+// as outras RPCs `cs_*` — mas **NADA aqui foi validado contra um retorno
+// real**. CONFIRMAR campo a campo assim que a função existir no banco.
+
+export type TipoContinuidade =
+  | 'conversa'
+  | 'decisao'
+  | 'entrega'
+  | 'observacao'
+  | 'divergencia'
+  | 'fechamento';
+
+export interface PercepcaoRecente {
+  data: string; // timestamptz ISO
+  percepcao: string;
+  divergente: boolean;
+}
+
+/** Retorno assumido de `cs_cliente_contexto(p_org_id)` — ver aviso acima. */
+export interface ClienteContexto {
+  organization_id: string;
+  nome: string;
+  cidade: string | null;
+  cliente_desde: string; // date
+  promessa_venda: string | null;
+  /** String livre vinda do banco (ex.: 'convenio' | 'particular' | 'misto') — sem enum confirmado no contrato. */
+  modelo_negocio: string | null;
+  quem_atende: string | null;
+  quem_vende: string | null;
+  equipe: string | null;
+  elo_declarado: string | null;
+  elo_declarado_desde: string | null; // date
+  restricoes_conhecidas: string | null;
+  percepcoes_recentes: PercepcaoRecente[];
+}
+
+/**
+ * Retorno assumido de `cs_cliente_continuidade(p_org_id, p_limite)` — mais
+ * recente primeiro. `reuniao_id` é o vínculo opcional com `cs_reunioes`. Ver
+ * aviso de divergência acima.
+ */
+export interface ContinuidadeItem {
+  id: string;
+  organization_id: string;
+  data: string; // timestamptz ISO
+  tipo: TipoContinuidade;
+  o_que_aconteceu: string;
+  o_que_ficou_combinado: string | null;
+  com_quem: string | null;
+  origem: string | null;
+  reuniao_id: string | null;
+}
+
+// ─── Payloads de contexto / continuidade / percepção ───────────────────────
+
+export interface SalvarContextoInput {
+  organizationId: string;
+  cidade?: string | null;
+  promessaVenda?: string | null;
+  modeloNegocio?: string | null;
+  quemAtende?: string | null;
+  quemVende?: string | null;
+  equipe?: string | null;
+  eloDeclarado?: string | null;
+  restricoesConhecidas?: string | null;
+}
+
+export interface RegistrarContinuidadeInput {
+  organizationId: string;
+  tipo: TipoContinuidade;
+  oQueAconteceu: string;
+  oQueFicouCombinado?: string | null;
+  comQuem?: string | null;
+  origem?: string | null;
+  reuniaoId?: string | null;
+}
+
+export interface RegistrarPercepcaoInput {
+  organizationId: string;
+  percepcao: string;
+  divergente?: boolean;
+}
+
 // ─── Filtros de query ───────────────────────────────────────────────────────
 
 export interface TarefasFiltros {

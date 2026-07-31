@@ -1,87 +1,82 @@
-import { ChevronRight, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { formatPct } from '@/lib/format';
 import type { ClienteCarteira } from '@/hooks/cs';
-import { RiscoBadge } from './RiscoBadge';
-import { RelogioContrato } from './RelogioContrato';
+import { ListRow, Metric, StatusIndicator, type StatusTone } from '@/components/cs/ui';
 import { getEloInfo } from '../eloMeta';
 import { formatDataBR } from '../format';
 import { CARTEIRA_GRID_COLS } from './utils';
 
+// Mesmo vocabulário de `cs_carteira.nivel_risco` usado em `ClienteDetalhe.tsx`
+// — nunca 'baixo'/'medio'/'alto'.
+const NIVEL_RISCO_LABEL: Record<string, string> = {
+  critico: 'Crítico',
+  atencao: 'Atenção',
+  saudavel: 'Saudável',
+  referencia: 'Referência',
+};
+
+function riscoTone(nivel: string | null): StatusTone {
+  if (nivel && nivel in NIVEL_RISCO_LABEL) return nivel as StatusTone;
+  return 'neutro';
+}
+
 /**
- * Uma clínica da carteira PCA. O card inteiro é clicável e navega para a
- * mesa de trabalho do cliente (`/cliente/:orgId`). Quando `camada_0_ok` é
- * falso, a linha ganha uma faixa de alerta própria acima do conteúdo — é a
- * informação mais importante da linha quando acontece, não mais um badge.
+ * Uma clínica da carteira PCA — uma linha de lista, não um cartão dentro de
+ * outro cartão. A linha inteira é clicável e abre a mesa de trabalho do
+ * cliente (`/cliente/:orgId`).
+ *
+ * Quando `camada_0_ok` é falso, a coluna de elo-restrição não mostra o elo
+ * calculado — mostra um aviso discreto ("Adoção pendente") no lugar. Antes
+ * disso era uma faixa vermelha de largura total acima da linha; a informação
+ * é a mesma (o diagnóstico comercial não é confiável ainda), mas agora
+ * convive na mesma hierarquia visual do resto da linha em vez de gritar mais
+ * alto que ela.
  */
 export function CarteiraRow({ cliente }: { cliente: ClienteCarteira }) {
   const navigate = useNavigate();
   const { label: eloLabel, camadaLabel } = getEloInfo(cliente.elo_restricao);
-
-  const abrirCliente = () => navigate(`/cliente/${cliente.organization_id}`);
+  const tone = riscoTone(cliente.nivel_risco);
+  const riscoLabel = cliente.nivel_risco ? (NIVEL_RISCO_LABEL[cliente.nivel_risco] ?? cliente.nivel_risco) : '—';
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={abrirCliente}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          abrirCliente();
-        }
-      }}
-      className="group overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)] cursor-pointer transition-colors hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
-    >
-      {!cliente.camada_0_ok && (
-        <div className="flex items-center gap-2 px-5 py-2 bg-red-50 border-b border-red-200/60">
-          <ShieldAlert className="h-3.5 w-3.5 text-red-600 shrink-0" />
-          <p className="text-[10px] font-bold uppercase tracking-widest text-red-700">
-            Camada 0 não configurada — diagnóstico não confiável
-          </p>
-        </div>
-      )}
-
-      <div className={cn('grid grid-cols-1 gap-3 md:gap-6 items-center px-5 py-4', CARTEIRA_GRID_COLS)}>
-        {/* Cliente: nome + cliente desde + relógio do contrato */}
-        <div className="min-w-0 space-y-1.5">
+    <ListRow onClick={() => navigate(`/cliente/${cliente.organization_id}`)}>
+      <div className={cn('grid grid-cols-1 gap-2.5 md:gap-6 items-start md:items-center', CARTEIRA_GRID_COLS)}>
+        {/* Cliente: nome + tempo de casa + relógio do contrato (texto, sem barra) */}
+        <div className="min-w-0">
           <p className="text-sm font-semibold font-display text-foreground truncate">{cliente.nome}</p>
-          <p className="text-[11px] text-muted-foreground/60">
-            Cliente desde {formatDataBR(cliente.cliente_desde)}
+          <p className="text-xs text-muted-foreground/60 mt-0.5">
+            Cliente desde {formatDataBR(cliente.cliente_desde)} · {formatPct(cliente.pct_contrato, 0)} do contrato
           </p>
-          <RelogioContrato pctContrato={cliente.pct_contrato} />
         </div>
 
         {/* Risco */}
-        <div className="flex md:block">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 md:hidden mr-2">
-            Risco
-          </span>
-          <RiscoBadge nivel={cliente.nivel_risco} />
+        <div className="flex items-center gap-2 md:block">
+          <span className="md:hidden text-[11px] text-muted-foreground/40">Risco</span>
+          <StatusIndicator tone={tone} label={riscoLabel} />
         </div>
 
-        {/* Elo-restrição + camada */}
+        {/* Elo-restrição — ou aviso de adoção pendente */}
         <div className="min-w-0">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 md:hidden">
-            Elo-restrição
-          </span>
-          <p className="text-sm font-medium text-foreground truncate">{eloLabel}</p>
-          <p className="text-[11px] text-muted-foreground/60">{camadaLabel}</p>
+          {cliente.camada_0_ok ? (
+            <>
+              <p className="text-sm text-foreground truncate">{eloLabel}</p>
+              <p className="text-xs text-muted-foreground/50 mt-0.5">{camadaLabel}</p>
+            </>
+          ) : (
+            <>
+              <StatusIndicator tone="atencao" label="Adoção pendente" />
+              <p className="text-xs text-muted-foreground/50 mt-0.5">Diagnóstico comercial ainda não é confiável</p>
+            </>
+          )}
         </div>
 
         {/* Aderência */}
-        <div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 md:hidden mr-2">
-            Aderência
-          </span>
-          <span className="text-[15px] font-bold font-display tabular-nums text-foreground">
-            {cliente.aderencia_pct == null ? '—' : formatPct(cliente.aderencia_pct, 0)}
-          </span>
+        <div className="flex items-center gap-2 md:block md:text-right">
+          <span className="md:hidden text-[11px] text-muted-foreground/40">Aderência</span>
+          <Metric size="sm" value={cliente.aderencia_pct == null ? '—' : formatPct(cliente.aderencia_pct, 0)} />
         </div>
-
-        <ChevronRight className="hidden md:block h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors justify-self-end" />
       </div>
-    </div>
+    </ListRow>
   );
 }

@@ -5,6 +5,14 @@ import type { ClienteCarteira } from './types';
 // A carteira PCA inteira, já ordenada pela régua de risco (ordem_fila).
 // Única fonte permitida de dado de cliente agregado — nunca leads/vendas/
 // agendamentos/mensagens/metas/organizations/perfis direto (ver types.ts).
+//
+// `dias_sem_contato`: o parse abaixo já tolera tanto `null` quanto um número
+// real, então nenhuma mudança de código é necessária quando a função passar
+// a derivar o valor de verdade da continuidade (`cs_dias_sem_contato`).
+// Conferido ao vivo em 2026-07-30 (projeto noncbgdczgcboronmcah): a
+// `cs_carteira()` hoje em produção ainda devolve `NULL::int` hardcoded
+// (`WITH final AS (... NULL::int AS dias_sem_contato ...)` na definição da
+// função) — o contrato ainda não foi implementado no banco.
 export function useCarteira() {
   return useQuery({
     queryKey: ['cs-carteira'],

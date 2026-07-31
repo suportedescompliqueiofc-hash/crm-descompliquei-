@@ -110,6 +110,13 @@ export function useAderencia(orgId: string | null | undefined, periodo: string |
 // permitida de ler título/descrição de estágio e passo, sem tocar
 // jornadas/jornada_estagios/jornada_passos diretamente. Zero linhas = sem
 // plano no período (nunca erro).
+//
+// `elo_alvo` / `criterio_sucesso`: conferido ao vivo em 2026-07-30 (projeto
+// noncbgdczgcboronmcah) — a tabela `jornadas` ainda NÃO tem essas colunas, e
+// a definição de `cs_plano_conteudo` lida direto do banco ainda não as
+// devolve. Nenhum campo foi adicionado a `PlanoPasso` por isso — quando a
+// RPC passar a devolvê-los, adicionar `jornada_elo_alvo`/
+// `jornada_criterio_sucesso` (ou equivalente) e mapear aqui.
 export function usePlanoConteudo(orgId: string | null | undefined, periodo: string | null | undefined) {
   return useQuery({
     queryKey: ['cs-plano-conteudo', orgId, periodo],

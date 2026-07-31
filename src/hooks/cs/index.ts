@@ -13,6 +13,10 @@ export {
   usePlanoConteudo,
 } from './useClienteCS';
 
+export { useClienteContexto, useSalvarContexto, useRegistrarPercepcao } from './useClienteContexto';
+
+export { useContinuidade, useRegistrarContinuidade } from './useContinuidade';
+
 export {
   useTarefas,
   useCriarTarefa,

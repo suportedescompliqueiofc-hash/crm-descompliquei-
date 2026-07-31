@@ -2,7 +2,14 @@
 // Visual espelha src/pages/plataforma/PlataformaLogin.tsx (painel escuro +
 // formulário), com a marca "CS" no lugar de "Growth Labs" — é a única tela
 // de auth do app de CS, único ponto de entrada não protegido por CsGuard.
+//
+// Navegação para dentro do app (usuário já logado / login bem-sucedido) usa
+// SEMPRE `useNavigate()` do router, nunca `window.location.href` — hard nav
+// sai do bundle do CS e, em dev, cai no `index.html` padrão (app do
+// cliente) em vez de continuar no bundle de `/index-cs.html`. Ver histórico
+// do bug em CsGuard.tsx.
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowRight, Loader2, ArrowLeft, MailCheck, HeartHandshake } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,12 +28,13 @@ export default function CsLogin() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const { signIn, user } = useAuth();
+  const navigate = useNavigate();
 
   // Já autenticado (sessão desta origem) — segue para a Carteira.
   // CsGuard decide se a conta tem acesso interno.
   useEffect(() => {
-    if (user) window.location.href = '/';
-  }, [user]);
+    if (user) navigate('/', { replace: true });
+  }, [user, navigate]);
 
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,11 +65,15 @@ export default function CsLogin() {
             : error.message || 'E-mail ou senha incorretos.';
         toast.error(msg, { closeButton: true });
       } else {
-        // signIn() do AuthContext compartilhado navega para '/crm' (rota que
-        // não existe neste bundle) — força um reload completo para a raiz do
-        // app de CS, sobrepondo essa navegação. Mesmo truque usado em
-        // PlataformaLogin.tsx.
-        window.location.href = '/';
+        // signIn() do AuthContext compartilhado (useNavigate do MESMO
+        // BrowserRouter deste bundle, ver App-cs.tsx) já navega para '/crm'
+        // internamente. '/crm' não existe nas rotas do CS, então cairia na
+        // wildcard (`path="*"`) e seria redirecionado para '/' de qualquer
+        // forma — chamamos aqui explicitamente para não depender desse
+        // hop e para garantir replace (sem entrada extra no histórico).
+        // NUNCA usar window.location.href aqui — hard nav sai do bundle do
+        // CS (ver comentário no topo do arquivo e em CsGuard.tsx).
+        navigate('/', { replace: true });
       }
     } catch {
       toast.error('Não foi possível conectar ao servidor. Verifique sua conexão.', { closeButton: true });

@@ -17,7 +17,14 @@
 // "Não sei" ≠ "não autorizado": se a verificação falhar (rede, permissão),
 // mostramos uma tela de erro com "Tentar novamente" — nunca tratamos erro
 // como acesso negado silenciosamente (foi isso que escondeu o bug original).
-import { Outlet } from 'react-router-dom';
+//
+// Sem sessão: NUNCA usar `window.location.href` — é navegação dura, sai do
+// bundle do CS e pede a rota ao servidor. Em dev o Vite responde com o
+// `index.html` padrão (app do cliente), então o usuário cairia na
+// plataforma do cliente em vez do login do CS. `<Navigate>` do próprio
+// router resolve para `/login` (rota real deste bundle, ver App-cs.tsx)
+// sem nunca sair do React/SPA.
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsInternalUser } from '@/hooks/cs/useIsInternalUser';
 import { Loader2, ShieldAlert, TriangleAlert } from 'lucide-react';
@@ -35,8 +42,7 @@ export default function CsGuard() {
   }
 
   if (!user) {
-    window.location.href = '/login';
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   if (status === 'error') {
