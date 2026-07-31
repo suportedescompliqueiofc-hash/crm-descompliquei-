@@ -14,18 +14,22 @@
 // porque `cs_registrar_material` não cria essa tarefa sozinha (confirmado
 // lendo a função: só faz INSERT em `cs_materiais`). Reportado como ponto de
 // atenção — o ideal, no futuro, é uma única RPC fazendo as duas escritas.
+//
+// Alinhamento visual ao Console (2026-07-31): botões viraram <Action>, o
+// seletor de tipo (operacional/estratégico) virou o mesmo par de <Action>
+// solid/ghost usado no seletor de dono de TarefaFormDialog — lógica de
+// formulário e a regra de negócio (`analise_previa` obrigatória) intactas.
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { Action } from '@/components/cs/ui';
 import { useCriarTarefa, useRegistrarMaterial } from '@/hooks/cs';
 import type { EloMaterial, TipoMaterial } from '@/hooks/cs';
 
-const LABEL_CLASS = 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground';
+const LABEL_CLASS = 'text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60';
 
 const ELOS_MATERIAL: EloMaterial[] = [
   'Adoção (Camada 0)',
@@ -149,19 +153,18 @@ export function PedirMaterialDialog({
 
             <div className="space-y-1.5">
               <label className={LABEL_CLASS}>Tipo</label>
-              <div className="flex bg-muted/40 rounded-xl p-1 gap-0.5 h-10 items-center">
+              <div className="flex bg-muted/50 rounded-lg p-1 gap-0.5 h-10 items-center">
                 {(['operacional', 'estrategico'] as TipoMaterial[]).map((t) => (
-                  <button
+                  <Action
                     key={t}
                     type="button"
+                    variant={tipo === t ? 'solid' : 'ghost'}
+                    size="sm"
+                    className="flex-1 capitalize"
                     onClick={() => setTipo(t)}
-                    className={cn(
-                      'flex-1 h-full px-2 text-[11px] font-medium rounded-lg transition-all capitalize',
-                      tipo === t ? 'bg-foreground text-background shadow-sm' : 'text-muted-foreground hover:text-foreground',
-                    )}
                   >
                     {t === 'operacional' ? 'Operacional' : 'Estratégico'}
-                  </button>
+                  </Action>
                 ))}
               </div>
             </div>
@@ -190,21 +193,12 @@ export function PedirMaterialDialog({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-9 rounded-lg text-[11px] font-medium border-border/60 px-3"
-              onClick={() => onOpenChange(false)}
-            >
+            <Action type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={isPending}
-              className="h-9 rounded-lg text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 px-5"
-            >
+            </Action>
+            <Action type="submit" variant="solid" disabled={isPending}>
               {isPending ? 'Salvando…' : 'Pedir material'}
-            </Button>
+            </Action>
           </DialogFooter>
         </form>
       </DialogContent>

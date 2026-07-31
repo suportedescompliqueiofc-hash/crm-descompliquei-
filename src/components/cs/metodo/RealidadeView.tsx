@@ -21,8 +21,10 @@ export function RealidadeView() {
   return (
     // space-y-4 entre painéis — ver nota em FundamentosView.tsx.
     <div className="space-y-4">
-      <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-3.5 py-2.5">
-        <p className="text-[12.5px] text-amber-800 dark:text-amber-400 leading-relaxed">{AMOSTRA_DATADA_AVISO}</p>
+      {/* Aviso = laranja (a cor de "exige atenção" do console), nunca âmbar:
+          o semáforo foi banido — ver cs-theme.css. */}
+      <div className="rounded-lg border border-[hsl(var(--cs-accent-line))] bg-[hsl(var(--cs-accent-soft))] px-3.5 py-2.5">
+        <p className="text-[12.5px] text-foreground/75 leading-relaxed">{AMOSTRA_DATADA_AVISO}</p>
       </div>
 
       <Section title="O que a plataforma já faz sozinha" description="Nenhum plano pode mandar o cliente fazer à mão o que a plataforma já faz.">
@@ -79,9 +81,15 @@ export function RealidadeView() {
       <Section title="O que o cliente nunca deve receber como tarefa">
         <div className="divide-y divide-border/50">
           {NUNCA_DECLARAR_ACAO_QUE_JA_EXISTE.map((e, i) => (
-            <div key={i} className="py-2.5">
-              <p className="text-[13px] text-red-700 dark:text-red-400 leading-relaxed">Errado: {e.errado}</p>
-              <p className="text-[13px] text-emerald-700 dark:text-emerald-400 mt-1 leading-relaxed">Certo: {e.certo}</p>
+            <div key={i} className="py-2.5 space-y-2">
+              <div className="pl-3 border-l-2 border-border">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/55">Errado</p>
+                <p className="text-[13px] text-muted-foreground leading-relaxed mt-0.5">{e.errado}</p>
+              </div>
+              <div className="pl-3 border-l-2 border-[hsl(var(--cs-signal))]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--cs-signal))]">Certo</p>
+                <p className="text-[13px] text-foreground leading-relaxed mt-0.5">{e.certo}</p>
+              </div>
             </div>
           ))}
         </div>

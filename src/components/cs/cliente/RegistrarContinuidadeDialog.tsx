@@ -3,18 +3,21 @@
 // do Cliente (histórico) e reaproveitado na Agenda para virar a nota de uma
 // reunião realizada em entrada de continuidade — por isso aceita valores
 // iniciais e um `reuniaoId` opcional.
+//
+// Alinhamento visual ao Console (2026-07-31): botões viraram <Action> —
+// lógica de registro e validação (`oQueAconteceu` obrigatório) intactas.
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Action } from '@/components/cs/ui';
 import { useRegistrarContinuidade } from '@/hooks/cs';
 import type { TipoContinuidade } from '@/hooks/cs';
 
-const LABEL_CLASS = 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground';
+const LABEL_CLASS = 'text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60';
 
 const TIPO_LABEL: Record<TipoContinuidade, string> = {
   conversa: 'Conversa',
@@ -157,21 +160,12 @@ export function RegistrarContinuidadeDialog({
           </div>
 
           <DialogFooter className="pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-9 rounded-lg text-[11px] font-medium border-border/60 px-3"
-              onClick={() => onOpenChange(false)}
-            >
+            <Action type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={registrar.isPending}
-              className="h-9 rounded-lg text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 px-5"
-            >
-              Registrar
-            </Button>
+            </Action>
+            <Action type="submit" variant="solid" disabled={registrar.isPending}>
+              {registrar.isPending ? 'Registrando…' : 'Registrar'}
+            </Action>
           </DialogFooter>
         </form>
       </DialogContent>

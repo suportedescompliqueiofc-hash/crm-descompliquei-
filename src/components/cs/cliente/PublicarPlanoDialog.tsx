@@ -18,10 +18,14 @@
 // `PublicarJornadaInput` já pronto, o mesmo dialog já sabe mostrar o resumo
 // e confirmar a publicação de verdade — só falta essa fonte de dado, que
 // está fora desta fatia.
+//
+// Alinhamento visual ao Console (2026-07-31): botões viraram <Action>, as
+// contagens (semanas/passos/suas) viraram <Metric> — nenhuma mudança de
+// lógica, mensagem de erro ou regra de duplicata.
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { Action, Metric } from '@/components/cs/ui';
 import { usePublicarJornada } from '@/hooks/cs';
 import type { PublicarJornadaInput } from '@/hooks/cs';
 
@@ -85,13 +89,9 @@ export function PublicarPlanoDialog({ open, onOpenChange, planoComposto }: Publi
               quando já houver um plano pronto para enviar.
             </p>
             <DialogFooter className="pt-1">
-              <Button
-                type="button"
-                className="h-9 rounded-lg text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 px-5"
-                onClick={() => onOpenChange(false)}
-              >
+              <Action type="button" variant="solid" onClick={() => onOpenChange(false)}>
                 Entendi
-              </Button>
+              </Action>
             </DialogFooter>
           </div>
         ) : (
@@ -105,14 +105,18 @@ export function PublicarPlanoDialog({ open, onOpenChange, planoComposto }: Publi
                 Ataca <span className="text-foreground font-medium">{planoComposto.eloAlvo}</span>. Critério de
                 sucesso: {planoComposto.criterioSucesso}.
               </p>
-              <p>
-                {planoComposto.estagios.length}{' '}
+              <p className="flex flex-wrap items-baseline gap-x-1">
+                <Metric size="sm" value={planoComposto.estagios.length} />
                 {planoComposto.estagios.length === 1 ? 'semana' : 'semanas'} ·{' '}
-                {planoComposto.estagios.reduce((n, e) => n + e.passos.length, 0)} passos ao todo —{' '}
-                {planoComposto.estagios.reduce(
-                  (n, e) => n + e.passos.filter((p) => p.dono === 'joao').length,
-                  0,
-                )}{' '}
+                <Metric size="sm" value={planoComposto.estagios.reduce((n, e) => n + e.passos.length, 0)} />
+                passos ao todo —{' '}
+                <Metric
+                  size="sm"
+                  value={planoComposto.estagios.reduce(
+                    (n, e) => n + e.passos.filter((p) => p.dono === 'joao').length,
+                    0,
+                  )}
+                />
                 suas, o resto do cliente.
               </p>
             </div>
@@ -121,23 +125,12 @@ export function PublicarPlanoDialog({ open, onOpenChange, planoComposto }: Publi
               plano vigente antes.
             </p>
             <DialogFooter className="pt-1">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 rounded-lg text-[11px] font-medium border-border/60 px-3"
-                onClick={() => onOpenChange(false)}
-                disabled={confirmando}
-              >
+              <Action type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={confirmando}>
                 Cancelar
-              </Button>
-              <Button
-                type="button"
-                onClick={handleConfirmar}
-                disabled={confirmando}
-                className="h-9 rounded-lg text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 px-5"
-              >
+              </Action>
+              <Action type="button" variant="solid" onClick={handleConfirmar} disabled={confirmando}>
                 {confirmando ? 'Publicando…' : 'Confirmar publicação'}
-              </Button>
+              </Action>
             </DialogFooter>
           </div>
         )}

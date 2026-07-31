@@ -66,7 +66,10 @@ export function TecnicoView() {
         <p className="text-[13px] text-muted-foreground leading-relaxed mt-2">
           <b className="text-foreground/80">Quando regenerar:</b> {PAINEL.quandoRegenerar}
         </p>
-        <p className="text-[13px] text-amber-700 dark:text-amber-400 leading-relaxed mt-2">{PAINEL.comparecimentoFechamentoNoPainelAntigo}</p>
+        {/* Ressalva = laranja (exige atenção). Âmbar era semáforo. */}
+        <p className="text-[13px] text-[hsl(var(--cs-accent))] leading-relaxed mt-2">
+          {PAINEL.comparecimentoFechamentoNoPainelAntigo}
+        </p>
       </Section>
     </div>
   );

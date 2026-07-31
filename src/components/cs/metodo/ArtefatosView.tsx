@@ -76,9 +76,18 @@ export function ArtefatosView() {
         <p className="text-sm leading-relaxed text-foreground">{REGRA_PERMANENTE_PLATAFORMA_JA_FAZ.citacaoDoCeo}</p>
         <div className="mt-3 divide-y divide-border/50">
           {REGRA_PERMANENTE_PLATAFORMA_JA_FAZ.errosEcorrecoes.map((e, i) => (
-            <div key={i} className="py-2.5 grid sm:grid-cols-2 gap-2">
-              <p className="text-[13px] text-red-700 dark:text-red-400 leading-relaxed">{e.errado}</p>
-              <p className="text-[13px] text-emerald-700 dark:text-emerald-400 leading-relaxed">{e.certo}</p>
+            // Errado/certo por RÓTULO + fio na borda, nunca por vermelho/verde:
+            // o par semáforo foi banido do console (ver StatusIndicator.tsx).
+            // O rótulo carrega o sentido; a cor só reforça o lado certo.
+            <div key={i} className="py-2.5 grid sm:grid-cols-2 gap-3">
+              <div className="pl-3 border-l-2 border-border">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/55">Errado</p>
+                <p className="text-[13px] text-muted-foreground leading-relaxed mt-0.5">{e.errado}</p>
+              </div>
+              <div className="pl-3 border-l-2 border-[hsl(var(--cs-signal))]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--cs-signal))]">Certo</p>
+                <p className="text-[13px] text-foreground leading-relaxed mt-0.5">{e.certo}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -139,8 +148,14 @@ export function ArtefatosView() {
                 <p className="text-sm font-semibold text-foreground">{p.eloNome}</p>
                 <StatusIndicator tone="neutro" label={`dono: ${p.dono}`} />
               </div>
-              <p className="text-[13px] text-red-700 dark:text-red-400 mt-1.5 leading-relaxed">Ruim: {p.ruim}</p>
-              <p className="text-[13px] text-emerald-700 dark:text-emerald-400 mt-1 leading-relaxed">Boa: {p.boa}</p>
+              <div className="mt-2 pl-3 border-l-2 border-border">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/55">Ruim</p>
+                <p className="text-[13px] text-muted-foreground leading-relaxed mt-0.5">{p.ruim}</p>
+              </div>
+              <div className="mt-2 pl-3 border-l-2 border-[hsl(var(--cs-signal))]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--cs-signal))]">Boa</p>
+                <p className="text-[13px] text-foreground leading-relaxed mt-0.5">{p.boa}</p>
+              </div>
             </ListRow>
           ))}
         </div>
