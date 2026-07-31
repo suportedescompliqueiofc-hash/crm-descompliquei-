@@ -1,123 +1,47 @@
-// Layout do app de CS — replica o padrão da plataforma do cliente
-// (src/App.tsx → AppLayoutInner), NUNCA o padrão do admin-os
-// (src/pages/admin-os/AdminLayout.tsx).
+// Layout do app de CS — barra de topo (CsTopNav) + conteúdo em coluna de
+// leitura, nunca a casca de painel administrativo (sidebar fixa escura,
+// header separado, margem que cresce/encolhe com o colapso).
 //
-// Sidebar escura fixa (`bg-sidebar`), header, `main` com `pt-16` e margem
-// conforme colapso (`lg:ml-64` / `lg:ml-20`), conteúdo com `p-4 sm:p-6`.
+// Redesign completo (2026-07-30) — ver comentário em CsSidebar.tsx para o
+// porquê da mudança de sidebar lateral para barra de topo. Sem estado de
+// colapso, sem Sheet mobile: a navegação é três links de texto, não precisa
+// de gaveta.
 //
-// DECISÃO — NÃO replicamos o UPDATE forçado de organização que o
-// AdminLayout.tsx faz ao entrar em `/admin/*`:
-//
-//   supabase.from('perfis').update({ organization_id: MASTER_ORG_ID }).eq('id', user.id)
-//
-// Motivo: `perfis.organization_id` é uma coluna compartilhada pela MESMA
-// conta (jghf5554@gmail.com) em TODOS os pontos de entrada — app do
-// cliente, admin-os e agora o CS —, mesmo a sessão sendo "por origem"
-// (cookies/localStorage isolados por subdomínio). Se o app de CS forçasse
-// esse UPDATE toda vez que fosse aberto, ele mutaria silenciosamente a
-// mesma linha de `perfis` usada pelo app principal em outra aba — inclusive
-// no meio de uma impersonação de cliente ("Acessar CRM"), derrubando essa
-// sessão sem aviso. Além disso, as funções SECURITY DEFINER de CS
-// (`get_cs_clients`, `get_cs_crm_metrics` etc. — ver CLAUDE.md de
-// 05-operacoes-e-cs) já decidem o acesso multi-clínica checando o PAPEL do
-// usuário (superadmin / platform_admins), não o `organization_id` da sessão.
-// Portanto o app de CS não precisa e não deve depender de estar "preso" na
-// org master para funcionar — ele nunca consulta `leads`/`vendas`/
-// `agendamentos` diretamente, só via essas funções.
-import { useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
-import { Menu, Building2 } from 'lucide-react';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
-import { CsSidebarContent } from './CsSidebar';
-import { useLocalStorage } from '@/hooks/use-local-storage';
+// Mantida a mesma decisão de não forçar `perfis.organization_id` para a org
+// master (ver comentário original no histórico do arquivo) — só o aviso de
+// impersonação mudou de lugar, de badge âmbar num header fixo para uma linha
+// de texto discreta no topo do conteúdo.
+import { Outlet } from 'react-router-dom';
+import { CsTopNav } from './CsSidebar';
 import { useProfile } from '@/hooks/useProfile';
 import { MASTER_ORG_ID } from '@/lib/constants';
-import { cn } from '@/lib/utils';
-
-const PAGE_TITLES: Record<string, string> = {
-  '/': 'Carteira',
-  '/semana': 'Semana',
-  '/agenda': 'Agenda',
-};
 
 export default function CsLayout() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useLocalStorage('cs-sidebar-collapsed', false);
-  const location = useLocation();
   const { profile, isLoading: profileLoading } = useProfile();
 
-  const currentTitle =
-    PAGE_TITLES[location.pathname] ??
-    (location.pathname.startsWith('/cliente/') ? 'Cliente' : location.pathname.startsWith('/plano/') ? 'Plano do mês' : 'CS');
-
   // Aviso não-bloqueante: o perfil está com uma organização de CLIENTE
-  // aberta na plataforma (impersonação via "Acessar CRM" numa outra aba),
-  // em vez da organização master. Não é erro e não impede o uso do CS — só
-  // informação que afeta o que a pessoa vê na outra aba. Não fazemos aqui
-  // o UPDATE forçado de organização que o AdminLayout.tsx faz — ver
-  // decisão completa no comentário do topo deste arquivo.
+  // aberta na plataforma (impersonação via "Acessar CRM" numa outra aba), em
+  // vez da organização master. Não é erro e não impede o uso do CS — nunca
+  // fazemos aqui o UPDATE forçado de organização que o AdminLayout.tsx faz.
   const showImpersonationNotice =
     !profileLoading && !!profile?.organization_id && profile.organization_id !== MASTER_ORG_ID;
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden flex flex-col">
-      {/* SIDEBAR — desktop fixa */}
-      <div className="hidden lg:block relative">
-        <div className={`fixed left-0 top-0 h-full bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
-          <CsSidebarContent
-            isCollapsed={isSidebarCollapsed}
-            toggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          />
-        </div>
-      </div>
+    <div className="min-h-screen bg-background flex flex-col">
+      <CsTopNav />
 
-      {/* SIDEBAR — mobile (Sheet) */}
-      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent side="left" className="p-0 w-[280px] bg-sidebar border-r-0">
-          <CsSidebarContent />
-        </SheetContent>
-      </Sheet>
-
-      {/* HEADER */}
-      <header
-        className={cn(
-          'fixed right-0 top-0 h-16 bg-background z-40 transition-all duration-300 border-b border-border/60',
-          isSidebarCollapsed ? 'left-0 lg:left-20' : 'left-0 lg:left-64',
-        )}
-      >
-        <div className="h-full px-4 sm:px-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileMenuOpen(true)}>
-              <Menu className="h-5 w-5" />
-            </Button>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {currentTitle}
-            </span>
+      {showImpersonationNotice && (
+        <div className="border-b border-border/40 bg-muted/20">
+          <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-1.5">
+            <p className="text-[11px] text-muted-foreground/70">
+              Há uma organização de cliente aberta na plataforma (impersonação ativa noutra aba).
+            </p>
           </div>
-
-          {showImpersonationNotice && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 shrink-0">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-              <Building2 className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
-              <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400">
-                <span className="hidden sm:inline">Organização de cliente aberta na plataforma</span>
-                <span className="sm:hidden">Impersonação ativa</span>
-              </span>
-            </div>
-          )}
         </div>
-      </header>
+      )}
 
-      <main
-        className={cn(
-          'flex-1 flex flex-col transition-all duration-300 pt-16',
-          isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64',
-        )}
-      >
-        <div className="w-full max-w-full overflow-x-hidden flex-1 p-4 sm:p-6">
-          <Outlet />
-        </div>
+      <main className="flex-1 px-4 sm:px-6 py-8">
+        <Outlet />
       </main>
     </div>
   );

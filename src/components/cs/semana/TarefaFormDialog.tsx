@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -230,8 +229,7 @@ export function TarefaFormDialog({
               disabled={isPending}
               className="h-9 rounded-lg text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 px-5 gap-1.5"
             >
-              {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {isEdit ? 'Salvar' : 'Criar tarefa'}
+              {isPending ? 'Salvando…' : isEdit ? 'Salvar' : 'Criar tarefa'}
             </Button>
           </DialogFooter>
         </form>

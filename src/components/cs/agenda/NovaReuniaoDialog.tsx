@@ -2,7 +2,6 @@
 // em grupo não pertence a um cliente (organization_id nulo) e sugere a
 // cadência fixa (segunda-feira, 8h) ao ser selecionada.
 import { useEffect, useState } from 'react';
-import { CalendarPlus } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -76,9 +75,7 @@ export function NovaReuniaoDialog({ open, onOpenChange, clientes, defaultOrgId }
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-display flex items-center gap-2">
-            <CalendarPlus className="h-4 w-4 text-muted-foreground" /> Agendar reunião
-          </DialogTitle>
+          <DialogTitle className="font-display">Agendar reunião</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">

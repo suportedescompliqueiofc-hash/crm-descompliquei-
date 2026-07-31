@@ -30,6 +30,7 @@
 // correção complementar (coerção de `camada` para number).
 import { formatBRL, formatInt, formatNum, formatPct } from '@/lib/format';
 import type { CamadaElo } from '@/hooks/cs';
+import type { EloId } from '@/content/cs';
 
 export type FormatoElo = 'pct' | 'brl' | 'dias' | 'int';
 
@@ -49,6 +50,28 @@ export const ELO_META: Record<string, EloMeta> = {
   'Ciclo de Venda': { label: 'Ciclo de Venda', formato: 'dias' },
   Recompra: { label: 'Recompra', formato: 'pct' },
 };
+
+/**
+ * O texto Title Case PT-BR que as RPCs de CS devolvem (chave de ELO_META)
+ * traduzido para o `EloId` snake_case que `src/content/cs` usa como chave —
+ * os dois vocabulários nasceram em tarefas diferentes (dado ao vivo vs.
+ * conteúdo do método) e precisam de uma ponte explícita para não silenciosamente
+ * não baterem (mesma classe de bug já documentada acima neste arquivo).
+ */
+export const ELO_ID_POR_LABEL: Record<string, EloId> = {
+  Demanda: 'demanda',
+  Agendamento: 'agendamento',
+  'Resgate de Lead Frio': 'resgate_lead_frio',
+  Comparecimento: 'comparecimento',
+  Fechamento: 'fechamento',
+  Ticket: 'ticket',
+  'Ciclo de Venda': 'ciclo_venda',
+  Recompra: 'recompra',
+};
+
+export function getEloIdPorLabel(elo: string | null | undefined): EloId | undefined {
+  return elo ? ELO_ID_POR_LABEL[elo] : undefined;
+}
 
 /**
  * Camada (1|2|3) de cada elo — usado onde só temos o texto do elo, sem a

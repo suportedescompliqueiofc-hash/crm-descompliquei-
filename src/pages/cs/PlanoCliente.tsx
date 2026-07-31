@@ -1,47 +1,35 @@
-// Rota "/plano/:orgId" do app de CS — o plano de ação do mês daquele cliente,
-// do jeito que foi publicado: os estágios (na convenção do método, semanas —
-// mas o dado real nem sempre segue essa convenção, ver PlanoEstagios.tsx),
-// com os passos de cada um e o estado de conclusão, a aderência real (medida
-// em jornada_passos via cs_aderencia) e navegação entre os meses do ciclo.
+// Rota "/plano/:orgId" do app de CS — redesign 2026-07-30. O conteúdo
+// principal do plano agora vive DENTRO da Ficha do Cliente
+// (PlanoEmbutido.tsx, mês corrente). Esta tela virou o arquivo: navegar
+// entre cliente e mês, e ver o plano publicado de qualquer mês do ciclo —
+// inclusive meses já fechados. Reaproveita PlanoEmbutido (mesmo componente
+// da Ficha) para não duplicar a renderização do plano em dois lugares.
 //
-// Fonte de dado — SOMENTE hooks de src/hooks/cs/ (nunca tabela de cliente
-// direta): useCarteira() para o seletor de cliente e o "elo em foco" do mês
-// corrente; useAderencia() para o número que decide a conversa do mês;
-// usePlanoConteudo() para o conteúdo real (estágios/passos) do plano
-// publicado; useClienteElos() para a leitura da cadeia de elos do período.
-//
-// GAP AINDA DECLARADO: elo declarado no plano e critério de sucesso numérico
-// não têm coluna no banco (confirmado pelo maestro) — "Elo em foco" segue
-// mostrando só a leitura heurística de useCarteira() (mês corrente), e
-// critério de sucesso segue "—". Decisão pendente do CEO, não antecipada aqui.
+// Acopla o método (pedido do coordenador, 2026-07-30): uma referência
+// discreta e recolhida (`<details>`) com a anatomia de um bom plano e o
+// teste de qualidade de uma ação — útil quando o João está lendo ou
+// redigindo ações, não empilhado como bloco de texto permanente na tela.
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ListChecks } from 'lucide-react';
 import { format, isSameMonth, parseISO, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { PageHero } from '@/components/PageHero';
 import { useAderencia, useCarteira, useClienteElos, usePlanoConteudo } from '@/hooks/cs';
+import { getPlanoDeAcao } from '@/content/cs';
+import { PageTitle, Section } from '@/components/cs/ui';
 import { SeletorCliente } from '@/components/cs/plano/SeletorCliente';
 import { SeletorMes } from '@/components/cs/plano/SeletorMes';
-import { AderenciaResumo } from '@/components/cs/plano/AderenciaResumo';
-import { PlanoEstagios } from '@/components/cs/plano/PlanoEstagios';
-import { CadeiaDoMes } from '@/components/cs/plano/CadeiaDoMes';
 import { PlanoVazio } from '@/components/cs/plano/PlanoVazio';
+import { PlanoEmbutido } from '@/components/cs/cliente/PlanoEmbutido';
 
 export default function PlanoCliente() {
   const { orgId } = useParams<{ orgId: string }>();
 
   const { data: carteira = [], isLoading: carteiraLoading } = useCarteira();
-
-  const cliente = useMemo(
-    () => carteira.find((c) => c.organization_id === orgId),
-    [carteira, orgId],
-  );
+  const cliente = useMemo(() => carteira.find((c) => c.organization_id === orgId), [carteira, orgId]);
 
   const hojeMes = useMemo(() => startOfMonth(new Date()), []);
   const [mes, setMes] = useState<Date>(hojeMes);
 
-  // Trocou de cliente (via seletor ou navegação direta) — volta para o mês corrente.
   useEffect(() => {
     setMes(startOfMonth(new Date()));
   }, [orgId]);
@@ -55,57 +43,62 @@ export default function PlanoCliente() {
   const { data: elos = [], isLoading: elosLoading } = useClienteElos(orgId, periodoISO);
   const { data: passos = [], isLoading: passosLoading } = usePlanoConteudo(orgId, periodoISO);
 
-  // "Sem plano" só quando as DUAS fontes concordam que não há nada no período —
-  // cs_aderencia e cs_plano_conteudo são fontes distintas (uma soma, a outra
-  // lista o conteúdo); ver PlanoEstagios.tsx para o tratamento de divergência
-  // quando só uma delas está vazia.
   const semPlano =
-    !aderenciaLoading &&
-    !passosLoading &&
-    !!aderencia &&
-    aderencia.total_passos === 0 &&
-    passos.length === 0;
+    !aderenciaLoading && !passosLoading && !!aderencia && aderencia.total_passos === 0 && passos.length === 0;
   const clienteNaoEncontrado = !!orgId && !carteiraLoading && !cliente;
 
+  const anatomia = getPlanoDeAcao();
+
   return (
-    <div className="max-w-[1400px] mx-auto space-y-8 pb-12">
-      <PageHero
-        dataTutorial="cs-plano-header"
-        icon={ListChecks}
-        title="Plano do Cliente"
-        titleAccent={cliente?.nome ?? (carteiraLoading ? 'Carregando…' : orgId ? 'Cliente não encontrado' : 'Selecione um cliente')}
-        subtitle="O plano de ação do mês, semana a semana, com a aderência real medida na plataforma."
-        right={orgId ? <SeletorMes mes={mes} minMes={minMes} maxMes={hojeMes} onChange={setMes} /> : undefined}
+    <div className="max-w-[760px] mx-auto pb-16 space-y-6">
+      <PageTitle
+        title="Plano"
+        description="O plano publicado em cada mês do ciclo — arquivo histórico. O mês corrente vive na ficha do cliente."
       />
 
-      <SeletorCliente clientes={carteira} orgId={orgId} isLoading={carteiraLoading} />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <SeletorCliente clientes={carteira} orgId={orgId} isLoading={carteiraLoading} />
+        {orgId && <SeletorMes mes={mes} minMes={minMes} maxMes={hojeMes} onChange={setMes} />}
+      </div>
 
       {!orgId ? (
-        <div className="rounded-2xl border border-border/60 bg-card p-10 text-center text-sm text-muted-foreground">
-          Selecione um cliente para ver o plano do mês.
-        </div>
+        <p className="text-sm text-muted-foreground">Selecione um cliente para ver o plano do mês.</p>
       ) : clienteNaoEncontrado ? (
-        <div className="rounded-2xl border border-border/60 bg-card p-10 text-center text-sm text-muted-foreground">
-          Cliente não encontrado na carteira PCA.
-        </div>
+        <p className="text-sm text-muted-foreground">Cliente não encontrado na carteira PCA.</p>
       ) : semPlano ? (
         <PlanoVazio mesLabel={mesLabel} />
       ) : (
-        <>
-          <AderenciaResumo aderencia={aderencia} isLoading={aderenciaLoading} />
-          <PlanoEstagios
-            passos={passos}
-            isLoading={passosLoading}
-            totalAderencia={aderenciaLoading ? null : aderencia?.total_passos ?? null}
-          />
-          <CadeiaDoMes
-            elos={elos}
-            isLoading={elosLoading}
-            eloEmFoco={cliente?.elo_restricao ?? null}
-            mostrarEloEmFoco={mesAtual}
-          />
-        </>
+        <PlanoEmbutido
+          aderencia={aderencia}
+          passos={passos}
+          isLoading={aderenciaLoading || passosLoading}
+          mesLabel={mesLabel}
+        />
       )}
+
+      {!elosLoading && elos.length > 0 && mesAtual && (
+        <p className="text-[13px] text-muted-foreground/70">
+          A cadeia de elos deste mês, em detalhe, está na ficha do cliente.
+        </p>
+      )}
+
+      <Section title="Referência">
+        <details className="text-sm">
+          <summary className="cursor-pointer text-foreground font-medium">Anatomia de um bom plano</summary>
+          <div className="mt-2 space-y-2 text-[13px] text-muted-foreground leading-relaxed max-w-[620px]">
+            <p>{anatomia.oQueE}</p>
+            <p>{anatomia.umEloPorPlano.regra}</p>
+            <div>
+              <p className="font-medium text-foreground mb-1">Teste de qualidade de uma ação:</p>
+              <ul className="list-disc pl-5 space-y-0.5">
+                {anatomia.testeDeQualidade.map((t, i) => (
+                  <li key={i}>{t}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </details>
+      </Section>
     </div>
   );
 }

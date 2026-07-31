@@ -1,29 +1,21 @@
-// Rota "/agenda" do app de CS — as reuniões com clientes, organizadas: o que
-// não existia em lugar nenhum antes (ver comentário original do placeholder).
-//
-// Fonte de dado — SOMENTE hooks de src/hooks/cs/: useCarteira() (nomes dos
-// clientes PCA, para o seletor e para cruzar quem está sem reunião) e
-// useReunioes() (tabela interna cs_reunioes — leitura livre já é permitida
-// pelo contrato, é o próprio dado do CS, não dado de cliente). Todas as
-// mutações (agendar/remarcar/cancelar/marcar realizada/notas) via os hooks
-// já existentes em useCsReunioes.ts.
+// Rota "/agenda" do app de CS — as reuniões com clientes, em frases.
+// Redesign completo (2026-07-30, veredito do CEO: "Em Semana e Agenda está
+// absolutamente tudo igual" — mesmo StatCardGrid e PageHero de antes). Agora:
+// PageTitle discreto, listas de linha (ListRow), sem badge colorido de
+// tipo/status. A nota da reunião pode virar entrada de continuidade do
+// cliente — ver ReuniaoDetalheDialog.tsx.
 import { useMemo, useState } from 'react';
-import { CalendarDays, CalendarPlus, Inbox, Loader2 } from 'lucide-react';
 import { differenceInCalendarDays, endOfWeek, isSameMonth, startOfWeek } from 'date-fns';
-import { PageHero } from '@/components/PageHero';
-import { StatCard, StatCardGrid } from '@/components/StatCard';
-import { Button } from '@/components/ui/button';
 import { formatInt } from '@/lib/format';
 import { useCarteira, useReunioes } from '@/hooks/cs';
 import type { CSReuniao } from '@/hooks/cs';
+import { PageTitle, Section, Metric, EmptyState, LoadingState } from '@/components/cs/ui';
 import { ReuniaoRow } from '@/components/cs/agenda/ReuniaoRow';
 import { NovaReuniaoDialog } from '@/components/cs/agenda/NovaReuniaoDialog';
 import { ReuniaoDetalheDialog } from '@/components/cs/agenda/ReuniaoDetalheDialog';
 import { ClientesAtencaoAgenda } from '@/components/cs/agenda/ClientesAtencaoAgenda';
 import type { ClienteAtrasoAgenda } from '@/components/cs/agenda/ClientesAtencaoAgenda';
 
-// Limiar a partir do qual um cliente sem reunião "realizada" recente entra no
-// destaque de atenção. Calibração inicial, ajustável.
 const DIAS_ATRASO_ALERTA = 21;
 
 export default function Agenda() {
@@ -113,115 +105,72 @@ export default function Agenda() {
     setNovaAberta(true);
   }
 
+  const descricao = isLoading ? undefined : (
+    <div className="space-y-1 pt-1">
+      <Metric size="lg" tone="muted" value={formatInt(reunioesDaSemana)} />
+      <p>
+        {reunioesDaSemana === 1 ? 'reunião esta semana' : 'reuniões esta semana'} · {formatInt(clientesSemReuniao.length)}{' '}
+        sem reunião marcada · {formatInt(realizadasNoMes)} realizadas no mês.
+      </p>
+    </div>
+  );
+
   return (
-    <div className="max-w-[1400px] mx-auto space-y-8 pb-12">
-      <PageHero
-        dataTutorial="cs-agenda-header"
-        icon={CalendarDays}
+    <div className="max-w-[760px] mx-auto pb-16">
+      <PageTitle
         title="Agenda"
-        subtitle="As reuniões com os clientes PCA — individuais e a sessão tática em grupo, toda segunda-feira às 8h."
-        right={
-          <Button
+        description={descricao}
+        action={
+          <button
+            type="button"
             onClick={() => abrirNova(null)}
-            className="h-9 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/15 border border-white/15 text-white px-5 gap-1.5"
+            className="text-sm font-medium text-foreground underline underline-offset-4 hover:no-underline"
           >
-            <CalendarPlus className="h-3.5 w-3.5" /> Agendar reunião
-          </Button>
+            Agendar reunião
+          </button>
         }
       />
 
-      <StatCardGrid cols={3}>
-        <StatCard label="Reuniões da semana" value={isLoading ? '—' : formatInt(reunioesDaSemana)} icon={CalendarDays} />
-        <StatCard
-          label="Clientes sem reunião marcada"
-          value={isLoading ? '—' : formatInt(clientesSemReuniao.length)}
-          icon={Inbox}
-        />
-        <StatCard label="Realizadas no mês" value={isLoading ? '—' : formatInt(realizadasNoMes)} icon={CalendarDays} />
-      </StatCardGrid>
+      <div className="divide-y divide-border/60">
+        {!isLoading && <ClientesAtencaoAgenda atrasados={atrasados} onSelecionar={(orgId) => abrirNova(orgId)} />}
 
-      {!isLoading && <ClientesAtencaoAgenda atrasados={atrasados} onSelecionar={(orgId) => abrirNova(orgId)} />}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-          <div className="px-5 py-4 border-b border-border/40 bg-muted/[0.03]">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-muted">
-                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-              </span>
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">PRÓXIMAS REUNIÕES</p>
-                <p className="text-[10px] text-muted-foreground/50 mt-0.5">Ordenadas por data</p>
-              </div>
-            </div>
-          </div>
-          <div className="p-4 space-y-2">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : proximas.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="p-3 rounded-xl bg-muted/40 mb-3">
-                  <Inbox className="h-6 w-6 text-muted-foreground/40" />
-                </div>
-                <p className="text-sm font-medium text-muted-foreground">Nada agendado</p>
-                <p className="text-[11px] text-muted-foreground/50 mt-0.5">
-                  Assim que houver reuniões marcadas, elas aparecem aqui.
-                </p>
-              </div>
-            ) : (
-              proximas.map((r) => (
+        <Section title="Próximas reuniões">
+          {isLoading ? (
+            <LoadingState />
+          ) : proximas.length === 0 ? (
+            <EmptyState title="Nada agendado" description="Assim que houver reuniões marcadas, elas aparecem aqui." />
+          ) : (
+            <div className="divide-y divide-border/50">
+              {proximas.map((r) => (
                 <ReuniaoRow
                   key={r.id}
                   reuniao={r}
                   clienteNome={r.organization_id ? nomesPorOrg.get(r.organization_id) ?? null : null}
                   onClick={() => setSelecionada(r)}
                 />
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-          <div className="px-5 py-4 border-b border-border/40 bg-muted/[0.03]">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-muted">
-                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-              </span>
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">HISTÓRICO</p>
-                <p className="text-[10px] text-muted-foreground/50 mt-0.5">Realizadas e canceladas</p>
-              </div>
+              ))}
             </div>
-          </div>
-          <div className="p-4 space-y-2 max-h-[520px] overflow-y-auto">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : historico.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="p-3 rounded-xl bg-muted/40 mb-3">
-                  <Inbox className="h-6 w-6 text-muted-foreground/40" />
-                </div>
-                <p className="text-sm font-medium text-muted-foreground">Nada por aqui ainda</p>
-                <p className="text-[11px] text-muted-foreground/50 mt-0.5">
-                  Reuniões realizadas ou canceladas aparecem aqui.
-                </p>
-              </div>
-            ) : (
-              historico.map((r) => (
+          )}
+        </Section>
+
+        <Section title="Histórico" description="Realizadas e canceladas.">
+          {isLoading ? (
+            <LoadingState />
+          ) : historico.length === 0 ? (
+            <EmptyState title="Nada por aqui ainda" description="Reuniões realizadas ou canceladas aparecem aqui." />
+          ) : (
+            <div className="divide-y divide-border/50">
+              {historico.map((r) => (
                 <ReuniaoRow
                   key={r.id}
                   reuniao={r}
                   clienteNome={r.organization_id ? nomesPorOrg.get(r.organization_id) ?? null : null}
                   onClick={() => setSelecionada(r)}
                 />
-              ))
-            )}
-          </div>
-        </div>
+              ))}
+            </div>
+          )}
+        </Section>
       </div>
 
       <NovaReuniaoDialog open={novaAberta} onOpenChange={setNovaAberta} clientes={carteira} defaultOrgId={defaultOrgId} />

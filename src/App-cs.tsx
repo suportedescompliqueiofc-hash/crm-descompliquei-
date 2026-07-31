@@ -10,6 +10,7 @@
 // dependa de algum desses contexts vai quebrar aqui — se isso acontecer,
 // é sinal de que o componente não devia ter sido reaproveitado tal como
 // está (relatar, não arrastar o provider inteiro para consertar).
+import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -24,7 +25,12 @@ import ClienteDetalhe from '@/pages/cs/ClienteDetalhe';
 import Semana from '@/pages/cs/Semana';
 import Agenda from '@/pages/cs/Agenda';
 import PlanoCliente from '@/pages/cs/PlanoCliente';
-import Metodo from '@/pages/cs/Metodo'; // TEMP — só para medir o tamanho do bundle nesta entrega, revertido em seguida
+
+// Método é carregado sob demanda — o conteúdo de src/content/cs/ (o manual
+// inteiro embutido) soma ~141 KB (~41 KB comprimido) ao bundle. Rota
+// acessada bem menos que Carteira/Semana/Agenda, então não faz sentido pagar
+// esse peso no carregamento inicial de todo mundo que abre o app de CS.
+const Metodo = lazy(() => import('@/pages/cs/Metodo'));
 
 // Mesmas opções de cache do App.tsx (staleTime 5min, sem refetch no foco) —
 // instância própria, não compartilhada entre os dois bundles.
@@ -54,7 +60,14 @@ const AppCs = () => (
                 <Route path="/semana" element={<Semana />} />
                 <Route path="/agenda" element={<Agenda />} />
                 <Route path="/plano/:orgId" element={<PlanoCliente />} />
-                <Route path="/metodo" element={<Metodo />} />
+                <Route
+                  path="/metodo"
+                  element={
+                    <Suspense fallback={<p className="text-sm text-muted-foreground/50 animate-pulse">Carregando…</p>}>
+                      <Metodo />
+                    </Suspense>
+                  }
+                />
               </Route>
             </Route>
 

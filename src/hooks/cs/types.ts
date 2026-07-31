@@ -148,6 +148,13 @@ export interface Aderencia {
  * pelo banco por `estagio_ordem` e depois `passo_ordem`. NÃO assumir que
  * "estágio = semana" nem que existem 4 estágios — o dado real varia (visto em
  * produção: 5 estágios com títulos descritivos, não "Semana N").
+ *
+ * `jornada_elo_alvo` / `jornada_criterio_sucesso`: RECONFIRMADO ao vivo em
+ * 2026-07-30 (projeto noncbgdczgcboronmcah, `pg_get_functiondef` +
+ * `RETURNS TABLE`) — a função JÁ devolve as duas colunas (migration
+ * `20260730130004`). Ambas nulas em todos os planos mensais reais hoje
+ * (nenhum fechamento mensal ainda declarou elo/critério no sistema novo) —
+ * `null` aqui é dado real, não ausência de coluna.
  */
 export interface PlanoPasso {
   jornada_id: string;
@@ -164,6 +171,8 @@ export interface PlanoPasso {
   obrigatorio: boolean;
   concluido: boolean;
   concluido_em: string | null;
+  jornada_elo_alvo: string | null;
+  jornada_criterio_sucesso: string | null;
 }
 
 // ─── Contexto, Continuidade e Percepção (mesa de trabalho do cliente) ──────

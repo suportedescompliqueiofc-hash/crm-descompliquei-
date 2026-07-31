@@ -111,18 +111,16 @@ export function useAderencia(orgId: string | null | undefined, periodo: string |
 // jornadas/jornada_estagios/jornada_passos diretamente. Zero linhas = sem
 // plano no período (nunca erro).
 //
-// `elo_alvo` / `criterio_sucesso`: REVALIDADO ao vivo em 2026-07-30 (projeto
-// noncbgdczgcboronmcah). PENDÊNCIA — a tabela `jornadas` GANHOU as duas
-// colunas (`elo_alvo text`, `criterio_sucesso text`, ambas nullable,
-// confirmado via information_schema), mas a função `cs_plano_conteudo`
-// (lida de novo direto do banco com `pg_get_functiondef`, mesma definição de
-// antes) ainda NÃO foi atualizada para devolvê-las — o `RETURNS TABLE`
-// continua com as mesmas 14 colunas de sempre, sem `elo_alvo`/
-// `criterio_sucesso`. Por isso nenhum campo foi adicionado a `PlanoPasso`.
-// Reportado ao maestro: é decisão dele pedir ao Executor de Dados para
-// atualizar a função. Quando isso acontecer, adicionar
-// `jornada_elo_alvo`/`jornada_criterio_sucesso` (ou equivalente) e mapear
-// aqui.
+// `jornada_elo_alvo` / `jornada_criterio_sucesso`: RECONFIRMADO ao vivo em
+// 2026-07-30 (projeto noncbgdczgcboronmcah, `pg_get_functiondef` direto na
+// função) — a função DEVOLVE as duas colunas (migration `20260730130004`).
+// Um comentário anterior deste arquivo dizia o contrário ("ainda NÃO foi
+// atualizada") com base em uma leitura anterior de `pg_get_functiondef` que
+// ficou desatualizada — nunca confiar em comentário de código como fonte da
+// verdade sobre o schema; a fonte é sempre a função lida ao vivo. Hoje as
+// duas vêm `null` em todos os planos mensais reais (nenhum fechamento
+// mensal declarou elo/critério ainda no sistema novo) — é dado real, a tela
+// consumidora precisa tratar como lacuna do método, não esconder.
 export function usePlanoConteudo(orgId: string | null | undefined, periodo: string | null | undefined) {
   return useQuery({
     queryKey: ['cs-plano-conteudo', orgId, periodo],
@@ -149,6 +147,8 @@ export function usePlanoConteudo(orgId: string | null | undefined, periodo: stri
         obrigatorio: !!r.obrigatorio,
         concluido: !!r.concluido,
         concluido_em: r.concluido_em ?? null,
+        jornada_elo_alvo: r.jornada_elo_alvo ?? null,
+        jornada_criterio_sucesso: r.jornada_criterio_sucesso ?? null,
       }));
     },
   });

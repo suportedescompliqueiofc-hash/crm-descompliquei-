@@ -1,6 +1,12 @@
 // Detalhe de uma reunião — remarcar, cancelar, marcar como realizada, e
-// salvar pauta/notas. Reunião já realizada/cancelada só permite editar notas
-// (registro pós-reunião), sem ações de remarcar/cancelar/concluir.
+// salvar pauta/notas. Redesign 2026-07-30: sem badge colorido de status/tipo
+// (texto puro), sem vermelho no cancelamento (peso de fonte no lugar de
+// cor). Ganhou o pedido explícito da tarefa: a nota da reunião pode virar
+// uma entrada de continuidade do cliente — ao marcar como realizada com
+// notas escritas, a entrada nasce automaticamente (linkada por
+// `reuniaoId`); para reuniões já realizadas antes, um botão separado faz o
+// mesmo a qualquer momento. Sessão tática em grupo (sem organization_id) não
+// tem cliente único — a opção não aparece nesse caso.
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -8,15 +14,16 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import {
   useCancelarReuniao,
   useMarcarReuniaoRealizada,
+  useRegistrarContinuidade,
   useRemarcarReuniao,
   useSalvarNotasReuniao,
 } from '@/hooks/cs';
 import type { CSReuniao } from '@/hooks/cs';
-import { STATUS_CLASSES, STATUS_LABEL, TIPO_LABEL, toLocalInputValue } from './reuniaoMeta';
+import { STATUS_LABEL, TIPO_LABEL, toLocalInputValue } from './reuniaoMeta';
+import { getRoteiroReuniaoMensal } from '@/content/cs';
 
 interface ReuniaoDetalheDialogProps {
   reuniao: CSReuniao | null;
@@ -29,11 +36,13 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
   const [novaData, setNovaData] = useState('');
   const [notas, setNotas] = useState('');
   const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
+  const [virarContinuidade, setVirarContinuidade] = useState(true);
 
   const remarcar = useRemarcarReuniao();
   const cancelar = useCancelarReuniao();
   const marcarRealizada = useMarcarReuniaoRealizada();
   const salvarNotas = useSalvarNotasReuniao();
+  const registrarContinuidade = useRegistrarContinuidade();
 
   useEffect(() => {
     if (reuniao) {
@@ -41,6 +50,7 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
       setNovaData(toLocalInputValue(new Date(reuniao.data_hora)));
       setRemarcando(false);
       setConfirmandoCancelamento(false);
+      setVirarContinuidade(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reuniao?.id]);
@@ -48,6 +58,7 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
   if (!reuniao) return null;
 
   const podeAgir = reuniao.status === 'agendada';
+  const temCliente = !!reuniao.organization_id;
 
   async function handleRemarcar() {
     if (!reuniao) return;
@@ -75,8 +86,18 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
     if (!reuniao) return;
     try {
       await marcarRealizada.mutateAsync(reuniao.id);
-      if (notas.trim() && notas.trim() !== (reuniao.notas ?? '')) {
+      const notaMudou = notas.trim() && notas.trim() !== (reuniao.notas ?? '');
+      if (notaMudou) {
         await salvarNotas.mutateAsync({ id: reuniao.id, notas: notas.trim() });
+      }
+      if (temCliente && virarContinuidade && notas.trim() && reuniao.organization_id) {
+        await registrarContinuidade.mutateAsync({
+          organizationId: reuniao.organization_id,
+          dataEvento: format(new Date(reuniao.data_hora), 'yyyy-MM-dd'),
+          tipo: 'conversa',
+          oQueAconteceu: notas.trim(),
+          reuniaoId: reuniao.id,
+        });
       }
       toast.success('Reunião marcada como realizada.');
       onOpenChange(false);
@@ -95,25 +116,31 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
     }
   }
 
+  async function handleVirarContinuidadeAgora() {
+    if (!reuniao || !reuniao.organization_id || !notas.trim()) return;
+    try {
+      await registrarContinuidade.mutateAsync({
+        organizationId: reuniao.organization_id,
+        dataEvento: format(new Date(reuniao.data_hora), 'yyyy-MM-dd'),
+        tipo: 'conversa',
+        oQueAconteceu: notas.trim(),
+        reuniaoId: reuniao.id,
+      });
+      toast.success('Registrado no histórico do cliente.');
+    } catch {
+      toast.error('Não foi possível registrar no histórico do cliente.');
+    }
+  }
+
   return (
     <Dialog open={!!reuniao} onOpenChange={(o) => !o && onOpenChange(false)}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border bg-muted/50 text-muted-foreground border-border/40">
-              {TIPO_LABEL[reuniao.tipo]}
-            </span>
-            <span
-              className={cn(
-                'inline-flex items-center text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border',
-                STATUS_CLASSES[reuniao.status],
-              )}
-            >
-              {STATUS_LABEL[reuniao.status]}
-            </span>
-          </div>
+          <p className="text-[11px] text-muted-foreground/70 mb-1">
+            {TIPO_LABEL[reuniao.tipo]} · {STATUS_LABEL[reuniao.status]}
+          </p>
           <DialogTitle className="font-display text-base">
-            {reuniao.organization_id ? clienteNome ?? 'Cliente' : 'Sessão Tática (Grupo)'}
+            {reuniao.organization_id ? clienteNome ?? 'Cliente' : 'Sessão Tática (grupo inteiro)'}
           </DialogTitle>
         </DialogHeader>
 
@@ -128,7 +155,7 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
                   <button
                     type="button"
                     onClick={() => setRemarcando(true)}
-                    className="text-[11px] font-medium text-foreground underline underline-offset-2 hover:text-foreground/70 shrink-0"
+                    className="text-[11px] font-medium text-foreground underline underline-offset-2 hover:no-underline shrink-0"
                   >
                     Remarcar
                   </button>
@@ -169,15 +196,45 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
             </div>
           )}
 
+          {reuniao.tipo === 'mensal' && podeAgir && (
+            <details className="text-[13px]">
+              <summary className="cursor-pointer text-foreground font-medium">
+                Roteiro da reunião mensal — preparação
+              </summary>
+              <ol className="mt-2 space-y-1 text-muted-foreground list-decimal pl-4">
+                {getRoteiroReuniaoMensal().blocos.map((b) => (
+                  <li key={b.numero}>
+                    {b.titulo} <span className="text-muted-foreground/60">({b.duracao})</span>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
+
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Notas</label>
-            <Textarea
-              value={notas}
-              onChange={(e) => setNotas(e.target.value)}
-              placeholder="Registro da reunião"
-              rows={4}
-            />
-            <div className="flex justify-end">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Notas — o que foi conversado
+            </label>
+            <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Registro da reunião" rows={4} />
+
+            {temCliente && podeAgir && (
+              <label className="flex items-center gap-2 text-[12px] text-muted-foreground pt-0.5">
+                <input type="checkbox" checked={virarContinuidade} onChange={(e) => setVirarContinuidade(e.target.checked)} />
+                Ao marcar como realizada, registrar esta nota no histórico do cliente
+              </label>
+            )}
+
+            <div className="flex justify-end gap-2">
+              {temCliente && !podeAgir && (
+                <button
+                  type="button"
+                  onClick={handleVirarContinuidadeAgora}
+                  disabled={!notas.trim() || registrarContinuidade.isPending}
+                  className="text-[11px] font-medium text-foreground underline underline-offset-2 hover:no-underline disabled:opacity-40 disabled:no-underline"
+                >
+                  Registrar no histórico do cliente
+                </button>
+              )}
               <Button
                 variant="outline"
                 onClick={handleSalvarNotas}
@@ -196,7 +253,7 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
               <Button
                 variant="outline"
                 onClick={() => setConfirmandoCancelamento(true)}
-                className="h-9 rounded-lg text-[11px] font-medium border-border/60 text-red-600 hover:text-red-700 w-full sm:w-auto"
+                className="h-9 rounded-lg text-[11px] font-medium border-border/60 w-full sm:w-auto"
               >
                 Cancelar reunião
               </Button>
@@ -212,7 +269,7 @@ export function ReuniaoDetalheDialog({ reuniao, clienteNome, onOpenChange }: Reu
                 <Button
                   onClick={handleCancelar}
                   disabled={cancelar.isPending}
-                  className="h-9 rounded-lg text-[11px] font-semibold bg-red-600 text-white hover:bg-red-700 flex-1"
+                  className="h-9 rounded-lg text-[11px] font-semibold bg-foreground text-background hover:bg-foreground/90 flex-1"
                 >
                   Confirmar cancelamento
                 </Button>

@@ -1,6 +1,6 @@
-// Navegação entre os meses do ciclo do cliente, para dentro do PageHero (fundo
-// escuro — por isso os tons translúcidos brancos, no padrão do design system).
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+// Navegação entre os meses do ciclo do cliente. Redesign 2026-07-30:
+// versão clara, sem o fundo translúcido branco pensado pra dentro do
+// PageHero escuro (que saiu do app de CS inteiro).
 import { format, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -24,30 +24,28 @@ export function SeletorMes({ mes, minMes, maxMes, onChange }: SeletorMesProps) {
   const atual = isSameMonth(mes, maxMes);
 
   return (
-    <div className="shrink-0 flex items-center gap-2 bg-white/[0.04] backdrop-blur-sm rounded-2xl px-3 py-3 border border-white/[0.06]">
+    <div className="flex items-center gap-3">
       <button
         type="button"
         onClick={() => podeVoltar && onChange(addMonthsLocal(mes, -1))}
         disabled={!podeVoltar}
         aria-label="Mês anterior"
-        className="h-8 w-8 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+        className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground"
       >
-        <ChevronLeft className="h-4 w-4" />
+        ← anterior
       </button>
-      <div className="min-w-[132px] text-center">
-        <p className="text-[13px] font-semibold text-white capitalize font-display leading-tight">{label}</p>
-        <p className="text-[10px] text-white/40 uppercase tracking-wide mt-0.5">
-          {atual ? 'Em curso' : 'Histórico'}
-        </p>
-      </div>
+      <p className="text-sm font-medium text-foreground capitalize font-display min-w-[140px] text-center">
+        {label}
+        <span className="block text-[11px] text-muted-foreground/60 font-normal">{atual ? 'em curso' : 'histórico'}</span>
+      </p>
       <button
         type="button"
         onClick={() => podeAvancar && onChange(addMonthsLocal(mes, 1))}
         disabled={!podeAvancar}
         aria-label="Próximo mês"
-        className="h-8 w-8 flex items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+        className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:text-muted-foreground"
       >
-        <ChevronRight className="h-4 w-4" />
+        próximo →
       </button>
     </div>
   );
