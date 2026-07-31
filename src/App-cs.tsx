@@ -32,13 +32,20 @@ import PlanoCliente from '@/pages/cs/PlanoCliente';
 // esse peso no carregamento inicial de todo mundo que abre o app de CS.
 const Metodo = lazy(() => import('@/pages/cs/Metodo'));
 
-// Mesmas opções de cache do App.tsx (staleTime 5min, sem refetch no foco) —
-// instância própria, não compartilhada entre os dois bundles.
+// Instância própria, não compartilhada com o bundle da plataforma.
+//
+// O cache aqui é DELIBERADAMENTE mais curto que o do App.tsx (5 min, sem refetch
+// no foco). Motivo: o console é escrito de fora dele. Plano do mês, materiais,
+// tarefas e continuidade são gravados no banco pelo Claude durante a conversa, não
+// pela interface — então a tela precisa perceber mudança que ela própria não causou.
+// Com o cache da plataforma, o João escrevia um plano aqui e não via na aba aberta
+// sem dar F5. `refetchOnWindowFocus` cobre exatamente o gesto real de uso: voltar
+// para a aba do console depois de pedir alguma coisa ao Claude.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5,
-      refetchOnWindowFocus: false,
+      staleTime: 1000 * 30,
+      refetchOnWindowFocus: true,
       retry: 1,
     },
   },
