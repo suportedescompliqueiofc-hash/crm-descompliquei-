@@ -19,10 +19,18 @@ import { SerieHistorica } from '@/components/cs/cliente/SerieHistorica';
 import { AderenciaPlano } from '@/components/cs/cliente/AderenciaPlano';
 import { RelogioContrato } from '@/components/cs/cliente/RelogioContrato';
 
+// Valores reais devolvidos por cs_carteira.nivel_risco (ver
+// supabase/migrations/20260730120001_cs_funcoes_novo_modelo.sql, CTE `niveis`):
+// 'critico' | 'atencao' | 'saudavel' — nunca 'baixo'/'medio'/'alto'. Mesmo
+// vocabulário de src/components/cs/carteira/RiscoBadge.tsx (que já acertava
+// isso) — bug real encontrado na revisão de 2026-07-30: com as chaves erradas
+// abaixo, nenhuma cor de badge batia (nivel_risco nunca é null/'' aqui) e o
+// rótulo caía no fallback de texto cru ("critico" em vez de "Risco crítico").
 const NIVEL_RISCO_LABEL: Record<string, string> = {
-  baixo: 'Risco baixo',
-  medio: 'Risco médio',
-  alto: 'Risco alto',
+  critico: 'Risco crítico',
+  atencao: 'Atenção',
+  saudavel: 'Saudável',
+  referencia: 'Referência',
 };
 
 export default function ClienteDetalhe() {
@@ -69,9 +77,10 @@ export default function ClienteDetalhe() {
             <span
               className={cn(
                 'inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-semibold border backdrop-blur-sm',
-                cliente?.nivel_risco === 'alto' && 'bg-red-500/15 text-red-200 border-red-400/30',
-                cliente?.nivel_risco === 'medio' && 'bg-amber-500/15 text-amber-200 border-amber-400/30',
-                cliente?.nivel_risco === 'baixo' && 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30',
+                cliente?.nivel_risco === 'critico' && 'bg-red-500/15 text-red-200 border-red-400/30',
+                cliente?.nivel_risco === 'atencao' && 'bg-amber-500/15 text-amber-200 border-amber-400/30',
+                cliente?.nivel_risco === 'saudavel' && 'bg-emerald-500/15 text-emerald-200 border-emerald-400/30',
+                cliente?.nivel_risco === 'referencia' && 'bg-blue-500/15 text-blue-200 border-blue-400/30',
                 !cliente?.nivel_risco && 'bg-white/10 text-white/80 border-white/15',
               )}
             >
