@@ -20,7 +20,17 @@ export type StatusReuniao = 'agendada' | 'realizada' | 'cancelada';
 
 export type CamadaElo = 0 | 1 | 2 | 3;
 
-/** Os 8 elos propostos (ver proposta-novos-elos.md, seção 10). */
+/**
+ * Os 8 elos propostos (ver proposta-novos-elos.md, seção 10) — union
+ * ILUSTRATIVA em snake_case para leitura rápida do modelo, não o formato
+ * literal que trafega em runtime. As RPCs (`cs_cliente_elos`,
+ * `cs_cliente_serie`, `cs_carteira.elo_restricao`) devolvem o nome do elo em
+ * Title Case PT-BR ("Demanda", "Resgate de Lead Frio", "Ciclo de Venda"...) —
+ * ver as chaves de `ELO_META`/`ELO_CAMADA` em `src/components/cs/eloMeta.ts`,
+ * a fonte que de fato bate com o dado real. Confundir os dois formatos foi a
+ * causa de um bug real corrigido na revisão de 2026-07-30 (a cadeia de elos
+ * da Ficha do Cliente renderizava vazia).
+ */
 export type NomeElo =
   | 'demanda'
   | 'agendamento'
@@ -196,7 +206,7 @@ export interface NovaTarefaInput {
 }
 
 export type EditarTarefaInput = Partial<
-  Pick<CSTarefa, 'titulo' | 'descricao' | 'dono' | 'origem' | 'jornada_id' | 'prazo' | 'prioridade'>
+  Pick<CSTarefa, 'titulo' | 'descricao' | 'dono' | 'origem' | 'jornada_id' | 'prazo' | 'prioridade' | 'organization_id'>
 > & { id: string };
 
 export interface NovaReuniaoInput {

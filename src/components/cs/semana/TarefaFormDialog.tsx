@@ -36,9 +36,8 @@ interface TarefaFormDialogProps {
  * só "título" é obrigatório, o resto tem default sensato (dono = João,
  * prioridade = normal, sem cliente = tarefa interna).
  *
- * Limitação de hook conhecida: `useEditarTarefa` (EditarTarefaInput) não
- * aceita `organization_id` no contrato atual — por isso o cliente não pode
- * ser trocado ao editar uma tarefa existente, só ao criar uma nova.
+ * Cliente é editável tanto na criação quanto na edição (`EditarTarefaInput`
+ * aceita `organization_id` desde 2026-07-30 — corrigido na revisão do squad).
  */
 export function TarefaFormDialog({
   open,
@@ -91,6 +90,7 @@ export function TarefaFormDialog({
           id: tarefa.id,
           titulo: titulo.trim(),
           descricao: descricao.trim() || null,
+          organization_id: organizationId,
           prazo: prazo || null,
           prioridade,
           dono,
@@ -153,7 +153,6 @@ export function TarefaFormDialog({
               <Select
                 value={organizationId ?? NENHUM_CLIENTE}
                 onValueChange={(v) => setOrganizationId(v === NENHUM_CLIENTE ? null : v)}
-                disabled={isEdit}
               >
                 <SelectTrigger className="h-10 text-sm rounded-lg border-border/60">
                   <SelectValue placeholder="Sem cliente" />
@@ -167,9 +166,6 @@ export function TarefaFormDialog({
                   ))}
                 </SelectContent>
               </Select>
-              {isEdit && (
-                <p className="text-[10px] text-muted-foreground/50">Cliente não pode ser trocado ao editar.</p>
-              )}
             </div>
 
             <div className="space-y-1.5">

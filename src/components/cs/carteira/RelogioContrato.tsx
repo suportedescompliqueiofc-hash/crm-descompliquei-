@@ -3,7 +3,14 @@ import { cn } from '@/lib/utils';
 import { corRelogioContrato } from './utils';
 
 /**
- * Relógio do contrato: percentual dos 180 dias do ciclo PCA já consumido.
+ * Relógio do contrato — versão COMPACTA: mini barra inline embutida numa
+ * linha da Carteira (`CarteiraRow.tsx`), só o percentual. Existe também
+ * `cliente/RelogioContrato.tsx` — um CARD completo (dias consumidos/
+ * restantes, loading, empty state) usado como seção própria da Ficha do
+ * Cliente. Mantidos como dois componentes deliberadamente (revisão de
+ * 2026-07-30): densidades e propósitos diferentes — uma é sparkline de
+ * linha de lista, a outra é widget de página — não é duplicação a
+ * consolidar, é o mesmo conceito em duas escalas do design system.
  * É o sinal de urgência mais forte da régua de risco — quanto mais avançado,
  * mais quente a cor da barra (ver 05-operacoes-e-cs/sistema/ritos/01-regua-de-risco.md).
  */

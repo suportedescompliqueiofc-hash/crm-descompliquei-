@@ -1,6 +1,12 @@
-// O relógio do contrato — percentual dos 180 dias do PCA consumido e quantos
-// dias restam (ver 05-operacoes-e-cs/sistema/01-a-cadeia.md, "aritmética do
-// ciclo": 180 dias = 6 planos mensais).
+// O relógio do contrato — versão COMPLETA: card de seção da Ficha do
+// Cliente, com dias consumidos/restantes, loading e empty state. Existe
+// também `carteira/RelogioContrato.tsx` — uma mini barra compacta embutida
+// numa linha da lista da Carteira. Mantidos como dois componentes
+// deliberadamente (revisão de 2026-07-30, ver comentário lá): densidades e
+// propósitos diferentes, não duplicação.
+// Percentual dos 180 dias do PCA consumido e quantos dias restam (ver
+// 05-operacoes-e-cs/sistema/01-a-cadeia.md, "aritmética do ciclo": 180 dias
+// = 6 planos mensais).
 import { Clock, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatInt, formatPct } from '@/lib/format';
