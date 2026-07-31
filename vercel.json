@@ -5,7 +5,6 @@
       "has": [{ "type": "host", "value": "cs.descompliqueiofc.com" }],
       "destination": "/index-cs.html"
     },
-    { "source": "/(.*)", "destination": "/" }
+    { "source": "/(.*)", "destination": "/app.html" }
   ]
 }
-
