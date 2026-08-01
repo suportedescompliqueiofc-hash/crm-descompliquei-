@@ -2807,9 +2807,28 @@ async function executeTool(name: string, input: any, orgId: string, platformUser
           (aulas ?? []).map((a: any) => [a.slug, a.id])
         );
 
+        // organization_id é OBRIGATÓRIO aqui, ainda que a coluna aceite NULL.
+        // A RLS de leitura de `jornadas` libera por user_id = auth.uid() OU pela
+        // organization_id do perfil. Sem org, a jornada fica visível apenas para
+        // quem ela foi criada e some para o resto da equipe da clínica — o plano
+        // deixa de ser da clínica e vira de uma pessoa só. (Mesma regra que
+        // `cs_publicar_jornada` impõe com RAISE EXCEPTION, ver 05-publicar-plano.md.)
+        //
+        // `tipo: 'onboarding'` mantém esta jornada separada do plano mensal do CS:
+        // `cs_plano_conteudo` e a checagem de duplicata de `cs_publicar_jornada`
+        // casam por organization_id + mês de `periodo_ref`, que aqui fica NULL.
+        // Sem isso, uma jornada de aprendizado passaria a concorrer com o plano do
+        // mês na tela do cliente.
         const { data: jornadaCriada, error: errJ } = await (supabase as any)
           .from("jornadas")
-          .insert({ user_id: platformUserId, titulo: input.titulo, status: "ativa", gerada_por: "ia" })
+          .insert({
+            user_id: platformUserId,
+            organization_id: orgId,
+            titulo: input.titulo,
+            status: "ativa",
+            tipo: "onboarding",
+            gerada_por: "ia",
+          })
           .select("id")
           .single();
         if (errJ || !jornadaCriada) return JSON.stringify({ error: errJ?.message ?? "Erro ao criar jornada" });

@@ -29,13 +29,20 @@ Deno.serve(async (req) => {
     .from("jornadas").select("id").eq("user_id", user.id).eq("tipo", "onboarding").limit(1).maybeSingle();
   if (existing?.id) return json({ jornada_id: existing.id, created: false });
 
-  // Org do usuário — a jornada pertence à CLÍNICA (visível a toda a org)
+  // Org do usuário — a jornada pertence à CLÍNICA (visível a toda a org).
+  // Sem organization_id a RLS só libera a jornada por user_id = auth.uid(): ela
+  // some para o resto da equipe e o plano vira de uma pessoa, não da clínica.
+  // Por isso aqui falha em vez de gravar NULL — jornada órfã é pior que jornada
+  // não criada, porque o defeito só aparece quando outra pessoa abre a tela.
   const { data: perfil } = await supabase.from("perfis").select("organization_id").eq("id", user.id).maybeSingle();
+  if (!perfil?.organization_id) {
+    return json({ error: "Perfil sem organization_id — não é possível criar a jornada de onboarding." }, 409);
+  }
 
   const t = ONBOARDING_TEMPLATE;
   const { data: jornada, error: jErr } = await supabase
     .from("jornadas")
-    .insert({ user_id: user.id, organization_id: perfil?.organization_id ?? null, titulo: t.titulo, status: "ativa", gerada_por: "admin", tipo: "onboarding" })
+    .insert({ user_id: user.id, organization_id: perfil.organization_id, titulo: t.titulo, status: "ativa", gerada_por: "admin", tipo: "onboarding" })
     .select("id").single();
   if (jErr || !jornada) return json({ error: jErr?.message ?? "Erro ao criar jornada" }, 500);
 

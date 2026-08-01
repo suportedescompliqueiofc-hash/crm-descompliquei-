@@ -135,9 +135,29 @@ async function salvarJornada(json: JornadaJSON, userId: string): Promise<boolean
     );
 
     // 2. Inserir jornada
+    // A jornada pertence à CLÍNICA, não ao usuário que passou pelo onboarding: a
+    // RLS de `jornadas` libera leitura por user_id = auth.uid() OU pela org do
+    // perfil, então sem `organization_id` ela some para o resto da equipe — e
+    // some também do console de CS, que lê por organização. `tipo: 'onboarding'`
+    // a mantém fora da disputa com o plano mensal do CS (`tipo: 'mensal'`).
+    const { data: perfilAtual } = await (supabase as any)
+      .from("perfis")
+      .select("organization_id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (!perfilAtual?.organization_id) return false;
+
     const { data: jornada, error: errJ } = await (supabase as any)
       .from("jornadas")
-      .insert({ user_id: userId, titulo: json.titulo, status: "ativa", gerada_por: "ia" })
+      .insert({
+        user_id: userId,
+        organization_id: perfilAtual.organization_id,
+        titulo: json.titulo,
+        status: "ativa",
+        tipo: "onboarding",
+        gerada_por: "ia",
+      })
       .select("id")
       .single();
 

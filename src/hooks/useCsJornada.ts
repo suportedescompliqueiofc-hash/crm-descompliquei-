@@ -177,10 +177,19 @@ export function jornadaToDraft(jornada: any): DraftEstagio[] {
 export function useCreateMonthlyJornada() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ crmUserId, organizationId, titulo, periodoRef }: { crmUserId: string; organizationId?: string | null; titulo: string; periodoRef: string }) => {
+    mutationFn: async ({ crmUserId, organizationId, titulo, periodoRef }: { crmUserId: string; organizationId: string; titulo: string; periodoRef: string }) => {
+      // `organization_id` não é opcional, ainda que a coluna aceite NULL. Um plano
+      // mensal sem org é invisível para o console (`cs_plano_conteudo` casa por
+      // organization_id + mês) E não conta para a checagem de duplicata de
+      // `cs_publicar_jornada` — ou seja, ele some do CS e ao mesmo tempo abre
+      // caminho para um segundo plano no mesmo mês. Falhar aqui é o único
+      // comportamento seguro: plano órfão só dá as caras quando já é tarde.
+      if (!organizationId) {
+        throw new Error('organizationId é obrigatório para criar jornada mensal — sem ele o plano some do console e permite duplicata no mês.');
+      }
       const { data, error } = await (supabase as any)
         .from('jornadas')
-        .insert({ user_id: crmUserId, organization_id: organizationId ?? null, titulo, status: 'rascunho', gerada_por: 'admin', tipo: 'mensal', periodo_ref: periodoRef })
+        .insert({ user_id: crmUserId, organization_id: organizationId, titulo, status: 'rascunho', gerada_por: 'admin', tipo: 'mensal', periodo_ref: periodoRef })
         .select('id')
         .single();
       if (error) throw error;
