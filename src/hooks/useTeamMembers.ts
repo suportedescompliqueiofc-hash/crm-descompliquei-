@@ -46,7 +46,7 @@ export const PAGE_LABELS: Record<string, string> = {
   ia:              'Agentes de IA',
   athos_gs:        'Athos GS',
   arsenal:         'Arsenal',
-  jornada:         'Jornada',
+  jornada:         'Plano de Ação',
   notas:           'Notas',
   sessoes_taticas: 'Sessões Táticas',
   cadencias:       'Cadências',

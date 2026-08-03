@@ -56,6 +56,7 @@ function MarcadorPasso({ concluido }: { concluido: boolean }) {
 }
 
 const STATUS_LABEL: Record<string, string> = {
+  rascunho: 'Rascunho',
   ativa: 'Ativa',
   concluida: 'Concluída',
 };
@@ -78,7 +79,13 @@ export function PlanoMesPanel({ mesLabel, aderencia, passos, isLoading }: PlanoM
       <PanelHeader
         title="PLANO"
         hint={mesLabel}
-        action={jornadaStatus && <Chip tone="neutral">{STATUS_LABEL[jornadaStatus] ?? jornadaStatus}</Chip>}
+        action={
+          jornadaStatus && (
+            <Chip tone={jornadaStatus === 'rascunho' ? 'outline' : 'neutral'}>
+              {STATUS_LABEL[jornadaStatus] ?? jornadaStatus}
+            </Chip>
+          )
+        }
       />
       <PanelBody flush={!isLoading}>
         {isLoading ? (

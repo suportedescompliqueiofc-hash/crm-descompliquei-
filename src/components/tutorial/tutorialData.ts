@@ -1907,7 +1907,7 @@ export const tutorials: Tutorial[] = [
       {
         target: 'sidebar',
         title: 'Menu da plataforma',
-        description: 'Este é o **menu lateral** — agora **unificado**: CRM e Plataforma no mesmo lugar, sem trocar de ambiente.\n\nAs seções da plataforma ficam agrupadas por tema:\n\n• **Aprendizado** — Jornada, Arsenal e Sessões Táticas\n• **Jornada** — sua jornada personalizada de implementação\n• **Arsenal** — ferramentas e aulas comerciais práticas\n• **Athos** — IA estratégica da sua clínica\n• **Sessões Táticas** — encontros ao vivo',
+        description: 'Este é o **menu lateral** — agora **unificado**: CRM e Plataforma no mesmo lugar, sem trocar de ambiente.\n\nAs seções da plataforma ficam agrupadas por tema:\n\n• **Aprendizado** — Plano de Ação, Arsenal e Sessões Táticas\n• **Plano de Ação** — seu plano de implementação personalizado\n• **Arsenal** — ferramentas e aulas comerciais práticas\n• **Athos** — IA estratégica da sua clínica\n• **Sessões Táticas** — encontros ao vivo',
       },
       // ── 2. Visão geral ──────────────────────────────────────────────────────
       {
@@ -1922,11 +1922,11 @@ export const tutorials: Tutorial[] = [
         description: 'O **Arsenal** é a sua caixa de ferramentas comerciais — construções prontas que transformam conhecimento em ação.\n\nOrganizado por categorias:\n\n• **Estratégia de captação** — anúncios, scripts, fluxos\n• **Qualificação** — filtros, argumentos, objeções\n• **Fechamento** — propostas, follow-up, reativação\n\nCada ferramenta tem uma construção que você preenche e salva em **Meus Materiais**.',
         action: { type: 'click' as const, selector: '[data-tutorial="sidebar-arsenal"]', delay: 600 },
       },
-      // ── 4. Jornada ──────────────────────────────────────────────────────────
+      // ── 4. Plano de Ação ──────────────────────────────────────────────────────
       {
         target: 'jornada-header',
-        title: 'Jornada Personalizada',
-        description: 'A **Jornada** é o seu plano de implementação personalizado — criado pelo **Athos** com base no seu diagnóstico.\n\n• Dividida em **etapas** com prazo e passos concretos\n• Cada passo vinculado a uma **ferramenta ou aula** do Arsenal\n• Etapas desbloqueiam em sequência — conclua uma para avançar\n\n**Dica:** Siga a ordem. Cada etapa concluída desbloqueia a próxima.',
+        title: 'Plano de Ação',
+        description: 'O **Plano de Ação** é o seu plano de implementação personalizado — criado pelo **Athos** com base no seu diagnóstico.\n\n• Dividido em **etapas** com prazo e passos concretos\n• Cada passo vinculado a uma **ferramenta ou aula** do Arsenal\n• Etapas desbloqueiam em sequência — conclua uma para avançar\n\n**Dica:** Siga a ordem. Cada etapa concluída desbloqueia a próxima.',
         action: { type: 'click' as const, selector: '[data-tutorial="sidebar-jornada"]', delay: 600 },
       },
       // ── 5. Notas ────────────────────────────────────────────────────────────
@@ -1954,7 +1954,7 @@ export const tutorials: Tutorial[] = [
       {
         target: 'sidebar',
         title: 'Tour concluído!',
-        description: 'Agora você conhece todas as seções da plataforma.\n\n**Por onde começar:**\n\n• Siga os passos da sua **Jornada** — cada um tem uma ação concreta vinculada\n• Explore o **Arsenal** e complete as construções da sua clínica\n• Use o **Athos** sempre que precisar de orientação estratégica\n• Use o **CRM**, no mesmo menu, para gerenciar seus leads\n\nVocê pode refazer este tour a qualquer momento pela Central de Ajuda.',
+        description: 'Agora você conhece todas as seções da plataforma.\n\n**Por onde começar:**\n\n• Siga os passos do seu **Plano de Ação** — cada um tem uma ação concreta vinculada\n• Explore o **Arsenal** e complete as construções da sua clínica\n• Use o **Athos** sempre que precisar de orientação estratégica\n• Use o **CRM**, no mesmo menu, para gerenciar seus leads\n\nVocê pode refazer este tour a qualquer momento pela Central de Ajuda.',
       },
     ],
   },

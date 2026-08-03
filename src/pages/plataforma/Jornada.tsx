@@ -69,8 +69,8 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center px-6">
       <div className="mb-6 p-4 rounded-2xl bg-muted/40"><Route className="h-8 w-8 text-muted-foreground/30" /></div>
-      <h2 className="text-xl font-bold text-foreground font-display mb-2">Sua jornada está sendo preparada</h2>
-      <p className="text-[13px] text-muted-foreground max-w-sm leading-relaxed">Seu especialista está montando seu plano personalizado. Em breve você terá suas tarefas aqui.</p>
+      <h2 className="text-xl font-bold text-foreground font-display mb-2">Seu plano de ação está sendo preparado</h2>
+      <p className="text-[13px] text-muted-foreground max-w-sm leading-relaxed">Seu especialista está montando seu plano de ação personalizado. Em breve você terá suas tarefas aqui.</p>
     </div>
   );
 }
@@ -121,7 +121,7 @@ export default function Jornada() {
         </div>
       </div>
 
-      {/* Histórico de jornadas */}
+      {/* Histórico de planos de ação */}
       {jornadas && jornadas.length > 1 && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 mr-1"><History className="h-3 w-3" /> Histórico</span>
@@ -143,7 +143,7 @@ export default function Jornada() {
       ) : (
         <div className="flex flex-col items-center justify-center py-12 text-center rounded-2xl border border-dashed border-border/60">
           <div className="p-3 rounded-xl bg-muted/40 mb-3"><Route className="h-6 w-6 text-muted-foreground/40" /></div>
-          <p className="text-sm font-medium text-muted-foreground">Nenhuma tarefa nesta jornada</p>
+          <p className="text-sm font-medium text-muted-foreground">Nenhuma tarefa neste plano de ação</p>
         </div>
       )}
     </div>

@@ -82,7 +82,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
   // CRM é uma ÁREA entitled: só aparece se o produto liberar acesso_crm (superadmin = ACESSO_TOTAL).
   const temCrm = plataformaLoading || acesso.acesso_crm;
 
-  // Aprendizado (Arsenal/Jornada/Notas/Sessões Táticas): entitlement do produto da org.
+  // Aprendizado (Arsenal/Plano de Ação/Notas/Sessões Táticas): entitlement do produto da org.
   // Visibilidade por membro é decidida depois, item a item, pela permissão de equipe.
   const showAprendizado = temPlataforma;
 
@@ -124,7 +124,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     ...(showAprendizado ? [
       { isSeparator: true, title: "Aprendizado" },
       { title: "Arsenal", icon: Swords, path: "/plataforma/arsenal" },
-      { title: "Jornada", icon: Route, path: "/plataforma/jornada" },
+      { title: "Plano de Ação", icon: Route, path: "/plataforma/jornada" },
       { title: "Notas", icon: NotebookText, path: "/crm/notas", accessKey: 'acesso_materiais' as const },
       { title: "Sessões Táticas", icon: Calendar, path: "/plataforma/sessoes-taticas", accessKey: 'acesso_sessoes_taticas' as const },
     ] : []),

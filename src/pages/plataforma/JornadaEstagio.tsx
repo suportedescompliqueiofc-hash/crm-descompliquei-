@@ -43,9 +43,9 @@ export default function JornadaEstagioPage() {
       <div className="max-w-[1400px] mx-auto py-24 flex flex-col items-center text-center px-6">
         <div className="mb-6 p-4 rounded-2xl bg-muted/40"><Route className="h-8 w-8 text-muted-foreground/30" /></div>
         <h2 className="text-xl font-bold text-foreground font-display mb-2">Etapa não encontrada</h2>
-        <p className="text-[13px] text-muted-foreground max-w-sm leading-relaxed mb-6">Essa etapa pode ter sido removida ou faz parte de outra jornada.</p>
+        <p className="text-[13px] text-muted-foreground max-w-sm leading-relaxed mb-6">Essa etapa pode ter sido removida ou faz parte de outro plano de ação.</p>
         <Button onClick={() => navigate('/plataforma/jornada')} className="h-9 rounded-lg text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 gap-1.5 px-4">
-          <ArrowLeft className="h-3.5 w-3.5" /> Voltar para a jornada
+          <ArrowLeft className="h-3.5 w-3.5" /> Voltar para o plano de ação
         </Button>
       </div>
     );

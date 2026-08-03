@@ -304,7 +304,7 @@ function JornadaPronta({ nomeClinica, onClick, loading }: { nomeClinica: string;
       <div className="max-w-[82%] space-y-3">
         <div className="rounded-2xl rounded-tl-sm bg-card border border-border/60 px-4 py-3 shadow-sm">
           <p className="text-[14px] text-foreground leading-relaxed">
-            Sua jornada está pronta, <strong>{nomeClinica || "você"}</strong>. A partir de agora você sabe exatamente o que fazer, em qual ordem e em qual prazo. Estou aqui sempre que precisar.
+            Seu plano de ação está pronto, <strong>{nomeClinica || "você"}</strong>. A partir de agora você sabe exatamente o que fazer, em qual ordem e em qual prazo. Estou aqui sempre que precisar.
           </p>
         </div>
         <button
@@ -326,7 +326,7 @@ function ErroJornada() {
       <AvatarAthos />
       <div className="max-w-[82%] rounded-2xl rounded-tl-sm bg-red-50 border border-red-200 px-4 py-3">
         <p className="text-[14px] text-red-700 leading-relaxed">
-          Ocorreu um erro ao gerar sua jornada. Nossa equipe foi notificada e entrará em contato em breve.
+          Ocorreu um erro ao gerar seu plano de ação. Nossa equipe foi notificada e entrará em contato em breve.
         </p>
       </div>
     </div>
@@ -629,7 +629,7 @@ export default function OnboardingAthos() {
               />
             ))}
           </div>
-          <span className="font-medium"><span className="font-display tabular-nums">Etapa 3 de 3</span> — Montando sua jornada</span>
+          <span className="font-medium"><span className="font-display tabular-nums">Etapa 3 de 3</span> — Montando seu plano de ação</span>
           {!inicializando && mensagens.length > 0 && (
             <button
               onClick={handleConcluir}
@@ -715,7 +715,7 @@ export default function OnboardingAthos() {
               onKeyDown={handleKeyDown}
               placeholder={
                 jornadaSalva
-                  ? "Jornada gerada — clique em 'Ver minha jornada' acima"
+                  ? "Plano de ação gerado — clique em 'Ir para a plataforma' acima"
                   : inicializando
                   ? "Aguarde, Athos está analisando..."
                   : "Responda ao Athos..."

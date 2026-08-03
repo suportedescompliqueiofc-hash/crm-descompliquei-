@@ -122,8 +122,8 @@ export default function DescompliqueiOS() {
     startPendingPasso(passoId);
     startFreshConversation(
       brief
-        ? `Preciso construir este material da minha jornada: ${brief}. Me ajuda a montar?`
-        : `Preciso construir o material da minha jornada${categoria ? ` (${categoria.replace(/_/g, " ")})` : ""}. Me ajuda a montar?`
+        ? `Preciso construir este material do meu plano de ação: ${brief}. Me ajuda a montar?`
+        : `Preciso construir o material do meu plano de ação${categoria ? ` (${categoria.replace(/_/g, " ")})` : ""}. Me ajuda a montar?`
     );
     setTimeout(() => textareaRef.current?.focus(), 200);
     const next = new URLSearchParams(searchParams);

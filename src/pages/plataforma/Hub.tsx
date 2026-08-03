@@ -43,10 +43,10 @@ export default function Hub() {
     },
     {
       id: 'jornada', icon: Route,
-      title: 'Minha Jornada',
-      description: 'Seu plano personalizado com a Descompliquei',
+      title: 'Meu Plano de Ação',
+      description: 'Seu plano de ação personalizado com a Descompliquei',
       action: () => navigate('/plataforma/jornada'),
-      actionLabel: 'Ver jornada',
+      actionLabel: 'Ver plano de ação',
     },
     temMateriais && {
       id: 'materiais', icon: BookMarked,

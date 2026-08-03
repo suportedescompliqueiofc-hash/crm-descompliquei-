@@ -774,10 +774,10 @@ export default function Onboarding() {
                 <span className="text-background text-[20px] font-bold">D</span>
               </div>
               <h1 className="text-[28px] font-bold text-foreground tracking-tight leading-tight mb-4 font-display">
-                Vamos construir a sua jornada.
+                Vamos construir o seu plano de ação.
               </h1>
               <p className="text-[15px] text-muted-foreground leading-relaxed mb-3">
-                Antes de tudo, precisamos entender a fundo a sua clínica. Responda com calma — quanto mais preciso você for, mais certeira será a sua jornada.
+                Antes de tudo, precisamos entender a fundo a sua clínica. Responda com calma — quanto mais preciso você for, mais certeiro será o seu plano de ação.
               </p>
               <p className="text-[13px] text-muted-foreground/70 mb-10">
                 Tempo estimado: <strong>15–20 minutos</strong>
@@ -864,22 +864,22 @@ export default function Onboarding() {
                     ? athosPhase === "thinking"
                       ? "Analisando seu diagnóstico..."
                       : athosPhase === "creating"
-                      ? "Criando sua jornada..."
+                      ? "Criando seu plano de ação..."
                       : "Finalizando..."
                     : athosErro
                     ? "Algo deu errado"
-                    : "Jornada criada!"}
+                    : "Plano de ação criado!"}
                 </h2>
                 <p className="text-[13px] text-muted-foreground mt-2 max-w-sm leading-relaxed">
                   {athosStreaming
                     ? athosPhase === "thinking"
                       ? "O Athos está lendo e interpretando seu diagnóstico para montar o plano ideal."
                       : athosPhase === "creating"
-                      ? "Salvando os estágios e passos da sua jornada personalizada."
-                      : "Preparando o resumo da sua jornada."
+                      ? "Salvando os estágios e passos do seu plano de ação personalizado."
+                      : "Preparando o resumo do seu plano de ação."
                     : athosErro
-                    ? "Não conseguimos gerar sua jornada. Tente novamente."
-                    : "Sua jornada personalizada está pronta. Redirecionando..."}
+                    ? "Não conseguimos gerar seu plano de ação. Tente novamente."
+                    : "Seu plano de ação personalizado está pronto. Redirecionando..."}
                 </p>
 
                 {/* Indicador de fases + cronômetro */}
@@ -959,13 +959,13 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* Tela 10 — Finalização com cards da jornada */}
+          {/* Tela 10 — Finalização com cards do plano de ação */}
           {tela === 10 && jornada && (
             <div className="max-w-2xl mx-auto px-5 py-12">
               {/* Header */}
               <div className="text-center mb-10">
                 <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-3">
-                  Sua jornada personalizada
+                  Seu plano de ação personalizado
                 </p>
                 <h2 className="text-[26px] font-bold text-foreground tracking-tight leading-tight font-display">
                   {jornada.titulo}
@@ -1025,7 +1025,7 @@ export default function Onboarding() {
                   className="flex items-center gap-1.5 h-9 px-5 rounded-lg bg-foreground text-background text-xs font-semibold hover:bg-foreground/90 transition-colors disabled:opacity-60"
                 >
                   {finalizando && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  {finalizando ? "Entrando na plataforma..." : "Começar minha jornada"}
+                  {finalizando ? "Entrando na plataforma..." : "Começar meu plano de ação"}
                   {!finalizando && <ChevronRight className="h-3.5 w-3.5" />}
                 </button>
               </div>
