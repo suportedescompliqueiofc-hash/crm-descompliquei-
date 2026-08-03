@@ -52,7 +52,7 @@ const ELOS_MATERIAL_VALIDOS: EloMaterial[] = [
 
 export default function ClienteDetalhe() {
   const { orgId } = useParams<{ orgId: string }>();
-  const mesAtual = useMemo(() => format(new Date(), 'yyyy-MM'), []);
+  const mesAtual = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const mesLabel = useMemo(() => format(new Date(), "MMMM 'de' yyyy", { locale: ptBR }), []);
 
   const { data: carteira = [], isLoading: carteiraLoading } = useCarteira();
