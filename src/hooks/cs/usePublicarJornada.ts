@@ -89,3 +89,28 @@ export function usePublicarJornada() {
     },
   });
 }
+
+// Promove um rascunho que JÁ EXISTE no banco (estágios/passos já inseridos,
+// tipicamente por mim direto no banco durante uma conversa de CS) para
+// status='ativa' — sem recompor nada, ao contrário de usePublicarJornada.
+// Espelha a mesma checagem de duplicata e a mesma criação de cs_tarefas para
+// passos dono='joao' que cs_publicar_jornada faz, só que a partir de um
+// jornada_id em vez de um payload inteiro (RPC cs_promover_jornada_rascunho).
+export function usePromoverJornada() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { jornadaId: string; organizationId: string }): Promise<void> => {
+      const { error } = await (supabase as any).rpc('cs_promover_jornada_rascunho', {
+        p_jornada_id: input.jornadaId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_void, input) => {
+      qc.invalidateQueries({ queryKey: ['cs-plano-conteudo', input.organizationId] });
+      qc.invalidateQueries({ queryKey: ['cs-aderencia', input.organizationId] });
+      qc.invalidateQueries({ queryKey: ['cs-carteira'] });
+      qc.invalidateQueries({ queryKey: ['cs-timeline', input.organizationId] });
+      qc.invalidateQueries({ queryKey: ['cs-tarefas'] });
+    },
+  });
+}

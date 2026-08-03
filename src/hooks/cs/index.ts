@@ -46,6 +46,6 @@ export {
 
 export { useTimelineCliente } from './useCsTimeline';
 
-export { usePublicarJornada } from './usePublicarJornada';
+export { usePublicarJornada, usePromoverJornada } from './usePublicarJornada';
 
 export { useClienteMarcos } from './useClienteMarcos';

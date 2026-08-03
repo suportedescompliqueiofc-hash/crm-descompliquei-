@@ -48,6 +48,7 @@ import { formatInt, formatPct } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Panel, PanelHeader, PanelBody, PanelBand, PanelRows, ListRow, Chip, Action, Rail, LoadingState, EmptyState } from '@/components/cs/ui';
 import { PublicarPlanoDialog } from './PublicarPlanoDialog';
+import { PromoverPlanoDialog } from './PromoverPlanoDialog';
 
 interface EstagioAgrupado {
   estagio_id: string;
@@ -71,6 +72,7 @@ function agruparPorEstagio(passos: PlanoPasso[]): EstagioAgrupado[] {
 }
 
 const STATUS_LABEL: Record<string, string> = {
+  rascunho: 'Rascunho',
   ativa: 'Ativa',
   concluida: 'Concluída',
 };
@@ -182,19 +184,28 @@ export function PlanoEmbutido({
   const semPlano = !isLoading && (!aderencia || aderencia.total_passos === 0) && passos.length === 0;
   const jornadaStatus = passos[0]?.jornada_status;
   const jornadaId = passos[0]?.jornada_id;
+  const jornadaTitulo = passos[0]?.jornada_titulo ?? '';
+  const isRascunho = jornadaStatus === 'rascunho';
 
   const [dialogPublicarAberto, setDialogPublicarAberto] = useState(false);
+  const [dialogPromoverAberto, setDialogPromoverAberto] = useState(false);
 
   // Sempre null nesta rodada — ver PublicarPlanoDialog.tsx para a decisão
   // completa (não existe hoje tela de composição de plano).
   const planoComposto = useMemo(() => null, []);
+
+  const estagiosAgrupados = useMemo(() => agruparPorEstagio(passos), [passos]);
 
   return (
     <Panel>
       <PanelHeader
         title="Plano do mês"
         hint={mesLabel}
-        action={jornadaStatus ? <Chip tone="neutral">{STATUS_LABEL[jornadaStatus] ?? jornadaStatus}</Chip> : undefined}
+        action={
+          jornadaStatus ? (
+            <Chip tone={isRascunho ? 'outline' : 'neutral'}>{STATUS_LABEL[jornadaStatus] ?? jornadaStatus}</Chip>
+          ) : undefined
+        }
       />
       <PanelBody flush={!isLoading && !semPlano}>
         {isLoading ? (
@@ -213,29 +224,42 @@ export function PlanoEmbutido({
           />
         ) : (
           <>
-            <PanelBand>
-              <p className="text-sm text-foreground leading-relaxed">
-                {formatPct(aderencia!.pct, 0)} de aderência ao plano deste mês — {formatInt(aderencia!.passos_concluidos)} de{' '}
-                {formatInt(aderencia!.total_passos)} passos concluídos.
-              </p>
-              <Rail value={(aderencia!.pct ?? 0) / 100} tone="signal" className="mt-2" />
-
-              {passos[0]?.jornada_elo_alvo || passos[0]?.jornada_criterio_sucesso ? (
-                <p className="text-sm text-muted-foreground leading-relaxed mt-2 max-w-[640px]">
-                  Este mês ataca <span className="text-foreground font-medium">{passos[0]?.jornada_elo_alvo ?? '—'}</span>.
-                  Critério de sucesso: {passos[0]?.jornada_criterio_sucesso ?? '—'}.
+            {isRascunho ? (
+              <PanelBand>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm text-foreground leading-relaxed max-w-[520px]">
+                    Rascunho — o cliente ainda não vê nada disto. Publique quando o conteúdo estiver pronto.
+                  </p>
+                  <Action variant="accent" onClick={() => setDialogPromoverAberto(true)}>
+                    Publicar plano
+                  </Action>
+                </div>
+              </PanelBand>
+            ) : (
+              <PanelBand>
+                <p className="text-sm text-foreground leading-relaxed">
+                  {formatPct(aderencia!.pct, 0)} de aderência ao plano deste mês — {formatInt(aderencia!.passos_concluidos)} de{' '}
+                  {formatInt(aderencia!.total_passos)} passos concluídos.
                 </p>
-              ) : (
-                <p className="text-[13px] text-muted-foreground/70 leading-relaxed mt-2 max-w-[640px]">
-                  Este plano foi publicado sem elo declarado e sem critério de sucesso — lacuna real do método, nenhum
-                  fechamento mensal definiu isso ainda para este cliente.
-                </p>
-              )}
-            </PanelBand>
+                <Rail value={(aderencia!.pct ?? 0) / 100} tone="signal" className="mt-2" />
 
-            <PanelBand label="O que o cliente vê e faz">
+                {passos[0]?.jornada_elo_alvo || passos[0]?.jornada_criterio_sucesso ? (
+                  <p className="text-sm text-muted-foreground leading-relaxed mt-2 max-w-[640px]">
+                    Este mês ataca <span className="text-foreground font-medium">{passos[0]?.jornada_elo_alvo ?? '—'}</span>.
+                    Critério de sucesso: {passos[0]?.jornada_criterio_sucesso ?? '—'}.
+                  </p>
+                ) : (
+                  <p className="text-[13px] text-muted-foreground/70 leading-relaxed mt-2 max-w-[640px]">
+                    Este plano foi publicado sem elo declarado e sem critério de sucesso — lacuna real do método, nenhum
+                    fechamento mensal definiu isso ainda para este cliente.
+                  </p>
+                )}
+              </PanelBand>
+            )}
+
+            <PanelBand label={isRascunho ? 'Rascunho — o cliente ainda não vê nada disto' : 'O que o cliente vê e faz'}>
               <div className="space-y-3">
-                {agruparPorEstagio(passos).map((estagio) => {
+                {estagiosAgrupados.map((estagio) => {
                   const concluidos = estagio.passos.filter((p) => p.concluido).length;
                   return (
                     <div key={estagio.estagio_id}>
@@ -270,7 +294,7 @@ export function PlanoEmbutido({
               </div>
             </PanelBand>
 
-            {mostrarAcoesPublicacao && jornadaId && <AcoesDoJoaoNoPlano jornadaId={jornadaId} />}
+            {mostrarAcoesPublicacao && !isRascunho && jornadaId && <AcoesDoJoaoNoPlano jornadaId={jornadaId} />}
           </>
         )}
       </PanelBody>
@@ -297,6 +321,18 @@ export function PlanoEmbutido({
           open={dialogPublicarAberto}
           onOpenChange={setDialogPublicarAberto}
           planoComposto={planoComposto}
+        />
+      )}
+
+      {mostrarAcoesPublicacao && isRascunho && jornadaId && (
+        <PromoverPlanoDialog
+          open={dialogPromoverAberto}
+          onOpenChange={setDialogPromoverAberto}
+          jornadaId={jornadaId}
+          organizationId={orgId}
+          titulo={jornadaTitulo}
+          totalEstagios={estagiosAgrupados.length}
+          totalPassos={passos.length}
         />
       )}
     </Panel>
