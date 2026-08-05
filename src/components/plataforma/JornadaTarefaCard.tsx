@@ -118,29 +118,19 @@ export function TarefaTableRow({ passo, onToggle }: {
   onToggle: (id: string, v: boolean) => void;
 }) {
   const navigate = useNavigate();
+  const temMaterial = passo.material_id && passo.meus_materiais;
+  const sugereMaterial = passo.tipo === 'material' && !temMaterial;
+
   return (
     <div className={cn(
-      'grid grid-cols-[minmax(220px,1.2fr)_110px_110px_minmax(200px,1.3fr)_minmax(180px,1.2fr)] gap-x-5 px-5 py-4 transition-colors',
+      'grid grid-cols-[minmax(220px,1.2fr)_110px_110px_minmax(220px,1.5fr)_150px] gap-x-5 px-5 py-4 transition-colors',
       passo.concluido ? 'bg-emerald-500/[0.03]' : 'hover:bg-muted/[0.03]'
     )}>
       <div className="flex items-start gap-2.5 min-w-0">
         <button onClick={() => onToggle(passo.id, !passo.concluido)} className="mt-0.5 shrink-0 focus:outline-none">
           {passo.concluido ? <CheckCircle2 className="h-[18px] w-[18px] text-emerald-500" /> : <Circle className="h-[18px] w-[18px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors" />}
         </button>
-        <div className="min-w-0">
-          <p className={cn('text-[13px] font-medium leading-snug', passo.concluido ? 'text-muted-foreground line-through' : 'text-foreground')}>{passo.titulo}</p>
-          {passo.tipo === 'material' && (
-            passo.material_id && passo.meus_materiais ? (
-              <button onClick={() => navigate('/crm/materiais')} className="mt-1.5 inline-flex items-center gap-1 text-[10.5px] font-medium text-violet-600 hover:text-violet-700">
-                <FileText className="h-3 w-3" /> Abrir material
-              </button>
-            ) : (
-              <button onClick={() => navigate(buildMaterialDeepLink(passo))} className="mt-1.5 inline-flex items-center gap-1 text-[10.5px] font-medium text-foreground hover:text-foreground/70">
-                <Sparkles className="h-3 w-3" /> Construir com o Athos
-              </button>
-            )
-          )}
-        </div>
+        <p className={cn('text-[13px] font-medium leading-snug', passo.concluido ? 'text-muted-foreground line-through' : 'text-foreground')}>{passo.titulo}</p>
       </div>
 
       <div className="flex items-start">
@@ -161,7 +151,23 @@ export function TarefaTableRow({ passo, onToggle }: {
       </div>
 
       <p className="text-[12px] text-foreground/75 leading-relaxed">{passo.motivo ?? '—'}</p>
-      <p className="text-[12px] text-foreground/75 leading-relaxed italic">{passo.evidencia ?? '—'}</p>
+
+      <div className="flex items-start">
+        {temMaterial ? (
+          <button
+            onClick={() => navigate(`/crm/materiais?abrir=${passo.material_id}`)}
+            className="inline-flex items-center gap-1 text-[10.5px] font-medium text-violet-600 hover:text-violet-700 bg-violet-500/10 rounded-md px-1.5 py-0.5"
+          >
+            <FileText className="h-3 w-3 shrink-0" /> <span className="truncate max-w-[100px]">{passo.meus_materiais!.titulo}</span>
+          </button>
+        ) : sugereMaterial ? (
+          <button onClick={() => navigate(buildMaterialDeepLink(passo))} className="inline-flex items-center gap-1 text-[10.5px] font-medium text-foreground hover:text-foreground/70">
+            <Sparkles className="h-3 w-3 shrink-0" /> Construir
+          </button>
+        ) : (
+          <span className="text-[12px] text-muted-foreground/30">—</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -174,12 +180,12 @@ export function TarefaTable({ passos, onToggle }: {
     <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
       <div className="overflow-x-auto">
         <div className="min-w-[900px]">
-          <div className="grid grid-cols-[minmax(220px,1.2fr)_110px_110px_minmax(200px,1.3fr)_minmax(180px,1.2fr)] gap-x-5 px-5 py-2.5 bg-muted/[0.04] border-b border-border/40">
+          <div className="grid grid-cols-[minmax(220px,1.2fr)_110px_110px_minmax(220px,1.5fr)_150px] gap-x-5 px-5 py-2.5 bg-muted/[0.04] border-b border-border/40">
             <p className="text-[9.5px] font-bold uppercase tracking-widest text-muted-foreground/50">Ação</p>
             <p className="text-[9.5px] font-bold uppercase tracking-widest text-muted-foreground/50">Categoria</p>
             <p className="text-[9.5px] font-bold uppercase tracking-widest text-muted-foreground/50">Prioridade</p>
             <p className="text-[9.5px] font-bold uppercase tracking-widest text-muted-foreground/50">Por que existe</p>
-            <p className="text-[9.5px] font-bold uppercase tracking-widest text-muted-foreground/50">Como se sabe que foi feita</p>
+            <p className="text-[9.5px] font-bold uppercase tracking-widest text-muted-foreground/50">Anexo</p>
           </div>
           <div className="divide-y divide-border/30">
             {passos.map(p => <TarefaTableRow key={p.id} passo={p} onToggle={onToggle} />)}

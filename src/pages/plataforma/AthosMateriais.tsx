@@ -263,9 +263,9 @@ export default function AthosMateriais() {
 
       {/* DIALOG VER/EDITAR/CRIAR */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl w-[92vw] max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden">
+        <DialogContent className="left-0 top-0 translate-x-0 translate-y-0 w-screen h-[100dvh] max-w-none max-h-none rounded-none flex flex-col p-0 gap-0 overflow-hidden">
           <div className={cn("h-2 w-full shrink-0", materialCategoriaCor(draft.categoria))} />
-          <div className="px-8 pt-6">
+          <div className="px-8 sm:px-16 pt-6">
             <DialogHeader>
               <DialogTitle className="font-display text-xl">{draft.id ? "Editar material" : "Novo material"}</DialogTitle>
             </DialogHeader>
@@ -352,9 +352,9 @@ export default function AthosMateriais() {
                 </div>
               ) : mode === "previa" ? (
                 <div className="rounded-xl border border-border/60 overflow-hidden bg-muted/[0.06]">
-                  <div className="max-h-[58vh] overflow-y-auto px-6 py-6 sm:px-10 sm:py-8">
+                  <div className="overflow-y-auto px-6 py-6 sm:px-10 sm:py-10">
                     {conteudoInicial.replace(/<[^>]*>/g, "").trim()
-                      ? <div className={PROSE_STYLES + " max-w-2xl mx-auto bg-background rounded-lg border border-border/40 px-8 py-8 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"} dangerouslySetInnerHTML={{ __html: conteudoInicial }} />
+                      ? <div className={PROSE_STYLES + " max-w-3xl mx-auto bg-background rounded-lg border border-border/40 px-10 py-10 shadow-[0_1px_3px_rgba(0,0,0,0.04)] text-[15px]"} dangerouslySetInnerHTML={{ __html: conteudoInicial }} />
                       : <p className="text-[12px] text-muted-foreground/40 italic text-center">Este material ainda está vazio. Clique em Editar para escrever.</p>}
                   </div>
                 </div>
@@ -363,8 +363,8 @@ export default function AthosMateriais() {
                   <div className="border-b border-border/40 bg-muted/[0.03]">
                     <RichToolbar editor={editor} compact />
                   </div>
-                  <div className="max-h-[58vh] overflow-y-auto bg-muted/[0.06] px-6 py-6 sm:px-10 sm:py-8">
-                    <div className={EDITOR_STYLES + " max-w-2xl mx-auto bg-background rounded-lg border border-border/40 px-8 py-8 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"}>
+                  <div className="overflow-y-auto bg-muted/[0.06] px-6 py-6 sm:px-10 sm:py-10">
+                    <div className={EDITOR_STYLES + " max-w-3xl mx-auto bg-background rounded-lg border border-border/40 px-10 py-10 shadow-[0_1px_3px_rgba(0,0,0,0.04)] text-[15px]"}>
                       <EditorContent editor={editor} />
                     </div>
                   </div>
