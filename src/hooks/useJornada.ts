@@ -47,6 +47,12 @@ export interface JornadaEstagio {
   jornada_passos: JornadaPasso[];
 }
 
+export interface JornadaMaterial {
+  id: string;
+  ordem: number;
+  meus_materiais: { id: string; titulo: string } | null;
+}
+
 export interface Jornada {
   id: string;
   titulo: string;
@@ -57,6 +63,7 @@ export interface Jornada {
   created_at: string;
   updated_at: string;
   jornada_estagios: JornadaEstagio[];
+  jornada_materiais: JornadaMaterial[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -95,6 +102,7 @@ export function useJornadas() {
         .from('jornadas')
         .select(`
           id, titulo, status, tipo, periodo_ref, diagnostico_md, created_at, updated_at,
+          jornada_materiais ( id, ordem, meus_materiais ( id, titulo ) ),
           jornada_estagios (
             id, jornada_id, titulo, descricao, ordem, prazo_dias, data_inicio,
             jornada_passos (
@@ -111,6 +119,7 @@ export function useJornadas() {
       if (error) throw error;
       const list = (data ?? []) as Jornada[];
       list.forEach(j => {
+        j.jornada_materiais = (j.jornada_materiais ?? []).sort((a, b) => a.ordem - b.ordem);
         j.jornada_estagios = (j.jornada_estagios ?? []).sort((a, b) => a.ordem - b.ordem);
         j.jornada_estagios.forEach(e => {
           e.jornada_passos = (e.jornada_passos ?? []).sort((a, b) => a.ordem - b.ordem);

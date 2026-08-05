@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Route, CheckCircle2, ChevronRight,
-  Loader2, Crosshair, History, ClipboardList, Target,
+  Loader2, Crosshair, History, ClipboardList, Target, FileText, Paperclip,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -170,6 +170,42 @@ function MetaDoMes({ orgId }: { orgId: string | undefined }) {
   );
 }
 
+// ─── Material acoplado ───────────────────────────────────────────────────────
+
+function MaterialAcopladoCard({ jornada }: { jornada: Jornada }) {
+  const navigate = useNavigate();
+  const materiais = (jornada.jornada_materiais ?? []).filter(m => m.meus_materiais);
+  if (materiais.length === 0) return null;
+
+  return (
+    <div className="lg:col-span-3 rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+      <div className="px-5 py-4 border-b border-border/40 bg-muted/[0.03]">
+        <div className="flex items-center gap-2">
+          <span className="p-1.5 rounded-lg bg-muted"><Paperclip className="h-3.5 w-3.5 text-muted-foreground" /></span>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Material acoplado</p>
+            <p className="text-[10px] text-muted-foreground/50 mt-0.5">Materiais produzidos junto com este plano</p>
+          </div>
+        </div>
+      </div>
+      <div className="px-5 py-3 divide-y divide-border/30">
+        {materiais.map(m => (
+          <button
+            key={m.id}
+            onClick={() => navigate(`/crm/materiais?abrir=${m.meus_materiais!.id}`)}
+            className="flex items-center gap-3 w-full text-left py-2.5 group"
+          >
+            <span className="p-1.5 rounded-lg bg-muted shrink-0"><FileText className="h-3.5 w-3.5 text-muted-foreground" /></span>
+            <span className="flex-1 text-[13px] font-medium text-foreground group-hover:text-foreground/80 transition-colors">{m.meus_materiais!.titulo}</span>
+            <span className="text-[11px] text-muted-foreground/50 group-hover:text-muted-foreground shrink-0">Abrir</span>
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/25 group-hover:translate-x-0.5 transition-all shrink-0" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Empty ────────────────────────────────────────────────────────────────────
 
 function EmptyState() {
@@ -234,6 +270,7 @@ export default function Jornada() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <DiagnosticoDoMes jornada={jornada} />
           <MetaDoMes orgId={profile?.organization_id} />
+          <MaterialAcopladoCard jornada={jornada} />
         </div>
       )}
 

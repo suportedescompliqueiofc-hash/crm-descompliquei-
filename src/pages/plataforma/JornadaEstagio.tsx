@@ -12,11 +12,50 @@ import {
   getEstagioProgress,
   type Jornada, type JornadaEstagio as TEstagio,
 } from '@/hooks/useJornada';
+import {
+  CATEGORIA_LABEL, CATEGORIA_DESC, PRIORIDADE_LABEL, PRIORIDADE_DESC, PRIORIDADE_DOT,
+} from '@/lib/planoAcaoTaxonomia';
 
 function jornadaLabel(j: Jornada): string {
   if (j.tipo === 'onboarding') return 'Onboarding';
   if (j.tipo === 'mensal' && j.periodo_ref) return format(parseISO(j.periodo_ref), "MMMM 'de' yyyy", { locale: ptBR });
   return j.titulo;
+}
+
+const PRIORIDADES_ORDEM = ['critica', 'importante', 'manutencao'] as const;
+const CATEGORIAS_ORDEM = ['tarefa', 'pratica'] as const;
+
+function LegendaTags() {
+  return (
+    <div className="rounded-xl border border-border/40 bg-muted/[0.03] px-4 py-3.5 space-y-3.5">
+      <div>
+        <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1.5">Prioridade — o quão urgente é fazer</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-1.5">
+          {PRIORIDADES_ORDEM.map(p => (
+            <div key={p} className="flex items-start gap-2">
+              <span className={cn('mt-[5px] w-1.5 h-1.5 rounded-full shrink-0', PRIORIDADE_DOT[p])} />
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                <span className="font-semibold text-foreground">{PRIORIDADE_LABEL[p]}</span> — {PRIORIDADE_DESC[p]}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="border-t border-border/30 pt-3">
+        <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1.5">Categoria — que tipo de ação é</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+          {CATEGORIAS_ORDEM.map(c => (
+            <div key={c} className="flex items-start gap-2">
+              <span className="mt-[5px] w-1.5 h-1.5 rounded-full bg-muted-foreground/30 shrink-0" />
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                <span className="font-semibold text-foreground">{CATEGORIA_LABEL[c]}</span> — {CATEGORIA_DESC[c]}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function JornadaEstagioPage() {
@@ -95,6 +134,8 @@ export default function JornadaEstagioPage() {
         <ClipboardList className="h-3.5 w-3.5 text-muted-foreground/50" />
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">Tarefas desta etapa</p>
       </div>
+
+      {passos.length > 0 && <LegendaTags />}
 
       {passos.length > 0 ? (
         <div className="space-y-2.5">

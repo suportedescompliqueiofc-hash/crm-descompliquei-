@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { useAthosMateriais, type MeuMaterialListItem } from "@/hooks/useAthosMateriais";
 import { getRichExtensions, EDITOR_STYLES, PROSE_STYLES, RichToolbar } from "@/components/editor/RichEditor";
@@ -24,6 +24,7 @@ const EMPTY: Draft = { id: null, titulo: "", categoria: "outro" };
 
 export default function AthosMateriais() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { list, getConteudo, create, update, remove } = useAthosMateriais();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -47,6 +48,16 @@ export default function AthosMateriais() {
   }, [open, loadingConteudo, conteudoInicial, editor]);
 
   const materiaisTodos = list.data ?? [];
+
+  // Deep-link ?abrir=<id> (ex.: vindo do card "Material acoplado" da página de Plano de Ação)
+  useEffect(() => {
+    const abrirId = searchParams.get("abrir");
+    if (!abrirId || materiaisTodos.length === 0) return;
+    const alvo = materiaisTodos.find((m) => m.id === abrirId);
+    if (alvo) openMaterial(alvo);
+    setSearchParams((prev) => { prev.delete("abrir"); return prev; }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [materiaisTodos, searchParams]);
 
   const contagemPorCategoria = useMemo(() => {
     const map = new Map<string, number>();
