@@ -18,6 +18,8 @@ export interface JornadaPasso {
   id: string;
   titulo: string;
   conteudo_md: string | null;
+  motivo: string | null;
+  evidencia: string | null;
   descricao: string | null;
   ordem: number;
   tipo: 'acao_livre' | 'material' | 'ferramenta_arsenal' | 'categoria_arsenal';
@@ -106,7 +108,7 @@ export function useJornadas() {
           jornada_estagios (
             id, jornada_id, titulo, descricao, ordem, prazo_dias, data_inicio,
             jornada_passos (
-              id, titulo, conteudo_md, descricao, ordem, tipo, categoria, prioridade,
+              id, titulo, conteudo_md, motivo, evidencia, descricao, ordem, tipo, categoria, prioridade,
               material_categoria, material_brief, material_id, aula_id,
               prazo_dias, obrigatorio, concluido, concluido_em,
               jornada_subtarefas ( id, titulo, ordem, concluido ),

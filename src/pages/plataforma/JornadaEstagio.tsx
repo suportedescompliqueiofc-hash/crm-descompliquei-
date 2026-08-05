@@ -6,7 +6,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { FormattedText } from '@/components/FormattedText';
-import { TarefaCard } from '@/components/plataforma/JornadaTarefaCard';
+import { TarefaCard, TarefaTable } from '@/components/plataforma/JornadaTarefaCard';
 import {
   useJornadas, useMarcarPassoConcluido, useMarcarSubtarefa,
   getEstagioProgress,
@@ -94,6 +94,7 @@ export default function JornadaEstagioPage() {
   const { total, done, pct } = getEstagioProgress(estagio);
   const isDone = total > 0 && done === total;
   const passos = estagio.jornada_passos ?? [];
+  const isPlanoDeAcao = passos.some(p => !!p.categoria);
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-5">
@@ -138,14 +139,18 @@ export default function JornadaEstagioPage() {
       {passos.length > 0 && <LegendaTags />}
 
       {passos.length > 0 ? (
-        <div className="space-y-2.5">
-          {passos.map(p => (
-            <TarefaCard key={p.id} passo={p} defaultOpen
-              onToggle={(id, v) => marcar.mutate({ passoId: id, concluido: v })}
-              onToggleSub={(id, v) => marcarSub.mutate({ subtarefaId: id, concluido: v })}
-            />
-          ))}
-        </div>
+        isPlanoDeAcao ? (
+          <TarefaTable passos={passos} onToggle={(id, v) => marcar.mutate({ passoId: id, concluido: v })} />
+        ) : (
+          <div className="space-y-2.5">
+            {passos.map(p => (
+              <TarefaCard key={p.id} passo={p} defaultOpen
+                onToggle={(id, v) => marcar.mutate({ passoId: id, concluido: v })}
+                onToggleSub={(id, v) => marcarSub.mutate({ subtarefaId: id, concluido: v })}
+              />
+            ))}
+          </div>
+        )
       ) : (
         <div className="flex flex-col items-center justify-center py-12 text-center rounded-2xl border border-dashed border-border/60">
           <div className="p-3 rounded-xl bg-muted/40 mb-3"><ClipboardList className="h-6 w-6 text-muted-foreground/40" /></div>

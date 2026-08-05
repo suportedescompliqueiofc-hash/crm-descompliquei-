@@ -35,7 +35,7 @@ export function TarefaCard({ passo, onToggle, onToggleSub, defaultOpen = false }
   defaultOpen?: boolean;
 }) {
   const navigate = useNavigate();
-  const hasDetails = !!passo.conteudo_md || passo.jornada_subtarefas.length > 0 || passo.tipo === 'material';
+  const hasDetails = !!passo.conteudo_md || !!passo.motivo || !!passo.evidencia || passo.jornada_subtarefas.length > 0 || passo.tipo === 'material';
   const [open, setOpen] = useState(defaultOpen);
   const subsDone = passo.jornada_subtarefas.filter(s => s.concluido).length;
 
@@ -66,7 +66,22 @@ export function TarefaCard({ passo, onToggle, onToggleSub, defaultOpen = false }
 
           {open && (
             <div className="mt-2.5 space-y-3">
-              {passo.conteudo_md && (
+              {(passo.motivo || passo.evidencia) ? (
+                <div className="rounded-lg border border-border/40 divide-y divide-border/30 overflow-hidden">
+                  {passo.motivo && (
+                    <div className="px-3.5 py-2.5 bg-muted/[0.04]">
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1">Por que existe</p>
+                      <p className="text-[12.5px] text-foreground/80 leading-relaxed">{passo.motivo}</p>
+                    </div>
+                  )}
+                  {passo.evidencia && (
+                    <div className="px-3.5 py-2.5">
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50 mb-1">Como se sabe que foi feita</p>
+                      <p className="text-[12.5px] text-foreground/80 leading-relaxed">{passo.evidencia}</p>
+                    </div>
+                  )}
+                </div>
+              ) : passo.conteudo_md && (
                 <div className="rounded-lg bg-muted/[0.04] border border-border/40 px-3.5 py-3">
                   <FormattedText content={passo.conteudo_md} />
                 </div>
@@ -90,6 +105,85 @@ export function TarefaCard({ passo, onToggle, onToggleSub, defaultOpen = false }
               )}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tabela de tarefas (plano de ação mensal — espelha o layout do .md) ────────
+
+export function TarefaTableRow({ passo, onToggle }: {
+  passo: JornadaPasso;
+  onToggle: (id: string, v: boolean) => void;
+}) {
+  const navigate = useNavigate();
+  return (
+    <div className={cn(
+      'grid grid-cols-[minmax(220px,1.2fr)_110px_110px_minmax(200px,1.3fr)_minmax(180px,1.2fr)] gap-x-5 px-5 py-4 transition-colors',
+      passo.concluido ? 'bg-emerald-500/[0.03]' : 'hover:bg-muted/[0.03]'
+    )}>
+      <div className="flex items-start gap-2.5 min-w-0">
+        <button onClick={() => onToggle(passo.id, !passo.concluido)} className="mt-0.5 shrink-0 focus:outline-none">
+          {passo.concluido ? <CheckCircle2 className="h-[18px] w-[18px] text-emerald-500" /> : <Circle className="h-[18px] w-[18px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors" />}
+        </button>
+        <div className="min-w-0">
+          <p className={cn('text-[13px] font-medium leading-snug', passo.concluido ? 'text-muted-foreground line-through' : 'text-foreground')}>{passo.titulo}</p>
+          {passo.tipo === 'material' && (
+            passo.material_id && passo.meus_materiais ? (
+              <button onClick={() => navigate('/crm/materiais')} className="mt-1.5 inline-flex items-center gap-1 text-[10.5px] font-medium text-violet-600 hover:text-violet-700">
+                <FileText className="h-3 w-3" /> Abrir material
+              </button>
+            ) : (
+              <button onClick={() => navigate(buildMaterialDeepLink(passo))} className="mt-1.5 inline-flex items-center gap-1 text-[10.5px] font-medium text-foreground hover:text-foreground/70">
+                <Sparkles className="h-3 w-3" /> Construir com o Athos
+              </button>
+            )
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-start">
+        {passo.categoria && (
+          <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+            {categoriaLabel(passo.categoria)}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-start">
+        {passo.prioridade && (
+          <span className={cn('inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md border', PRIORIDADE_BADGE[passo.prioridade])}>
+            <span className={cn('w-1.5 h-1.5 rounded-full', PRIORIDADE_DOT[passo.prioridade])} />
+            {prioridadeLabel(passo.prioridade)}
+          </span>
+        )}
+      </div>
+
+      <p className="text-[12px] text-foreground/75 leading-relaxed">{passo.motivo ?? '—'}</p>
+      <p className="text-[12px] text-foreground/75 leading-relaxed italic">{passo.evidencia ?? '—'}</p>
+    </div>
+  );
+}
+
+export function TarefaTable({ passos, onToggle }: {
+  passos: JornadaPasso[];
+  onToggle: (id: string, v: boolean) => void;
+}) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <div className="min-w-[900px]">
+          <div className="grid grid-cols-[minmax(220px,1.2fr)_110px_110px_minmax(200px,1.3fr)_minmax(180px,1.2fr)] gap-x-5 px-5 py-2.5 bg-muted/[0.04] border-b border-border/40">
+            <p className="text-[9.5px] font-bold uppercase tracking-widest text-muted-foreground/50">Ação</p>
+            <p className="text-[9.5px] font-bold uppercase tracking-widest text-muted-foreground/50">Categoria</p>
+            <p className="text-[9.5px] font-bold uppercase tracking-widest text-muted-foreground/50">Prioridade</p>
+            <p className="text-[9.5px] font-bold uppercase tracking-widest text-muted-foreground/50">Por que existe</p>
+            <p className="text-[9.5px] font-bold uppercase tracking-widest text-muted-foreground/50">Como se sabe que foi feita</p>
+          </div>
+          <div className="divide-y divide-border/30">
+            {passos.map(p => <TarefaTableRow key={p.id} passo={p} onToggle={onToggle} />)}
+          </div>
         </div>
       </div>
     </div>
