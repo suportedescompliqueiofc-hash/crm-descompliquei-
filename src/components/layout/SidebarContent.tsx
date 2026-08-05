@@ -125,6 +125,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
       { isSeparator: true, title: "Aprendizado" },
       { title: "Arsenal", icon: Swords, path: "/plataforma/arsenal" },
       { title: "Plano de Ação", icon: Route, path: "/plataforma/jornada" },
+      { title: "Materiais", icon: FileText, path: "/crm/materiais", accessKey: 'acesso_materiais' as const },
       { title: "Notas", icon: NotebookText, path: "/crm/notas", accessKey: 'acesso_materiais' as const },
       { title: "Sessões Táticas", icon: Calendar, path: "/plataforma/sessoes-taticas", accessKey: 'acesso_sessoes_taticas' as const },
     ] : []),
@@ -188,6 +189,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     '/plataforma/athos-gs':    'athos_gs',
     '/plataforma/arsenal':     'arsenal',
     '/plataforma/jornada':     'jornada',
+    '/crm/materiais':          'notas',
     '/crm/notas':              'notas',
     '/plataforma/sessoes-taticas': 'sessoes_taticas',
   };
@@ -259,6 +261,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     // Plataforma
     '/plataforma': 'sidebar-hub',
     '/plataforma/arsenal': 'sidebar-arsenal',
+    '/crm/materiais': 'sidebar-materiais',
     '/crm/notas': 'sidebar-notas',
     '/plataforma/sessoes-taticas': 'sidebar-sessoes',
     '/plataforma/athos-gs': 'sidebar-os',

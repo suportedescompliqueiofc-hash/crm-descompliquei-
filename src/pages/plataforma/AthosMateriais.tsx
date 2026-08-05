@@ -263,15 +263,15 @@ export default function AthosMateriais() {
 
       {/* DIALOG VER/EDITAR/CRIAR */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
-          <div className={cn("h-1.5 w-full shrink-0", materialCategoriaCor(draft.categoria))} />
-          <div className="px-6 pt-5">
+        <DialogContent className="max-w-4xl w-[92vw] max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <div className={cn("h-2 w-full shrink-0", materialCategoriaCor(draft.categoria))} />
+          <div className="px-8 pt-6">
             <DialogHeader>
-              <DialogTitle className="font-display">{draft.id ? "Editar material" : "Novo material"}</DialogTitle>
+              <DialogTitle className="font-display text-xl">{draft.id ? "Editar material" : "Novo material"}</DialogTitle>
             </DialogHeader>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-4 px-6 py-4">
+          <div className="flex-1 overflow-y-auto space-y-5 px-8 py-5">
             {draft.id && (
               <button
                 type="button"
@@ -299,11 +299,11 @@ export default function AthosMateriais() {
               </button>
             )}
 
-            <div className="grid grid-cols-[1fr_auto] gap-3">
+            <div className="grid grid-cols-[1fr_240px] gap-4">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Título</label>
                 <Input
-                  className="h-10 text-sm rounded-lg border-border/60"
+                  className="h-11 text-base font-display rounded-lg border-border/60"
                   value={draft.titulo}
                   onChange={(e) => setDraft((d) => ({ ...d, titulo: e.target.value }))}
                   placeholder="Ex: Oferta âncora — Consulta de avaliação"
@@ -312,7 +312,7 @@ export default function AthosMateriais() {
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Categoria</label>
                 <Select value={draft.categoria} onValueChange={(v) => setDraft((d) => ({ ...d, categoria: v as MaterialCategoria }))}>
-                  <SelectTrigger className="h-10 w-[200px] text-sm rounded-lg border-border/60">
+                  <SelectTrigger className="h-11 w-full text-sm rounded-lg border-border/60">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -351,27 +351,29 @@ export default function AthosMateriais() {
                   <Loader2 className="h-4 w-4 animate-spin" /> Carregando conteúdo...
                 </div>
               ) : mode === "previa" ? (
-                <div className="rounded-lg border border-border/60 overflow-hidden bg-background">
-                  <div className="px-4 py-3 max-h-[52vh] overflow-y-auto">
+                <div className="rounded-xl border border-border/60 overflow-hidden bg-muted/[0.06]">
+                  <div className="max-h-[58vh] overflow-y-auto px-6 py-6 sm:px-10 sm:py-8">
                     {conteudoInicial.replace(/<[^>]*>/g, "").trim()
-                      ? <div className={PROSE_STYLES} dangerouslySetInnerHTML={{ __html: conteudoInicial }} />
-                      : <p className="text-[12px] text-muted-foreground/40 italic">Este material ainda está vazio. Clique em Editar para escrever.</p>}
+                      ? <div className={PROSE_STYLES + " max-w-2xl mx-auto bg-background rounded-lg border border-border/40 px-8 py-8 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"} dangerouslySetInnerHTML={{ __html: conteudoInicial }} />
+                      : <p className="text-[12px] text-muted-foreground/40 italic text-center">Este material ainda está vazio. Clique em Editar para escrever.</p>}
                   </div>
                 </div>
               ) : (
-                <div className="rounded-lg border border-border/60 overflow-hidden">
+                <div className="rounded-xl border border-border/60 overflow-hidden">
                   <div className="border-b border-border/40 bg-muted/[0.03]">
                     <RichToolbar editor={editor} compact />
                   </div>
-                  <div className={EDITOR_STYLES}>
-                    <EditorContent editor={editor} />
+                  <div className="max-h-[58vh] overflow-y-auto bg-muted/[0.06] px-6 py-6 sm:px-10 sm:py-8">
+                    <div className={EDITOR_STYLES + " max-w-2xl mx-auto bg-background rounded-lg border border-border/40 px-8 py-8 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"}>
+                      <EditorContent editor={editor} />
+                    </div>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          <DialogFooter className="gap-2 px-6 pb-5 pt-2 shrink-0">
+          <DialogFooter className="gap-2 px-8 pb-6 pt-3 shrink-0">
             {draft.id && (
               <Button
                 variant="ghost"
