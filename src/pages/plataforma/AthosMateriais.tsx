@@ -15,14 +15,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { FileText, Sparkles, Plus, Loader2, Trash2, FolderOpen, Search, Eye, Pencil, MessageSquarePlus, CheckCircle2 } from "lucide-react";
+import { FileText, Sparkles, Plus, Loader2, Trash2, FolderOpen, Search, Eye, Pencil, MessageSquarePlus, CheckCircle2, Star } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { PageHero } from "@/components/PageHero";
 
-type Draft = { id: string | null; titulo: string; categoria: MaterialCategoria; disponivelAtendimento: boolean };
-const EMPTY: Draft = { id: null, titulo: "", categoria: "outro", disponivelAtendimento: false };
+type Draft = { id: string | null; titulo: string; categoria: MaterialCategoria; disponivelAtendimento: boolean; padraoClinica: boolean };
+const EMPTY: Draft = { id: null, titulo: "", categoria: "outro", disponivelAtendimento: false, padraoClinica: false };
 
 export default function AthosMateriais() {
   const navigate = useNavigate();
@@ -36,6 +36,7 @@ export default function AthosMateriais() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [filtroCategoria, setFiltroCategoria] = useState<string>("todos");
+  const [aba, setAba] = useState<"todos" | "padrao">("todos");
 
   const editor = useEditor({
     extensions: getRichExtensions(),
@@ -61,22 +62,25 @@ export default function AthosMateriais() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materiaisTodos, searchParams]);
 
+  const materiaisPadrao = useMemo(() => materiaisTodos.filter((m) => m.padrao_clinica), [materiaisTodos]);
+  const materiaisNaAba = aba === "padrao" ? materiaisPadrao : materiaisTodos;
+
   const contagemPorCategoria = useMemo(() => {
     const map = new Map<string, number>();
-    for (const m of materiaisTodos) map.set(m.categoria ?? "outro", (map.get(m.categoria ?? "outro") ?? 0) + 1);
+    for (const m of materiaisNaAba) map.set(m.categoria ?? "outro", (map.get(m.categoria ?? "outro") ?? 0) + 1);
     return map;
-  }, [materiaisTodos]);
+  }, [materiaisNaAba]);
 
   const materiais = useMemo(() => {
-    return materiaisTodos.filter((m) => {
+    return materiaisNaAba.filter((m) => {
       const matchCategoria = filtroCategoria === "todos" || (m.categoria ?? "outro") === filtroCategoria;
       const matchBusca = !busca.trim() || m.titulo.toLowerCase().includes(busca.trim().toLowerCase());
       return matchCategoria && matchBusca;
     });
-  }, [materiaisTodos, filtroCategoria, busca]);
+  }, [materiaisNaAba, filtroCategoria, busca]);
 
   async function openMaterial(m: MeuMaterialListItem) {
-    setDraft({ id: m.id, titulo: m.titulo, categoria: (m.categoria as MaterialCategoria) ?? "outro", disponivelAtendimento: m.disponivel_atendimento });
+    setDraft({ id: m.id, titulo: m.titulo, categoria: (m.categoria as MaterialCategoria) ?? "outro", disponivelAtendimento: m.disponivel_atendimento, padraoClinica: m.padrao_clinica });
     setConteudoInicial("");
     setMode("previa"); // material existente abre em leitura, como o cliente vê
     setOpen(true);
@@ -102,10 +106,10 @@ export default function AthosMateriais() {
     if (!draft.titulo.trim()) { toast.error("Dê um título ao material."); return; }
     const conteudo = editor?.getHTML() ?? "";
     if (draft.id) {
-      await update.mutateAsync({ id: draft.id, titulo: draft.titulo, conteudo, categoria: draft.categoria });
+      await update.mutateAsync({ id: draft.id, titulo: draft.titulo, conteudo, categoria: draft.categoria, padrao_clinica: draft.padraoClinica });
       toast.success("Material salvo.");
     } else {
-      await create.mutateAsync({ titulo: draft.titulo, conteudo, categoria: draft.categoria });
+      await create.mutateAsync({ titulo: draft.titulo, conteudo, categoria: draft.categoria, padrao_clinica: draft.padraoClinica });
       toast.success("Material criado.");
     }
     setOpen(false);
@@ -117,6 +121,14 @@ export default function AthosMateriais() {
     setDraft((d) => ({ ...d, disponivelAtendimento: novoValor }));
     toggleAtendimento.mutate({ id: draft.id, disponivel_atendimento: novoValor });
     toast.success(novoValor ? "Adicionado à conversa." : "Removido da conversa.");
+  }
+
+  function togglePadrao() {
+    if (!draft.id) return;
+    const novoValor = !draft.padraoClinica;
+    setDraft((d) => ({ ...d, padraoClinica: novoValor }));
+    update.mutate({ id: draft.id, padrao_clinica: novoValor });
+    toast.success(novoValor ? "Marcado como padrão da clínica." : "Removido dos padrões da clínica.");
   }
 
   async function handleDelete() {
@@ -152,7 +164,34 @@ export default function AthosMateriais() {
         }
       />
 
-      {materiaisTodos.length > 0 && (
+      {/* ABAS: Todos os materiais / Padrão da clínica */}
+      <div className="inline-flex bg-muted/40 rounded-xl p-1 gap-0.5">
+        <button
+          onClick={() => { setAba("todos"); setFiltroCategoria("todos"); }}
+          className={cn(
+            "px-3.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all",
+            aba === "todos" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Todos os materiais
+        </button>
+        <button
+          onClick={() => { setAba("padrao"); setFiltroCategoria("todos"); }}
+          className={cn(
+            "px-3.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all inline-flex items-center gap-1.5",
+            aba === "padrao" ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Star className="h-3 w-3" /> Padrão da clínica ({materiaisPadrao.length})
+        </button>
+      </div>
+      {aba === "padrao" && (
+        <p className="text-[11px] text-muted-foreground/60 -mt-2">
+          Materiais que valem para qualquer mês, independente do plano de ação em curso — hoje, o padrão recomendado é ter um de <strong>Quebra de Objeção</strong> e um de <strong>Script de Atendimento</strong>.
+        </p>
+      )}
+
+      {materiaisNaAba.length > 0 && (
         <div className="space-y-3">
           {/* BUSCA */}
           <div className="relative max-w-sm">
@@ -176,7 +215,7 @@ export default function AthosMateriais() {
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               )}
             >
-              Todos ({materiaisTodos.length})
+              Todos ({materiaisNaAba.length})
             </button>
             {MATERIAL_CATEGORIAS.map((cat) => {
               const count = contagemPorCategoria.get(cat.value) ?? 0;
@@ -205,14 +244,18 @@ export default function AthosMateriais() {
         <div className="flex items-center justify-center py-24 text-muted-foreground gap-2">
           <Loader2 className="h-5 w-5 animate-spin" /> <span className="text-sm">Carregando...</span>
         </div>
-      ) : materiaisTodos.length === 0 ? (
+      ) : materiaisNaAba.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="p-3 rounded-xl bg-muted/40 mb-3">
-            <FolderOpen className="h-6 w-6 text-muted-foreground/40" />
+            {aba === "padrao" ? <Star className="h-6 w-6 text-muted-foreground/40" /> : <FolderOpen className="h-6 w-6 text-muted-foreground/40" />}
           </div>
-          <p className="text-sm font-medium text-muted-foreground">Nenhum material ainda</p>
+          <p className="text-sm font-medium text-muted-foreground">
+            {aba === "padrao" ? "Nenhum material padrão ainda" : "Nenhum material ainda"}
+          </p>
           <p className="text-[11px] text-muted-foreground/50 mt-0.5 max-w-xs">
-            Peça ao Athos para construir uma oferta, um script ou um processo comercial — ele salva aqui.
+            {aba === "padrao"
+              ? "Marque um material existente como \"Padrão da clínica\" (ex.: Quebra de Objeção, Script de Atendimento) ou crie um novo já marcado."
+              : "Peça ao Athos para construir uma oferta, um script ou um processo comercial — ele salva aqui."}
           </p>
           <Button
             onClick={() => navigate("/plataforma/athos-gs?acao=criar-material")}
@@ -241,6 +284,11 @@ export default function AthosMateriais() {
                     <FileText className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="flex items-center gap-1.5">
+                    {m.padrao_clinica && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                        <Star className="h-2.5 w-2.5" /> Padrão
+                      </span>
+                    )}
                     {m.disponivel_atendimento && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded">
                         <CheckCircle2 className="h-2.5 w-2.5" /> Na conversa
@@ -272,6 +320,27 @@ export default function AthosMateriais() {
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-5 px-8 py-5">
+            <button
+              type="button"
+              onClick={() => (draft.id ? togglePadrao() : setDraft((d) => ({ ...d, padraoClinica: !d.padraoClinica })))}
+              className={cn(
+                "flex items-center gap-2.5 w-full text-left rounded-xl border px-3.5 py-2.5 transition-colors",
+                draft.padraoClinica
+                  ? "border-amber-200 bg-amber-50 hover:bg-amber-100/70"
+                  : "border-border/60 bg-muted/20 hover:bg-muted/40"
+              )}
+            >
+              <Star className={cn("h-4 w-4 shrink-0", draft.padraoClinica ? "text-amber-600" : "text-muted-foreground")} />
+              <div className="min-w-0">
+                <p className={cn("text-[12.5px] font-medium", draft.padraoClinica ? "text-amber-700" : "text-foreground")}>
+                  {draft.padraoClinica ? "Padrão da clínica" : "Marcar como padrão da clínica"}
+                </p>
+                <p className="text-[10.5px] text-muted-foreground/60 mt-0.5">
+                  Vale para qualquer mês, independente do plano de ação em curso — não é substituído quando o plano muda.
+                </p>
+              </div>
+            </button>
+
             {draft.id && (
               <button
                 type="button"

@@ -18,12 +18,14 @@ export interface MeuMaterial {
   categoria: string | null;
   criado_manualmente: boolean;
   disponivel_atendimento: boolean;
+  /** Material padrão da clínica (ex.: quebra de objeção, script de atendimento) — vale para qualquer mês, distinto do material gerado junto de um plano de ação mensal específico. */
+  padrao_clinica: boolean;
   created_at: string;
   updated_at: string;
 }
 export type MeuMaterialListItem = Omit<MeuMaterial, "conteudo">;
 
-const LIST_COLS = "id, titulo, categoria, criado_manualmente, disponivel_atendimento, created_at, updated_at";
+const LIST_COLS = "id, titulo, categoria, criado_manualmente, disponivel_atendimento, padrao_clinica, created_at, updated_at";
 
 export function useAthosMateriais() {
   const { user } = useAuth();
@@ -57,11 +59,11 @@ export function useAthosMateriais() {
   }
 
   const create = useMutation({
-    mutationFn: async (input: { titulo: string; conteudo: string; categoria: string }) => {
+    mutationFn: async (input: { titulo: string; conteudo: string; categoria: string; padrao_clinica?: boolean }) => {
       if (!userId) throw new Error("Usuário não encontrado");
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("meus_materiais")
-        .insert({ user_id: userId, titulo: input.titulo, conteudo: input.conteudo, categoria: input.categoria, criado_manualmente: true })
+        .insert({ user_id: userId, titulo: input.titulo, conteudo: input.conteudo, categoria: input.categoria, padrao_clinica: input.padrao_clinica ?? false, criado_manualmente: true })
         .select("id")
         .single();
       if (error) throw error;
@@ -72,7 +74,7 @@ export function useAthosMateriais() {
   });
 
   const update = useMutation({
-    mutationFn: async (input: { id: string; titulo?: string; conteudo?: string; categoria?: string; disponivel_atendimento?: boolean }) => {
+    mutationFn: async (input: { id: string; titulo?: string; conteudo?: string; categoria?: string; disponivel_atendimento?: boolean; padrao_clinica?: boolean }) => {
       const { id, ...rest } = input;
       const { error } = await (supabase as any)
         .from("meus_materiais")
