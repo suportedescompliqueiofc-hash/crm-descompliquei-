@@ -6,10 +6,13 @@ import { toast } from "sonner";
 /**
  * Materiais/ferramentas comerciais do cliente — construídos com o Athos ou manualmente.
  *
- * Fonte: tabela `meus_materiais` (user-scoped, `user_id = auth.uid()`) — a MESMA que o copiloto
- * Athos (`descompliquei-os`) já popula via a tool `criar_material` e que o antigo "Meus Materiais"
- * lê. Assim a nova área premium mostra o que o Athos cria SEM tocar em nenhuma edge function.
- * O doc de diagnóstico (`categoria = 'diagnostico'`) é excluído — é um doc de sistema à parte.
+ * Fonte: tabela `meus_materiais` (RLS escopada por organização, ver policy "Meus materiais
+ * select por organizacao" — necessária para a impersonação via "Acessar CRM" funcionar, já
+ * que ela só troca `perfis.organization_id` do admin master, nunca a sessão de auth) — a MESMA
+ * tabela que o copiloto Athos (`descompliquei-os`) já popula via a tool `criar_material` e que
+ * o antigo "Meus Materiais" lê. Assim a nova área premium mostra o que o Athos cria SEM tocar
+ * em nenhuma edge function. O doc de diagnóstico (`categoria = 'diagnostico'`) é excluído — é
+ * um doc de sistema à parte.
  */
 export interface MeuMaterial {
   id: string;
@@ -37,10 +40,13 @@ export function useAthosMateriais() {
     queryKey: ["meus-materiais", userId],
     enabled: !!userId,
     queryFn: async (): Promise<MeuMaterialListItem[]> => {
+      // Sem filtro explícito por user_id: a RLS de `meus_materiais` já escopa
+      // por organização (mesmo padrão de `jornadas`), o que é o que faz a
+      // impersonação ("Acessar CRM") funcionar aqui — filtrar client-side por
+      // `auth.uid()` mostraria os materiais do admin master, não os do cliente.
       const { data, error } = await (supabase as any)
         .from("meus_materiais")
         .select(LIST_COLS)
-        .eq("user_id", userId!)
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return ((data ?? []) as MeuMaterialListItem[]).filter((m) => m.categoria !== "diagnostico");
@@ -118,10 +124,12 @@ export function useMeusMateriaisAtendimento() {
     queryKey: ["meus-materiais-atendimento", userId],
     enabled: !!userId,
     queryFn: async (): Promise<(MeuMaterialListItem & { conteudo: string })[]> => {
+      // Mesmo raciocínio do `list` acima: sem `.eq("user_id", ...)`, a RLS
+      // por organização decide — necessário para o painel de materiais da
+      // conversa também funcionar durante impersonação.
       const { data, error } = await (supabase as any)
         .from("meus_materiais")
         .select(`${LIST_COLS}, conteudo`)
-        .eq("user_id", userId!)
         .eq("disponivel_atendimento", true)
         .order("titulo", { ascending: true });
       if (error) throw error;
