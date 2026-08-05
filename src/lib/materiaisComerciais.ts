@@ -18,3 +18,18 @@ export type MaterialCategoria = (typeof MATERIAL_CATEGORIAS)[number]["value"];
 export function materialCategoriaLabel(categoria: string | null): string {
   return MATERIAL_CATEGORIAS.find((c) => c.value === categoria)?.label ?? "Sem categoria";
 }
+
+/** Cor de faixa da "capa" por categoria — usada no card e no topo do material aberto. */
+export const MATERIAL_CATEGORIA_COR: Record<string, string> = {
+  script_atendimento: "bg-sky-500",
+  estrutura_processo: "bg-violet-500",
+  quebra_objecao: "bg-rose-500",
+  oferta: "bg-emerald-500",
+  followup_reativacao: "bg-amber-500",
+  otimizacao_comercial: "bg-indigo-500",
+  outro: "bg-slate-400",
+};
+
+export function materialCategoriaCor(categoria: string | null): string {
+  return MATERIAL_CATEGORIA_COR[categoria ?? "outro"] ?? MATERIAL_CATEGORIA_COR.outro;
+}

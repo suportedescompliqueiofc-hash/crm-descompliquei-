@@ -17,12 +17,13 @@ export interface MeuMaterial {
   conteudo: string;
   categoria: string | null;
   criado_manualmente: boolean;
+  disponivel_atendimento: boolean;
   created_at: string;
   updated_at: string;
 }
 export type MeuMaterialListItem = Omit<MeuMaterial, "conteudo">;
 
-const LIST_COLS = "id, titulo, categoria, criado_manualmente, created_at, updated_at";
+const LIST_COLS = "id, titulo, categoria, criado_manualmente, disponivel_atendimento, created_at, updated_at";
 
 export function useAthosMateriais() {
   const { user } = useAuth();
@@ -34,7 +35,7 @@ export function useAthosMateriais() {
     queryKey: ["meus-materiais", userId],
     enabled: !!userId,
     queryFn: async (): Promise<MeuMaterialListItem[]> => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("meus_materiais")
         .select(LIST_COLS)
         .eq("user_id", userId!)
@@ -71,9 +72,9 @@ export function useAthosMateriais() {
   });
 
   const update = useMutation({
-    mutationFn: async (input: { id: string; titulo?: string; conteudo?: string; categoria?: string }) => {
+    mutationFn: async (input: { id: string; titulo?: string; conteudo?: string; categoria?: string; disponivel_atendimento?: boolean }) => {
       const { id, ...rest } = input;
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("meus_materiais")
         .update({ ...rest, updated_at: new Date().toISOString() })
         .eq("id", id);
@@ -81,6 +82,18 @@ export function useAthosMateriais() {
     },
     onSuccess: invalidate,
     onError: (e: unknown) => toast.error("Erro ao salvar material: " + String(e)),
+  });
+
+  const toggleAtendimento = useMutation({
+    mutationFn: async (input: { id: string; disponivel_atendimento: boolean }) => {
+      const { error } = await (supabase as any)
+        .from("meus_materiais")
+        .update({ disponivel_atendimento: input.disponivel_atendimento })
+        .eq("id", input.id);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+    onError: (e: unknown) => toast.error("Erro ao atualizar: " + String(e)),
   });
 
   const remove = useMutation({
@@ -92,5 +105,25 @@ export function useAthosMateriais() {
     onError: (e: unknown) => toast.error("Erro ao excluir material: " + String(e)),
   });
 
-  return { list, getConteudo, create, update, remove };
+  return { list, getConteudo, create, update, remove, toggleAtendimento };
+}
+
+/** Materiais marcados como disponíveis durante o atendimento (painel da conversa). */
+export function useMeusMateriaisAtendimento() {
+  const { user } = useAuth();
+  const userId = user?.id;
+  return useQuery({
+    queryKey: ["meus-materiais-atendimento", userId],
+    enabled: !!userId,
+    queryFn: async (): Promise<(MeuMaterialListItem & { conteudo: string })[]> => {
+      const { data, error } = await (supabase as any)
+        .from("meus_materiais")
+        .select(`${LIST_COLS}, conteudo`)
+        .eq("user_id", userId!)
+        .eq("disponivel_atendimento", true)
+        .order("titulo", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as (MeuMaterialListItem & { conteudo: string })[];
+    },
+  });
 }

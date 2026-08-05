@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { useAthosMateriais, type MeuMaterialListItem } from "@/hooks/useAthosMateriais";
 import { getRichExtensions, EDITOR_STYLES, PROSE_STYLES, RichToolbar } from "@/components/editor/RichEditor";
-import { MATERIAL_CATEGORIAS, materialCategoriaLabel, type MaterialCategoria } from "@/lib/materiaisComerciais";
+import {
+  MATERIAL_CATEGORIAS, materialCategoriaLabel, materialCategoriaCor, type MaterialCategoria,
+} from "@/lib/materiaisComerciais";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,19 +15,19 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { FileText, Sparkles, Plus, Loader2, Trash2, FolderOpen, Search, Eye, Pencil } from "lucide-react";
+import { FileText, Sparkles, Plus, Loader2, Trash2, FolderOpen, Search, Eye, Pencil, MessageSquarePlus, CheckCircle2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { PageHero } from "@/components/PageHero";
 
-type Draft = { id: string | null; titulo: string; categoria: MaterialCategoria };
-const EMPTY: Draft = { id: null, titulo: "", categoria: "outro" };
+type Draft = { id: string | null; titulo: string; categoria: MaterialCategoria; disponivelAtendimento: boolean };
+const EMPTY: Draft = { id: null, titulo: "", categoria: "outro", disponivelAtendimento: false };
 
 export default function AthosMateriais() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { list, getConteudo, create, update, remove } = useAthosMateriais();
+  const { list, getConteudo, create, update, remove, toggleAtendimento } = useAthosMateriais();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [conteudoInicial, setConteudoInicial] = useState("");
@@ -74,7 +76,7 @@ export default function AthosMateriais() {
   }, [materiaisTodos, filtroCategoria, busca]);
 
   async function openMaterial(m: MeuMaterialListItem) {
-    setDraft({ id: m.id, titulo: m.titulo, categoria: (m.categoria as MaterialCategoria) ?? "outro" });
+    setDraft({ id: m.id, titulo: m.titulo, categoria: (m.categoria as MaterialCategoria) ?? "outro", disponivelAtendimento: m.disponivel_atendimento });
     setConteudoInicial("");
     setMode("previa"); // material existente abre em leitura, como o cliente vê
     setOpen(true);
@@ -107,6 +109,14 @@ export default function AthosMateriais() {
       toast.success("Material criado.");
     }
     setOpen(false);
+  }
+
+  function toggleConversa() {
+    if (!draft.id) return;
+    const novoValor = !draft.disponivelAtendimento;
+    setDraft((d) => ({ ...d, disponivelAtendimento: novoValor }));
+    toggleAtendimento.mutate({ id: draft.id, disponivel_atendimento: novoValor });
+    toast.success(novoValor ? "Adicionado à conversa." : "Removido da conversa.");
   }
 
   async function handleDelete() {
@@ -224,14 +234,22 @@ export default function AthosMateriais() {
               onClick={() => openMaterial(m)}
               className="text-left rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden hover:bg-muted/20 transition-colors group"
             >
+              <div className={cn("h-[3px] w-full", materialCategoriaCor(m.categoria))} />
               <div className="px-5 py-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
                     <FileText className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60 bg-muted/60 px-1.5 py-0.5 rounded">
-                    {materialCategoriaLabel(m.categoria)}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {m.disponivel_atendimento && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                        <CheckCircle2 className="h-2.5 w-2.5" /> Na conversa
+                      </span>
+                    )}
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60 bg-muted/60 px-1.5 py-0.5 rounded">
+                      {materialCategoriaLabel(m.categoria)}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-sm font-semibold text-foreground leading-tight line-clamp-2 font-display">{m.titulo}</p>
                 <p className="text-[11px] text-muted-foreground/50">
@@ -245,12 +263,42 @@ export default function AthosMateriais() {
 
       {/* DIALOG VER/EDITAR/CRIAR */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="font-display">{draft.id ? "Editar material" : "Novo material"}</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+          <div className={cn("h-1.5 w-full shrink-0", materialCategoriaCor(draft.categoria))} />
+          <div className="px-6 pt-5">
+            <DialogHeader>
+              <DialogTitle className="font-display">{draft.id ? "Editar material" : "Novo material"}</DialogTitle>
+            </DialogHeader>
+          </div>
 
-          <div className="flex-1 overflow-y-auto space-y-4 py-1 pr-1">
+          <div className="flex-1 overflow-y-auto space-y-4 px-6 py-4">
+            {draft.id && (
+              <button
+                type="button"
+                onClick={toggleConversa}
+                className={cn(
+                  "flex items-center gap-2.5 w-full text-left rounded-xl border px-3.5 py-2.5 transition-colors",
+                  draft.disponivelAtendimento
+                    ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100/70"
+                    : "border-border/60 bg-muted/20 hover:bg-muted/40"
+                )}
+              >
+                {draft.disponivelAtendimento
+                  ? <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  : <MessageSquarePlus className="h-4 w-4 text-muted-foreground shrink-0" />}
+                <div className="min-w-0">
+                  <p className={cn("text-[12.5px] font-medium", draft.disponivelAtendimento ? "text-emerald-700" : "text-foreground")}>
+                    {draft.disponivelAtendimento ? "Disponível na conversa" : "Adicionar à conversa"}
+                  </p>
+                  <p className="text-[10.5px] text-muted-foreground/60 mt-0.5">
+                    {draft.disponivelAtendimento
+                      ? "Aparece no painel de materiais durante o atendimento."
+                      : "Deixa este material acessível pro atendente no painel da conversa."}
+                  </p>
+                </div>
+              </button>
+            )}
+
             <div className="grid grid-cols-[1fr_auto] gap-3">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Título</label>
@@ -323,7 +371,7 @@ export default function AthosMateriais() {
             </div>
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 px-6 pb-5 pt-2 shrink-0">
             {draft.id && (
               <Button
                 variant="ghost"

@@ -1,10 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { generateHTML } from "@tiptap/core";
-import { usePaginasAtendimento, usePaginaConteudo } from "@/hooks/usePaginas";
-import { getRichExtensions } from "@/components/editor/RichEditor";
-import { MATERIAL_CATEGORIAS, materialCategoriaLabel } from "@/lib/materiaisComerciais";
+import { useMeusMateriaisAtendimento } from "@/hooks/useAthosMateriais";
+import { MATERIAL_CATEGORIAS, materialCategoriaLabel, materialCategoriaCor } from "@/lib/materiaisComerciais";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -38,35 +36,16 @@ function stripHtml(html: string): string {
   return (div.textContent || div.innerText || "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function MaterialConteudo({ materialId }: { materialId: string }) {
-  const { data: conteudoJson, isLoading } = usePaginaConteudo(materialId);
-
-  const html = useMemo(() => {
-    if (!conteudoJson) return "";
-    try {
-      return generateHTML(conteudoJson, getRichExtensions());
-    } catch {
-      return "";
-    }
-  }, [conteudoJson]);
-
+function MaterialConteudo({ conteudo }: { conteudo: string }) {
   async function handleCopiar() {
-    if (!html) return;
-    await navigator.clipboard.writeText(stripHtml(html));
+    if (!conteudo) return;
+    await navigator.clipboard.writeText(stripHtml(conteudo));
     toast.success("Texto copiado.");
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center gap-2 text-muted-foreground text-xs py-4 justify-center">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando...
-      </div>
-    );
   }
 
   return (
     <div className="space-y-2">
-      <div className={SIDEBAR_PROSE + " break-words"} dangerouslySetInnerHTML={{ __html: html }} />
+      <div className={SIDEBAR_PROSE + " break-words"} dangerouslySetInnerHTML={{ __html: conteudo }} />
       <Button
         variant="outline"
         size="sm"
@@ -80,7 +59,7 @@ function MaterialConteudo({ materialId }: { materialId: string }) {
 }
 
 export function MaterialsSidebar({ onClose }: MaterialsSidebarProps) {
-  const { data: materiaisTodos = [], isLoading } = usePaginasAtendimento();
+  const { data: materiaisTodos = [], isLoading } = useMeusMateriaisAtendimento();
   const [busca, setBusca] = useState("");
   const [filtroCategoria, setFiltroCategoria] = useState<string>("todos");
 
@@ -157,7 +136,7 @@ export function MaterialsSidebar({ onClose }: MaterialsSidebarProps) {
               <FolderOpen className="h-5 w-5 text-muted-foreground/40" />
             </div>
             <p className="text-xs font-medium text-muted-foreground">Nenhum material ainda</p>
-            <p className="text-[10px] text-muted-foreground/50 mt-0.5">Em Notas, abra uma página e clique em "Adicionar à conversa" pra ela aparecer aqui.</p>
+            <p className="text-[10px] text-muted-foreground/50 mt-0.5">Em Materiais, abra um material e clique em "Adicionar à conversa" pra ele aparecer aqui.</p>
           </div>
         ) : materiais.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center px-3">
@@ -166,15 +145,16 @@ export function MaterialsSidebar({ onClose }: MaterialsSidebarProps) {
         ) : (
           <Accordion type="single" collapsible className="w-full space-y-1.5">
             {materiais.map((m) => (
-              <AccordionItem key={m.id} value={m.id} className="border rounded-lg border-border/60 px-2.5">
-                <AccordionTrigger className="hover:no-underline py-2 text-left">
+              <AccordionItem key={m.id} value={m.id} className="border rounded-lg border-border/60 overflow-hidden">
+                <div className={cn("h-[2.5px] w-full", materialCategoriaCor(m.categoria))} />
+                <AccordionTrigger className="hover:no-underline py-2 px-2.5 text-left">
                   <div className="min-w-0 flex-1 pr-2">
                     <div className="font-medium text-xs leading-tight line-clamp-2 break-words">{m.titulo}</div>
                     <div className="text-[10px] text-muted-foreground/60 mt-0.5">{materialCategoriaLabel(m.categoria)}</div>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="pb-3">
-                  <MaterialConteudo materialId={m.id} />
+                <AccordionContent className="pb-3 px-2.5">
+                  <MaterialConteudo conteudo={m.conteudo} />
                 </AccordionContent>
               </AccordionItem>
             ))}

@@ -178,7 +178,7 @@ function MaterialAcopladoCard({ jornada }: { jornada: Jornada }) {
   if (materiais.length === 0) return null;
 
   return (
-    <div className="lg:col-span-3 rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+    <div className="rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
       <div className="px-5 py-4 border-b border-border/40 bg-muted/[0.03]">
         <div className="flex items-center gap-2">
           <span className="p-1.5 rounded-lg bg-muted"><Paperclip className="h-3.5 w-3.5 text-muted-foreground" /></span>
@@ -265,12 +265,14 @@ export default function Jornada() {
         </div>
       </div>
 
-      {/* Diagnóstico do mês + Meta do mês */}
+      {/* Diagnóstico do mês + Meta do mês + Material acoplado */}
       {(jornada.diagnostico_md || jornada.tipo === 'mensal') && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
           <DiagnosticoDoMes jornada={jornada} />
-          <MetaDoMes orgId={profile?.organization_id} />
-          <MaterialAcopladoCard jornada={jornada} />
+          <div className="lg:col-span-1 space-y-4">
+            <MetaDoMes orgId={profile?.organization_id} />
+            <MaterialAcopladoCard jornada={jornada} />
+          </div>
         </div>
       )}
 
