@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Loader2, Route, ClipboardList } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -24,6 +24,9 @@ function jornadaLabel(j: Jornada): string {
 
 const PRIORIDADES_ORDEM = ['critica', 'importante', 'manutencao'] as const;
 const CATEGORIAS_ORDEM = ['tarefa', 'pratica'] as const;
+const PRIORIDADE_PESO: Record<string, number> = { critica: 0, importante: 1, manutencao: 2 };
+
+type FiltroCategoria = 'todas' | 'tarefa' | 'pratica';
 
 function LegendaTags() {
   return (
@@ -64,6 +67,7 @@ export default function JornadaEstagioPage() {
   const { data: jornadas, isLoading } = useJornadas();
   const marcar = useMarcarPassoConcluido();
   const marcarSub = useMarcarSubtarefa();
+  const [filtroCategoria, setFiltroCategoria] = useState<FiltroCategoria>('todas');
 
   const found = useMemo(() => {
     if (!jornadas) return null;
@@ -95,6 +99,13 @@ export default function JornadaEstagioPage() {
   const isDone = total > 0 && done === total;
   const passos = estagio.jornada_passos ?? [];
   const isPlanoDeAcao = passos.some(p => !!p.categoria);
+
+  const passosOrdenados = useMemo(() => {
+    return [...passos].sort((a, b) => (PRIORIDADE_PESO[a.prioridade ?? ''] ?? 9) - (PRIORIDADE_PESO[b.prioridade ?? ''] ?? 9));
+  }, [passos]);
+  const passosFiltrados = filtroCategoria === 'todas' ? passosOrdenados : passosOrdenados.filter(p => p.categoria === filtroCategoria);
+  const contagemTarefa = passos.filter(p => p.categoria === 'tarefa').length;
+  const contagemPratica = passos.filter(p => p.categoria === 'pratica').length;
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-5">
@@ -138,9 +149,30 @@ export default function JornadaEstagioPage() {
 
       {passos.length > 0 && <LegendaTags />}
 
+      {passos.length > 0 && isPlanoDeAcao && (contagemTarefa > 0 && contagemPratica > 0) && (
+        <div className="inline-flex items-center gap-1 bg-muted/40 rounded-xl p-1 w-fit">
+          {([
+            ['todas', `Todas (${passos.length})`],
+            ['tarefa', `Tarefa (${contagemTarefa})`],
+            ['pratica', `Orientação (${contagemPratica})`],
+          ] as [FiltroCategoria, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setFiltroCategoria(key)}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors',
+                filtroCategoria === key ? 'bg-foreground text-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {passos.length > 0 ? (
         isPlanoDeAcao ? (
-          <TarefaTable passos={passos} onToggle={(id, v) => marcar.mutate({ passoId: id, concluido: v })} />
+          <TarefaTable passos={passosFiltrados} onToggle={(id, v) => marcar.mutate({ passoId: id, concluido: v })} />
         ) : (
           <div className="space-y-2.5">
             {passos.map(p => (
