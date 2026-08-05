@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { FormattedText } from '@/components/FormattedText';
 import { buildMaterialDeepLink, type JornadaPasso } from '@/hooks/useJornada';
+import { categoriaLabel, prioridadeLabel, PRIORIDADE_BADGE, PRIORIDADE_DOT } from '@/lib/planoAcaoTaxonomia';
 
 export const MATERIAL_LABELS: Record<string, string> = {
   script_atendimento: 'Script de atendimento', estrutura_processo: 'Estrutura de processo',
@@ -47,6 +48,17 @@ export function TarefaCard({ passo, onToggle, onToggleSub, defaultOpen = false }
         <div className="flex-1 min-w-0">
           <button onClick={() => hasDetails && setOpen(o => !o)} className={cn('flex items-center gap-2 flex-wrap w-full text-left', hasDetails && 'cursor-pointer')}>
             <p className={cn('text-[13px] font-medium leading-snug', passo.concluido ? 'text-muted-foreground line-through' : 'text-foreground')}>{passo.titulo}</p>
+            {passo.prioridade && (
+              <span className={cn('inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md border', PRIORIDADE_BADGE[passo.prioridade])}>
+                <span className={cn('w-1.5 h-1.5 rounded-full', PRIORIDADE_DOT[passo.prioridade])} />
+                {prioridadeLabel(passo.prioridade)}
+              </span>
+            )}
+            {passo.categoria && (
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                {categoriaLabel(passo.categoria)}
+              </span>
+            )}
             {passo.obrigatorio && <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600">Obrigatório</span>}
             {passo.tipo === 'material' && <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-600"><Sparkles className="h-2.5 w-2.5" /> Material</span>}
             {passo.jornada_subtarefas.length > 0 && <span className="text-[11px] text-muted-foreground/50 font-display tabular-nums">{subsDone}/{passo.jornada_subtarefas.length}</span>}

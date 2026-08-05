@@ -21,6 +21,8 @@ export interface JornadaPasso {
   descricao: string | null;
   ordem: number;
   tipo: 'acao_livre' | 'material' | 'ferramenta_arsenal' | 'categoria_arsenal';
+  categoria: 'tarefa' | 'pratica' | null;
+  prioridade: 'critica' | 'importante' | 'manutencao' | null;
   material_categoria: string | null;
   material_brief: string | null;
   material_id: string | null;
@@ -51,6 +53,7 @@ export interface Jornada {
   status: 'rascunho' | 'ativa' | 'concluida';
   tipo: 'onboarding' | 'mensal' | null;
   periodo_ref: string | null;
+  diagnostico_md: string | null;
   created_at: string;
   updated_at: string;
   jornada_estagios: JornadaEstagio[];
@@ -91,11 +94,11 @@ export function useJornadas() {
       const { data, error } = await (supabase as any)
         .from('jornadas')
         .select(`
-          id, titulo, status, tipo, periodo_ref, created_at, updated_at,
+          id, titulo, status, tipo, periodo_ref, diagnostico_md, created_at, updated_at,
           jornada_estagios (
             id, jornada_id, titulo, descricao, ordem, prazo_dias, data_inicio,
             jornada_passos (
-              id, titulo, conteudo_md, descricao, ordem, tipo,
+              id, titulo, conteudo_md, descricao, ordem, tipo, categoria, prioridade,
               material_categoria, material_brief, material_id, aula_id,
               prazo_dias, obrigatorio, concluido, concluido_em,
               jornada_subtarefas ( id, titulo, ordem, concluido ),

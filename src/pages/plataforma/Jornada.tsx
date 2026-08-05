@@ -1,12 +1,17 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   Route, CheckCircle2, ChevronRight,
-  Loader2, Crosshair, History,
+  Loader2, Crosshair, History, ClipboardList, Target,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useProfile } from '@/hooks/useProfile';
+import { formatBRL } from '@/lib/format';
+import { FormattedText } from '@/components/FormattedText';
 import {
   useJornadas, getJornadaProgress, getEstagioProgress,
   type Jornada, type JornadaEstagio,
@@ -63,6 +68,108 @@ function EstagioCard({ estagio, index }: { estagio: JornadaEstagio; index: numbe
   );
 }
 
+// ─── Diagnóstico do mês ─────────────────────────────────────────────────────────
+
+function DiagnosticoDoMes({ jornada }: { jornada: Jornada }) {
+  if (!jornada.diagnostico_md) return null;
+  return (
+    <div className="lg:col-span-2 rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+      <div className="px-5 py-4 border-b border-border/40 bg-muted/[0.03]">
+        <div className="flex items-center gap-2">
+          <span className="p-1.5 rounded-lg bg-muted"><ClipboardList className="h-3.5 w-3.5 text-muted-foreground" /></span>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Diagnóstico do mês</p>
+            <p className="text-[10px] text-muted-foreground/50 mt-0.5">Por que este é o foco agora</p>
+          </div>
+        </div>
+      </div>
+      <div className="px-5 py-4">
+        <FormattedText content={jornada.diagnostico_md} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Meta do mês (mini-card, reaproveita a lógica de níveis de Metas.tsx) ───────
+
+function MetaDoMes({ orgId }: { orgId: string | undefined }) {
+  const { data: meta } = useQuery({
+    queryKey: ['meta-do-mes-jornada', orgId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('vw_meta_acompanhamento')
+        .select('*')
+        .eq('organization_id', orgId!)
+        .eq('ativo', true)
+        .order('data_inicio', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!orgId,
+  });
+
+  if (!meta) return null;
+
+  const tipoMeta = meta.tipo_meta || 'simples';
+  const receitaT = Number(meta.receita_total) || 0;
+  const receitaPiso = Number(meta.meta_receita_piso) || 0;
+  const receitaAlvo = Number(meta.meta_receita) || 0;
+  const receitaSuper = Number(meta.meta_receita_super) || 0;
+  const nivelAtingido: 'none' | 'piso' | 'alvo' | 'super' =
+    tipoMeta !== 'niveis' ? 'none'
+      : receitaT >= receitaSuper && receitaSuper > 0 ? 'super'
+        : receitaT >= receitaAlvo && receitaAlvo > 0 ? 'alvo'
+          : receitaT >= receitaPiso && receitaPiso > 0 ? 'piso'
+            : 'none';
+  const nivelBadgeColor = { super: 'bg-violet-50 text-violet-700 border-violet-200', alvo: 'bg-emerald-50 text-emerald-700 border-emerald-200', piso: 'bg-amber-50 text-amber-700 border-amber-200', none: '' }[nivelAtingido];
+  const nivelLabel = { super: 'Super Meta', alvo: 'Alvo', piso: 'Piso', none: '' }[nivelAtingido];
+  const temNiveis = tipoMeta === 'niveis' && receitaSuper > 0;
+  const fill = temNiveis ? Math.min((receitaT / receitaSuper) * 100, 100) : (receitaAlvo > 0 ? Math.min((receitaT / receitaAlvo) * 100, 100) : 0);
+  const pisoPct = temNiveis ? (receitaPiso / receitaSuper) * 100 : 0;
+  const alvoPct = temNiveis ? (receitaAlvo / receitaSuper) * 100 : 0;
+  const barColor = nivelAtingido === 'super' ? '#8b5cf6' : nivelAtingido === 'alvo' ? '#10b981' : nivelAtingido === 'piso' ? '#f59e0b' : '#ef4444';
+
+  return (
+    <div className="rounded-2xl border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+      <div className="px-5 py-4 border-b border-border/40 bg-muted/[0.03]">
+        <div className="flex items-center gap-2">
+          <span className="p-1.5 rounded-lg bg-muted"><Target className="h-3.5 w-3.5 text-muted-foreground" /></span>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Meta do mês</p>
+            <p className="text-[10px] text-muted-foreground/50 mt-0.5 truncate max-w-[180px]">{meta.nome}</p>
+          </div>
+        </div>
+      </div>
+      <div className="px-5 py-4">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-2xl font-extrabold tracking-tight text-foreground font-display tabular-nums">{formatBRL(receitaT)}</p>
+          {temNiveis && nivelAtingido !== 'none' && (
+            <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-md border font-display tabular-nums shrink-0', nivelBadgeColor)}>{nivelLabel} atingida</span>
+          )}
+        </div>
+        {temNiveis ? (
+          <div className="mt-3 space-y-2">
+            <div className="relative h-2 rounded-full bg-muted/50 overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${fill}%`, backgroundColor: barColor }} />
+              <div className="absolute top-0 bottom-0 w-px bg-foreground/20" style={{ left: `${pisoPct}%` }} />
+              <div className="absolute top-0 bottom-0 w-px bg-foreground/20" style={{ left: `${alvoPct}%` }} />
+            </div>
+            <div className="flex items-center gap-2.5 text-[9px] text-muted-foreground/50 flex-wrap">
+              <span className="flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" />Piso {formatBRL(receitaPiso)}</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />Alvo {formatBRL(receitaAlvo)}</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500" />Super {formatBRL(receitaSuper)}</span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground mt-1 font-display tabular-nums">de {formatBRL(receitaAlvo)}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Empty ────────────────────────────────────────────────────────────────────
 
 function EmptyState() {
@@ -78,6 +185,7 @@ function EmptyState() {
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function Jornada() {
+  const { profile } = useProfile();
   const { data: jornadas, isLoading } = useJornadas();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -120,6 +228,14 @@ export default function Jornada() {
           </div>
         </div>
       </div>
+
+      {/* Diagnóstico do mês + Meta do mês */}
+      {(jornada.diagnostico_md || jornada.tipo === 'mensal') && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <DiagnosticoDoMes jornada={jornada} />
+          <MetaDoMes orgId={profile?.organization_id} />
+        </div>
+      )}
 
       {/* Histórico de planos de ação */}
       {jornadas && jornadas.length > 1 && (
