@@ -290,7 +290,7 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "jornada_e_materiais",
-      description: "O que o cliente está construindo na plataforma: progresso da jornada do Athos, ferramentas do Arsenal construídas e materiais criados, além de NPS e marcos atingidos.",
+      description: "O que o cliente está construindo na plataforma: progresso da jornada do Athos e materiais criados, além de NPS e marcos atingidos.",
       parameters: { type: "object", properties: { org_id: { type: "string" } }, required: ["org_id"] },
     },
   },
@@ -578,12 +578,11 @@ async function executeTool(
       const c = await findCliente(input.org_id);
       if (!c) return "Cliente não encontrado.";
       const crmUser = c.crm_user_id;
-      const [jornadaRes, matRes, aulasRes, npsRes, marcosRes] = await Promise.all([
+      const [jornadaRes, matRes, npsRes, marcosRes] = await Promise.all([
         crmUser ? supabaseAdmin.from("jornadas")
           .select("id, status, jornada_estagios(titulo, jornada_passos(concluido))")
           .eq("user_id", crmUser).order("created_at", { ascending: false }).limit(1).maybeSingle() : Promise.resolve({ data: null }),
         crmUser ? supabaseAdmin.from("meus_materiais").select("id").eq("user_id", crmUser) : Promise.resolve({ data: [] }),
-        crmUser ? supabaseAdmin.from("arsenal_aulas_progresso").select("id").eq("user_id", crmUser).eq("concluido", true) : Promise.resolve({ data: [] }),
         supabaseAdmin.from("cs_nps_responses").select("score, comentario, respondido_em").eq("client_id", c.client_id).order("respondido_em", { ascending: false }).limit(3),
         supabaseAdmin.from("cs_marcos").select("marco, atingido, atingido_em").eq("client_id", c.client_id).eq("atingido", true),
       ]);
@@ -597,7 +596,6 @@ async function executeTool(
       return JSON.stringify({
         jornada: jornadaResumo,
         ferramentas_construidas: ((matRes as any).data || []).length,
-        aulas_concluidas: ((aulasRes as any).data || []).length,
         nps: (npsRes as any).data || [],
         marcos_atingidos: ((marcosRes as any).data || []).map((m: any) => m.marco),
       });
@@ -730,7 +728,7 @@ CERTO recomendar (trabalho do CSM, ancorado na metodologia):
 Tradução gap → alavanca de CS (sempre faça esta ponte):
 - Leads sem resposta/parados → o CSM não responde; ele COACHA a rotina de atendimento do cliente (ou aciona a IA/cadência da plataforma como solução) num touchpoint.
 - Agendados sem fechar → reunião de review comercial + orientar processo de follow-up da equipe do cliente.
-- Funil travado num estágio → sessão de coaching focada naquele estágio + material/aula do Arsenal indicada.
+- Funil travado num estágio → sessão de coaching focada naquele estágio + material indicado.
 - Faturamento em queda / CRM parado → touchpoint de resgate + Playbook de Risco + eventual escalada.
 - Resultado bom → touchpoint de celebração com o dado + conversa de expansão/advocacy (QBR, indicação).
 

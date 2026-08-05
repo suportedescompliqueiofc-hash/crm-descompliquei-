@@ -164,9 +164,8 @@ export default function AdminClientePerfil() {
 
       // 3. Dados da plataforma (só se existir platform_user)
       if (puId) {
-        const [jornadaRes, aulasRes, osRes] = await Promise.all([
+        const [jornadaRes, osRes] = await Promise.all([
           supabase.from('jornadas').select('id, titulo, status').eq('user_id', puId).maybeSingle(),
-          supabase.from('arsenal_aulas_progresso').select('id', { count: 'exact', head: true }).eq('user_id', puId).eq('concluido', true),
           supabase.from('os_conversations').select('id', { count: 'exact', head: true }).eq('user_id', puId),
         ]);
 
@@ -194,14 +193,13 @@ export default function AdminClientePerfil() {
           jornada: jornadaRes.data ?? null,
           passosTotal,
           passosConcluidos,
-          aulasArsenalConcluidas: aulasRes.count || 0,
+          aulasArsenalConcluidas: 0,
           osConversas: osRes.count || 0,
         });
 
-        // 4. Dados de engajamento (diagnóstico, jornada detalhada, aulas, conversas)
-        const [diagRes, aulasDetRes, convsRes] = await Promise.all([
+        // 4. Dados de engajamento (diagnóstico, jornada detalhada, conversas)
+        const [diagRes, convsRes] = await Promise.all([
           (supabase as any).from('onboarding_diagnosticos').select('respostas').eq('user_id', puId).maybeSingle(),
-          (supabase as any).from('arsenal_aulas_progresso').select('concluido_em, arsenal_aulas(nome)').eq('user_id', puId).eq('concluido', true).order('concluido_em', { ascending: false }),
           (supabase as any).from('os_conversations').select('titulo, agente_slug, criado_em').eq('user_id', puId).order('criado_em', { ascending: false }),
         ]);
 
@@ -231,10 +229,7 @@ export default function AdminClientePerfil() {
           estagios: estagiosDetalhados,
           jornadaTitulo: jornadaRes.data?.titulo ?? null,
           jornadaStatus: jornadaRes.data?.status ?? null,
-          aulasConcluidas: (aulasDetRes.data || []).map((a: any) => ({
-            nome: a.arsenal_aulas?.nome ?? 'Aula desconhecida',
-            concluido_em: a.concluido_em,
-          })),
+          aulasConcluidas: [],
           conversas: convsRes.data || [],
         });
       }

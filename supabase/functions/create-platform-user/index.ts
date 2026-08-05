@@ -42,7 +42,7 @@ function generateWelcomeEmailHtml(opts: {
   const infoTitle = isCrmOnly ? 'O que você encontrará no CRM' : 'O que você encontrará na plataforma';
   const infoBody = isCrmOnly
     ? 'Gestão de leads &middot; Conversas WhatsApp &middot; Agendamentos &middot; Vendas e métricas comerciais.'
-    : 'Arsenal de Ferramentas &middot; Athos GS &middot; Sessões Táticas &middot; Jornada Personalizada e materiais para atrair, atender e fechar mais pacientes.';
+    : 'Athos GS &middot; Sessões Táticas &middot; Jornada Personalizada e materiais para atrair, atender e fechar mais pacientes.';
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -222,12 +222,12 @@ Deno.serve(async (req: Request) => {
     if (product_id) {
       const { data: prod, error: prodErr } = await supabaseAdmin
         .from('platform_products')
-        .select('nome, acesso_arsenal, acesso_os, acesso_sessoes_taticas, acesso_materiais')
+        .select('nome, acesso_os, acesso_sessoes_taticas, acesso_materiais')
         .eq('id', product_id)
         .maybeSingle();
       if (prodErr) console.error(`[step:fetch-product] ERROR: ${prodErr.message}`);
       productName = prod?.nome ?? null;
-      hasPlataformaAccess = !!(prod?.acesso_arsenal || prod?.acesso_os || prod?.acesso_sessoes_taticas || prod?.acesso_materiais);
+      hasPlataformaAccess = !!(prod?.acesso_os || prod?.acesso_sessoes_taticas || prod?.acesso_materiais);
       productPlan = hasPlataformaAccess ? 'pca' : 'crm';
     }
     console.log(`[step:fetch-product] productName=${productName} plan=${productPlan} hasPlataformaAccess=${hasPlataformaAccess}`);

@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   LayoutDashboard, Users, Calendar,
   ShieldCheck, ChevronRight, Menu, X, Package, MonitorSmartphone,
-  MessageSquare, LogOut, Settings, Swords, Route, Sparkles, LifeBuoy,
+  MessageSquare, LogOut, Settings, Route, Sparkles, LifeBuoy,
   Bell, ExternalLink, Clock, HeartHandshake, Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -20,7 +20,6 @@ const navItems = [
   { icon: Sparkles,        label: 'Athos Admin',      path: '/admin/athos',    badgeType: 'none' },
   { icon: Users,           label: 'Clientes',          path: '/admin/clientes',  badgeType: 'inactive_clients' },
   { icon: HeartHandshake,  label: 'Customer Success',  path: '/admin/cs',        badgeType: 'none' },
-  { icon: Swords,          label: 'Arsenal Comercial', path: '/admin/arsenal',   badgeType: 'none' },
   { icon: Calendar,        label: 'Sessões Táticas',  path: '/admin/sessoes',  badgeType: 'none' },
   { icon: Package,         label: 'Produtos',         path: '/admin/produtos',    badgeType: 'none' },
   { icon: Megaphone,       label: 'Atualizações',     path: '/admin/atualizacoes', badgeType: 'none' },

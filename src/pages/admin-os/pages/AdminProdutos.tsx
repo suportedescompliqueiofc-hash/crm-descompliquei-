@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import {
   Plus, Pencil, Power, Layers, BookOpen,
   CheckSquare2, Loader2, Trash2, Bot, MessageSquare,
-  Clock, Swords, Users, AlertTriangle, BarChart3, Settings2,
+  Clock, Users, AlertTriangle, BarChart3, Settings2,
 } from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 
@@ -26,7 +26,6 @@ interface Produto {
   preco_mensal: number;
   duracao_dias: number;
   acesso_crm: boolean;
-  acesso_arsenal: boolean;
   acesso_os: boolean;
   acesso_sessoes_taticas: boolean;
   acesso_materiais: boolean;
@@ -50,7 +49,6 @@ const EMPTY_FORM: Omit<Produto, 'id' | 'ordem_index'> = {
   preco_mensal: 0,
   duracao_dias: 30,
   acesso_crm: false,
-  acesso_arsenal: false,
   acesso_os: false,
   acesso_sessoes_taticas: false,
   acesso_materiais: false,
@@ -59,7 +57,6 @@ const EMPTY_FORM: Omit<Produto, 'id' | 'ordem_index'> = {
 
 const FUNCIONALIDADES = [
   { key: 'acesso_crm',             label: 'CRM',             desc: 'Gestão de leads e WhatsApp',               icon: MessageSquare },
-  { key: 'acesso_arsenal',         label: 'Arsenal',         desc: 'Aulas em vídeo e ferramentas comerciais',  icon: Swords },
   { key: 'acesso_os',              label: 'Athos GS',        desc: 'Agente estratégico e jornada personalizada', icon: Bot },
   { key: 'acesso_sessoes_taticas', label: 'Sessões Táticas', desc: 'Sessões de acompanhamento',                icon: CheckSquare2 },
   { key: 'acesso_materiais',       label: 'Materiais',       desc: 'Materiais complementares',                 icon: BookOpen },
@@ -343,7 +340,6 @@ export default function AdminProdutos() {
       preco_mensal: p.preco_mensal,
       duracao_dias: p.duracao_dias,
       acesso_crm: p.acesso_crm ?? false,
-      acesso_arsenal: p.acesso_arsenal ?? false,
       acesso_os: p.acesso_os ?? false,
       acesso_sessoes_taticas: p.acesso_sessoes_taticas ?? false,
       acesso_materiais: p.acesso_materiais ?? false,

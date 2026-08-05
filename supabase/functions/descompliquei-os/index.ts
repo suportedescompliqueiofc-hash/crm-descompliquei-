@@ -881,36 +881,6 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     },
   },
 
-  // ── PLATAFORMA — Arsenal ─────────────────────────────────────────────────────
-  {
-    type: "function",
-    function: {
-      name: "listar_arsenal",
-      description: "Lista as categorias e ferramentas do Arsenal. Use categoria_slug para filtrar por categoria especifica. Use busca para pesquisar por nome.",
-      parameters: {
-        type: "object",
-        properties: {
-          categoria_slug: { type: "string", description: "Slug da categoria para filtrar ferramentas (ex: 'posicionamento', 'vendas')." },
-          busca: { type: "string", description: "Texto para pesquisar no nome das ferramentas." },
-        },
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "obter_arsenal_ferramenta",
-      description: "Retorna detalhes completos de uma ferramenta do Arsenal, incluindo texto de aprendizado e template HTML para construcao. Use para mostrar o conteudo completo de uma ferramenta ao usuario.",
-      parameters: {
-        type: "object",
-        properties: {
-          ferramenta_id: { type: "string", description: "UUID da ferramenta." },
-          ferramenta_slug: { type: "string", description: "Slug da ferramenta (alternativa ao ID)." },
-        },
-      },
-    },
-  },
-
   // ── PLATAFORMA — Meus Materiais ──────────────────────────────────────────────
   {
     type: "function",
@@ -930,7 +900,7 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "criar_material",
-      description: "Cria material comercial em Meus Materiais. Conteúdo DEVE ser HTML (TipTap). Busque dado real da clínica antes de criar (ver BASE DE CONHECIMENTO COMERCIAL / CRIAÇÃO DE MATERIAIS COMERCIAIS no system prompt). NÃO precisa de nenhuma ferramenta do Arsenal nem de listar_arsenal antes — titulo, conteudo e categoria já bastam para salvar.",
+      description: "Cria material comercial em Meus Materiais. Conteúdo DEVE ser HTML (TipTap). Busque dado real da clínica antes de criar (ver BASE DE CONHECIMENTO COMERCIAL / CRIAÇÃO DE MATERIAIS COMERCIAIS no system prompt). titulo, conteudo e categoria já bastam para salvar.",
       parameters: {
         type: "object",
         properties: {
@@ -958,7 +928,6 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
           conteudo: { type: "string", description: "HTML estruturado (TipTap): <h2> título único, <h3> cada seção/objeção/passo (nunca numeração manual em <p>), <p> só texto corrido, <ul><li>/<ol><li> para listas/passos, <strong> pontual, <hr> entre seções." },
           categoria: { type: "string", enum: [...MATERIAL_CATEGORIAS] },
           ferramenta_id: { type: "string" },
-          categoria_arsenal_id: { type: "string" },
         },
         required: ["material_id"],
       },
@@ -1053,38 +1022,6 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
           pagina_id: { type: "string", description: "UUID da página a excluir." },
         },
         required: ["pagina_id"],
-      },
-    },
-  },
-
-  {
-    type: "function",
-    function: {
-      name: "atualizar_progresso_arsenal",
-      description: "Atualiza progresso do usuário em uma ferramenta do Arsenal.",
-      parameters: {
-        type: "object",
-        properties: {
-          ferramenta_id: { type: "string" },
-          status: { type: "string", enum: ["em_andamento", "concluido"] },
-        },
-        required: ["ferramenta_id", "status"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "salvar_construcao_ferramenta",
-      description: "Salva construção do usuário em uma ferramenta do Arsenal. Conteúdo DEVE ser HTML (TipTap).",
-      parameters: {
-        type: "object",
-        properties: {
-          ferramenta_id: { type: "string" },
-          titulo: { type: "string" },
-          conteudo: { type: "string", description: "HTML rico: <h2>, <p>, <strong>, <ul><li>." },
-        },
-        required: ["ferramenta_id", "conteudo"],
       },
     },
   },
@@ -2378,54 +2315,12 @@ async function executeTool(name: string, input: any, orgId: string, platformUser
         return JSON.stringify({ sucesso: true, passo_id: input.passo_id, concluido: input.concluido });
       }
 
-      // ── PLATAFORMA — Arsenal ──────────────────────────────────────────────────
-
-      case "listar_arsenal": {
-        const { data: categorias, error: catErr } = await (supabase as any)
-          .from("arsenal_categorias")
-          .select("id, nome, descricao, frase_ancora, icone, slug, ordem")
-          .order("ordem");
-        if (catErr) return JSON.stringify({ error: catErr.message });
-        let ferramentas: any[] = [];
-        if (input.categoria_slug) {
-          const cat = (categorias ?? []).find((c: any) => c.slug === input.categoria_slug);
-          if (cat) {
-            let q = (supabase as any).from("arsenal_ferramentas").select("id, nome, descricao, slug, ordem, video_url").eq("categoria_id", cat.id).eq("ativo", true).order("ordem");
-            if (input.busca) q = q.ilike("nome", `%${input.busca}%`);
-            const { data } = await q;
-            ferramentas = data ?? [];
-          }
-        } else {
-          let q = (supabase as any).from("arsenal_ferramentas").select("id, nome, descricao, slug, categoria_id, ordem").eq("ativo", true).order("ordem");
-          if (input.busca) q = q.ilike("nome", `%${input.busca}%`);
-          const { data } = await q;
-          ferramentas = data ?? [];
-        }
-        return JSON.stringify({
-          total_categorias: (categorias ?? []).length,
-          categorias: categorias ?? [],
-          total_ferramentas: ferramentas.length,
-          ferramentas,
-        });
-      }
-
-      case "obter_arsenal_ferramenta": {
-        if (!input.ferramenta_id && !input.ferramenta_slug) return JSON.stringify({ error: "Forneca ferramenta_id ou ferramenta_slug." });
-        let q = (supabase as any).from("arsenal_ferramentas").select("*, arsenal_categorias(nome, slug)");
-        if (input.ferramenta_id) q = q.eq("id", input.ferramenta_id);
-        else q = q.eq("slug", input.ferramenta_slug);
-        const { data, error } = await q.maybeSingle();
-        if (error) return JSON.stringify({ error: error.message });
-        if (!data) return JSON.stringify({ error: "Ferramenta nao encontrada." });
-        return JSON.stringify({ ferramenta: data });
-      }
-
       // ── PLATAFORMA — Meus Materiais ───────────────────────────────────────────
 
       case "listar_meus_materiais": {
         let q = (supabase as any)
           .from("meus_materiais")
-          .select("id, titulo, conteudo, categoria, categoria_arsenal_id, ferramenta_id, criado_manualmente, created_at, updated_at, arsenal_categorias(nome, slug), arsenal_ferramentas(nome)")
+          .select("id, titulo, conteudo, categoria, ferramenta_id, criado_manualmente, created_at, updated_at")
           .eq("user_id", platformUserId)
           .order("updated_at", { ascending: false })
           .limit(Math.min(input.limite ?? 30, 100));
@@ -2463,7 +2358,6 @@ async function executeTool(name: string, input: any, orgId: string, platformUser
         if (input.conteudo !== undefined) updates.conteudo = input.conteudo;
         if (input.categoria !== undefined) updates.categoria = MATERIAL_CATEGORIAS.includes(input.categoria) ? input.categoria : "outro";
         if (input.ferramenta_id !== undefined) updates.ferramenta_id = input.ferramenta_id;
-        if (input.categoria_arsenal_id !== undefined) updates.categoria_arsenal_id = input.categoria_arsenal_id;
         if (Object.keys(updates).length === 1) return JSON.stringify({ error: "Nenhum campo para atualizar." });
         const { error } = await (supabase as any)
           .from("meus_materiais")
@@ -2549,73 +2443,6 @@ async function executeTool(name: string, input: any, orgId: string, platformUser
           .eq("id", input.pagina_id);
         if (error) return JSON.stringify({ error: error.message });
         return JSON.stringify({ sucesso: true, pagina_id: input.pagina_id });
-      }
-
-      case "atualizar_progresso_arsenal": {
-        const { error } = await (supabase as any)
-          .from("arsenal_progresso")
-          .upsert(
-            { user_id: platformUserId, ferramenta_id: input.ferramenta_id, status: input.status },
-            { onConflict: "user_id,ferramenta_id" }
-          );
-        if (error) return JSON.stringify({ error: error.message });
-        return JSON.stringify({ sucesso: true, ferramenta_id: input.ferramenta_id, status: input.status });
-      }
-
-      case "salvar_construcao_ferramenta": {
-        // Busca ferramenta para obter nome (para título padrão)
-        const { data: ferr } = await (supabase as any)
-          .from("arsenal_ferramentas")
-          .select("id, nome, categoria_id")
-          .eq("id", input.ferramenta_id)
-          .maybeSingle();
-        const titulo = input.titulo ?? (ferr?.nome ? `Construção — ${ferr.nome}` : "Construção");
-
-        // Verifica se já existe material vinculado a esta ferramenta para este user
-        const { data: existing } = await (supabase as any)
-          .from("meus_materiais")
-          .select("id")
-          .eq("user_id", platformUserId)
-          .eq("ferramenta_id", input.ferramenta_id)
-          .maybeSingle();
-
-        let result: any;
-        if (existing?.id) {
-          const { data, error } = await (supabase as any)
-            .from("meus_materiais")
-            .update({ titulo, conteudo: input.conteudo, updated_at: new Date().toISOString() })
-            .eq("id", existing.id)
-            .eq("user_id", platformUserId)
-            .select("id, titulo")
-            .single();
-          if (error) return JSON.stringify({ error: error.message });
-          result = { acao: "atualizado", material: data };
-        } else {
-          const { data, error } = await (supabase as any)
-            .from("meus_materiais")
-            .insert({
-              user_id: platformUserId,
-              titulo,
-              conteudo: input.conteudo,
-              ferramenta_id: input.ferramenta_id,
-              categoria_arsenal_id: ferr?.categoria_id ?? null,
-              criado_manualmente: false,
-            })
-            .select("id, titulo")
-            .single();
-          if (error) return JSON.stringify({ error: error.message });
-          result = { acao: "criado", material: data };
-        }
-
-        // Marca ferramenta como em andamento se ainda não estava concluída
-        await (supabase as any)
-          .from("arsenal_progresso")
-          .upsert(
-            { user_id: platformUserId, ferramenta_id: input.ferramenta_id, status: "em_andamento" },
-            { onConflict: "user_id,ferramenta_id", ignoreDuplicates: true }
-          );
-
-        return JSON.stringify({ sucesso: true, ...result });
       }
 
       case "atualizar_agendamento": {
@@ -3481,7 +3308,7 @@ async function buildSystemPrompt(orgId: string, platformUserId: string): Promise
     "  - followup_reativacao: cadência de contato para leads ativos ou reativação de base parada",
     "  - otimizacao_comercial: diagnóstico do funil + plano de ajuste, amarrado a dado real do período",
     "  - outro: qualquer material comercial que não se encaixe nas categorias acima",
-    "IMPORTANTE: criar_pagina NÃO depende de nenhuma ferramenta do Arsenal — nunca chame listar_arsenal/obter_arsenal_ferramenta antes de criar um material comercial. titulo + conteudo (+ categoria quando for material comercial) já bastam. Para qualquer página que não seja material comercial, omita categoria.",
+    "IMPORTANTE: criar_pagina não depende de nenhuma outra tool antes — titulo + conteudo (+ categoria quando for material comercial) já bastam. Para qualquer página que não seja material comercial, omita categoria.",
     "",
     "## ROTEAMENTO DE FERRAMENTAS — SIGA RIGOROSAMENTE",
     "Antes de responder qualquer pedido, identifique a intenção e chame a ferramenta correta. NUNCA responda com dados inventados — sempre busque primeiro.",
@@ -3546,11 +3373,9 @@ async function buildSystemPrompt(orgId: string, platformUserId: string): Promise
     "- 'Altera o prompt da IA', 'muda o prompt base' → obter_config_ia (ler antes) → atualizar_prompt_base_ia",
     "- 'Configura a clínica na IA', 'nome do agente', 'horário', 'pagamento' → obter_config_ia → configurar_dados_clinica_ia",
     "",
-    "### PLATAFORMA (Jornada, Arsenal, Materiais)",
+    "### PLATAFORMA (Jornada, Materiais)",
     "- 'Minha jornada', 'progresso da jornada' → obter_minha_jornada",
     "- 'Marca passo como concluído' → marcar_passo_jornada",
-    "- 'Ferramentas do Arsenal', 'categorias' → listar_arsenal",
-    "- 'Detalhe da ferramenta X' → obter_arsenal_ferramenta",
     "- 'Materiais complementares' → listar_materiais_complementares | 'Ler material X' → ler_material_complementar",
     "- 'Minhas notas', 'minhas páginas', 'o que eu já tenho salvo' → listar_paginas",
     "- Pedido de material comercial → SEMPRE busque dado real primeiro (funil/leads/conversas conforme o tipo), depois chame criar_pagina com a categoria certa:",
@@ -3691,13 +3516,11 @@ const TOOL_CATEGORIES: Record<string, { tools: string[]; keywords: RegExp }> = {
   plataforma: {
     tools: [
       "obter_minha_jornada", "marcar_passo_jornada",
-      "listar_arsenal", "obter_arsenal_ferramenta",
       "listar_materiais_complementares", "ler_material_complementar",
       "listar_meus_materiais", "criar_material", "atualizar_material", "excluir_material",
       "listar_paginas", "criar_pagina", "atualizar_pagina", "mover_pagina", "excluir_pagina",
-      "atualizar_progresso_arsenal", "salvar_construcao_ferramenta",
     ],
-    keywords: /jornada|arsenal|ferramenta|material|trilha|aula|passo.*conclu|nota|p[aá]gina/i,
+    keywords: /jornada|ferramenta|material|trilha|aula|passo.*conclu|nota|p[aá]gina/i,
   },
   memoria: {
     tools: [
@@ -3906,7 +3729,7 @@ Deno.serve(async (req) => {
           const raw = String(system_prompt_override);
           if (raw.includes(DIAG_PLACEHOLDER)) {
             if (ferramenta_context) {
-              // Arsenal copiloto — injeta contexto da ferramenta em vez do diagnóstico
+              // Copiloto de ferramenta (legado) — injeta contexto da ferramenta em vez do diagnóstico
               resolvedSystemPrompt = raw.replace(DIAG_PLACEHOLDER, ferramenta_context);
             } else {
               // Onboarding agent — injeta diagnóstico do cliente

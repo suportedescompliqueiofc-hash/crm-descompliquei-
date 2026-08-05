@@ -22,20 +22,18 @@ export interface JornadaPasso {
   evidencia: string | null;
   descricao: string | null;
   ordem: number;
-  tipo: 'acao_livre' | 'material' | 'ferramenta_arsenal' | 'categoria_arsenal';
+  tipo: 'acao_livre' | 'material';
   categoria: 'tarefa' | 'pratica' | null;
   prioridade: 'critica' | 'importante' | 'manutencao' | null;
   material_categoria: string | null;
   material_brief: string | null;
   material_id: string | null;
-  aula_id: string | null;
   prazo_dias: number | null;
   obrigatorio: boolean;
   concluido: boolean;
   concluido_em: string | null;
   jornada_subtarefas: JornadaSubtarefa[];
   meus_materiais: { id: string; titulo: string } | null;
-  arsenal_aulas: { id: string; slug: string } | null;
 }
 
 export interface JornadaEstagio {
@@ -109,11 +107,10 @@ export function useJornadas() {
             id, jornada_id, titulo, descricao, ordem, prazo_dias, data_inicio,
             jornada_passos (
               id, titulo, conteudo_md, motivo, evidencia, descricao, ordem, tipo, categoria, prioridade,
-              material_categoria, material_brief, material_id, aula_id,
+              material_categoria, material_brief, material_id,
               prazo_dias, obrigatorio, concluido, concluido_em,
               jornada_subtarefas ( id, titulo, ordem, concluido ),
-              meus_materiais ( id, titulo ),
-              arsenal_aulas ( id, slug )
+              meus_materiais ( id, titulo )
             )
           )
         `)

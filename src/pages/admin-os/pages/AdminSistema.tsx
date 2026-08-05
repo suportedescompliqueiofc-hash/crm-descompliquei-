@@ -11,8 +11,6 @@ import { cn } from '@/lib/utils';
 interface DbStats {
   platform_users: number;
   jornadas: number;
-  arsenal_aulas: number;
-  arsenal_ferramentas: number;
   athos_agentes: number;
   os_conversations: number;
   platform_complementary_materials: number;
@@ -75,14 +73,12 @@ export default function AdminSistema() {
     setLoadingStats(true);
     try {
       const [
-        usersRes, jornadasRes, aulasRes, ferramentasRes,
+        usersRes, jornadasRes,
         agentesRes, conversasRes, materiaisRes,
         enabledRes, concluidoRes, completeRes,
       ] = await Promise.all([
         (supabase as any).from('platform_users').select('id', { count: 'exact', head: true }),
         (supabase as any).from('jornadas').select('id', { count: 'exact', head: true }),
-        (supabase as any).from('arsenal_aulas').select('id', { count: 'exact', head: true }).eq('ativo', true),
-        (supabase as any).from('arsenal_ferramentas').select('id', { count: 'exact', head: true }).eq('ativo', true),
         (supabase as any).from('athos_agentes').select('id', { count: 'exact', head: true }).eq('ativo', true),
         (supabase as any).from('os_conversations').select('id', { count: 'exact', head: true }),
         (supabase as any).from('platform_complementary_materials').select('id', { count: 'exact', head: true }).eq('ativo', true),
@@ -94,8 +90,6 @@ export default function AdminSistema() {
       setDbStats({
         platform_users: usersRes.count ?? 0,
         jornadas: jornadasRes.count ?? 0,
-        arsenal_aulas: aulasRes.count ?? 0,
-        arsenal_ferramentas: ferramentasRes.count ?? 0,
         athos_agentes: agentesRes.count ?? 0,
         os_conversations: conversasRes.count ?? 0,
         platform_complementary_materials: materiaisRes.count ?? 0,
@@ -188,8 +182,6 @@ export default function AdminSistema() {
                   <StatRow label="Materiais Complementares" value={dbStats.platform_complementary_materials} />
                 </div>
                 <div>
-                  <StatRow label="Aulas do Arsenal" value={dbStats.arsenal_aulas} />
-                  <StatRow label="Ferramentas do Arsenal" value={dbStats.arsenal_ferramentas} />
                   <StatRow label="Agentes do Athos" value={dbStats.athos_agentes} />
                 </div>
               </div>

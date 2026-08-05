@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, BarChart3, Settings, LogOut, ChevronLeft,
   MessageSquare, Bell, ShoppingCart, Bot, GitMerge, GitBranch, ShieldCheck,
   Calendar, Target, CalendarDays, ImagePlay, PenLine,
-  Phone, FileText, Stethoscope, Trophy, Rocket, TrendingUp, Swords, Route, UsersRound, Megaphone,
+  Phone, FileText, Stethoscope, Trophy, Rocket, TrendingUp, Route, UsersRound, Megaphone,
   NotebookText
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -82,7 +82,7 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
   // CRM é uma ÁREA entitled: só aparece se o produto liberar acesso_crm (superadmin = ACESSO_TOTAL).
   const temCrm = plataformaLoading || acesso.acesso_crm;
 
-  // Aprendizado (Arsenal/Plano de Ação/Notas/Sessões Táticas): entitlement do produto da org.
+  // Aprendizado (Plano de Ação/Notas/Sessões Táticas): entitlement do produto da org.
   // Visibilidade por membro é decidida depois, item a item, pela permissão de equipe.
   const showAprendizado = temPlataforma;
 
@@ -123,7 +123,6 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     // ── ÁREA APRENDIZADO (Plataforma) ────────────────────────────────────────
     ...(showAprendizado ? [
       { isSeparator: true, title: "Aprendizado" },
-      { title: "Arsenal", icon: Swords, path: "/plataforma/arsenal" },
       { title: "Plano de Ação", icon: Route, path: "/plataforma/jornada" },
       { title: "Materiais", icon: FileText, path: "/crm/materiais", accessKey: 'acesso_materiais' as const },
       { title: "Notas", icon: NotebookText, path: "/crm/notas", accessKey: 'acesso_materiais' as const },
@@ -187,7 +186,6 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     '/crm/atualizacoes':       'atualizacoes',
     '/crm/settings':           'configuracoes',
     '/plataforma/athos-gs':    'athos_gs',
-    '/plataforma/arsenal':     'arsenal',
     '/plataforma/jornada':     'jornada',
     '/crm/materiais':          'notas',
     '/crm/notas':              'notas',
@@ -260,7 +258,6 @@ export function SidebarContent({ isCollapsed = false, toggleCollapse }: SidebarC
     '/crm/settings': 'sidebar-settings',
     // Plataforma
     '/plataforma': 'sidebar-hub',
-    '/plataforma/arsenal': 'sidebar-arsenal',
     '/crm/materiais': 'sidebar-materiais',
     '/crm/notas': 'sidebar-notas',
     '/plataforma/sessoes-taticas': 'sidebar-sessoes',

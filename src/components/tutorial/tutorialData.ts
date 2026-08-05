@@ -1907,7 +1907,7 @@ export const tutorials: Tutorial[] = [
       {
         target: 'sidebar',
         title: 'Menu da plataforma',
-        description: 'Este é o **menu lateral** — agora **unificado**: CRM e Plataforma no mesmo lugar, sem trocar de ambiente.\n\nAs seções da plataforma ficam agrupadas por tema:\n\n• **Aprendizado** — Plano de Ação, Arsenal e Sessões Táticas\n• **Plano de Ação** — seu plano de implementação personalizado\n• **Arsenal** — ferramentas e aulas comerciais práticas\n• **Athos** — IA estratégica da sua clínica\n• **Sessões Táticas** — encontros ao vivo',
+        description: 'Este é o **menu lateral** — agora **unificado**: CRM e Plataforma no mesmo lugar, sem trocar de ambiente.\n\nAs seções da plataforma ficam agrupadas por tema:\n\n• **Aprendizado** — Plano de Ação e Sessões Táticas\n• **Plano de Ação** — seu plano de implementação personalizado\n• **Athos** — IA estratégica da sua clínica\n• **Sessões Táticas** — encontros ao vivo',
       },
       // ── 2. Visão geral ──────────────────────────────────────────────────────
       {
@@ -1915,46 +1915,39 @@ export const tutorials: Tutorial[] = [
         title: 'Sua central de comando',
         description: 'Esta é a sua **visão geral** da plataforma. Aqui você tem atalhos rápidos para todas as ferramentas do plano e acompanha o progresso geral.\n\nSempre que entrar, você começa por aqui.',
       },
-      // ── 3. Arsenal ──────────────────────────────────────────────────────────
-      {
-        target: 'arsenal-header',
-        title: 'Arsenal Comercial',
-        description: 'O **Arsenal** é a sua caixa de ferramentas comerciais — construções prontas que transformam conhecimento em ação.\n\nOrganizado por categorias:\n\n• **Estratégia de captação** — anúncios, scripts, fluxos\n• **Qualificação** — filtros, argumentos, objeções\n• **Fechamento** — propostas, follow-up, reativação\n\nCada ferramenta tem uma construção que você preenche e salva em **Meus Materiais**.',
-        action: { type: 'click' as const, selector: '[data-tutorial="sidebar-arsenal"]', delay: 600 },
-      },
-      // ── 4. Plano de Ação ──────────────────────────────────────────────────────
+      // ── 3. Plano de Ação ──────────────────────────────────────────────────────
       {
         target: 'jornada-header',
         title: 'Plano de Ação',
-        description: 'O **Plano de Ação** é o seu plano de implementação personalizado — criado pelo **Athos** com base no seu diagnóstico.\n\n• Dividido em **etapas** com prazo e passos concretos\n• Cada passo vinculado a uma **ferramenta ou aula** do Arsenal\n• Etapas desbloqueiam em sequência — conclua uma para avançar\n\n**Dica:** Siga a ordem. Cada etapa concluída desbloqueia a próxima.',
+        description: 'O **Plano de Ação** é o seu plano de implementação personalizado — criado pelo **Athos** com base no seu diagnóstico.\n\n• Dividido em **etapas** com prazo e passos concretos\n• Cada passo é uma ação concreta a executar\n• Etapas desbloqueiam em sequência — conclua uma para avançar\n\n**Dica:** Siga a ordem. Cada etapa concluída desbloqueia a próxima.',
         action: { type: 'click' as const, selector: '[data-tutorial="sidebar-jornada"]', delay: 600 },
       },
-      // ── 5. Notas ────────────────────────────────────────────────────────────
+      // ── 4. Notas ────────────────────────────────────────────────────────────
       {
         target: 'notas-shell',
         title: 'Notas',
         description: '**Notas** é onde sua equipe organiza tudo — em **pastas** e **notas**, sem bagunça de página dentro de página.\n\n• Uma **tela inicial** reúne suas pastas, as notas mais recentes e o que a empresa compartilhou\n• Crie **pastas e subpastas** ilimitadas; dentro delas ficam as notas (e notas soltas também valem)\n• Notas podem ser **pessoais** ou **compartilhadas com a empresa**\n• Tudo que o **Athos** cria pra você (scripts, ofertas, planos) é salvo aqui\n• Dentro de uma nota, use **/** pra inserir títulos, listas e tabelas, e chame o **Athos** pra continuar ou reescrever\n\nPense como o **arquivo estratégico da sua equipe**.',
         action: { type: 'click' as const, selector: '[data-tutorial="sidebar-notas"]', delay: 600 },
       },
-      // ── 6. Athos ────────────────────────────────────────────────────────────
+      // ── 5. Athos ────────────────────────────────────────────────────────────
       {
         target: 'sidebar-os',
         title: 'Athos',
         description: 'O **Athos** é a sua IA estratégica — treinada com o método Descompliquei e com os dados da sua clínica.\n\nUse para:\n\n• Tirar dúvidas sobre estratégia comercial\n• Analisar situações e tomar decisões\n• Criar materiais, scripts e planos de ação\n• Revisar o que está funcionando e o que não está\n\nO Athos conhece o seu **Diagnóstico Estratégico** — as conversas são contextualizadas para a realidade da sua clínica.',
         action: { type: 'click' as const, selector: '[data-tutorial="sidebar-os"]', delay: 600 },
       },
-      // ── 7. Sessões Táticas ──────────────────────────────────────────────────
+      // ── 6. Sessões Táticas ──────────────────────────────────────────────────
       {
         target: 'sidebar-sessoes',
         title: 'Sessões Táticas',
         description: 'As **Sessões Táticas** são encontros ao vivo com especialistas, focados em temas práticos do dia a dia comercial.\n\n• Calendário com **próximas sessões**\n• Link direto para o Google Meet\n• **Gravações** disponíveis após cada sessão\n\nParticipe ao vivo para tirar dúvidas em tempo real.',
         action: { type: 'click' as const, selector: '[data-tutorial="sidebar-sessoes"]', delay: 600 },
       },
-      // ── 8. Encerramento ─────────────────────────────────────────────────────
+      // ── 7. Encerramento ─────────────────────────────────────────────────────
       {
         target: 'sidebar',
         title: 'Tour concluído!',
-        description: 'Agora você conhece todas as seções da plataforma.\n\n**Por onde começar:**\n\n• Siga os passos do seu **Plano de Ação** — cada um tem uma ação concreta vinculada\n• Explore o **Arsenal** e complete as construções da sua clínica\n• Use o **Athos** sempre que precisar de orientação estratégica\n• Use o **CRM**, no mesmo menu, para gerenciar seus leads\n\nVocê pode refazer este tour a qualquer momento pela Central de Ajuda.',
+        description: 'Agora você conhece todas as seções da plataforma.\n\n**Por onde começar:**\n\n• Siga os passos do seu **Plano de Ação** — cada um tem uma ação concreta vinculada\n• Use o **Athos** sempre que precisar de orientação estratégica\n• Use o **CRM**, no mesmo menu, para gerenciar seus leads\n\nVocê pode refazer este tour a qualquer momento pela Central de Ajuda.',
       },
     ],
   },

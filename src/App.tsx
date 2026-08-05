@@ -94,10 +94,8 @@ import { MASTER_ORG_ID } from "./lib/constants";
 
 // Componentes da Plataforma
 import Hub from "./pages/plataforma/Hub";
-import Arsenal from "./pages/plataforma/Arsenal";
 import Jornada from "./pages/plataforma/Jornada";
 import JornadaEstagio from "./pages/plataforma/JornadaEstagio";
-import ArsenalAula from "./pages/plataforma/ArsenalAula";
 import DescompliqueiOS from "./pages/plataforma/DescompliqueiOS";
 import IAHub from "./pages/plataforma/IAHub";
 import IATipo from "./pages/plataforma/IATipo";
@@ -368,7 +366,7 @@ const App = () => (
                 <Route path="/crm/athos/:agentId" element={<AthosAgentPage />} />
                 <Route path="/crm/notas" element={<Notas />} />
                 {/* Página antiga, ainda viva: guarda o Diagnóstico Estratégico do onboarding
-                    e o espelho das construções do Arsenal (meus_materiais) — não migrados
+                    e o espelho das construções salvas em meus_materiais — não migrados
                     para "paginas" nesta fase. Fora da sidebar, mas continua acessível. */}
                 <Route path="/crm/materiais" element={<AthosMateriais />} />
                 <Route path="/crm/conversas" element={<Conversations />} />
@@ -459,8 +457,6 @@ const App = () => (
                   <Route path="/plataforma" element={<Hub />} />
                   <Route path="/plataforma/jornada" element={<Jornada />} />
                   <Route path="/plataforma/jornada/estagio/:estagioId" element={<JornadaEstagio />} />
-                  <Route path="/plataforma/arsenal" element={<Arsenal />} />
-                  <Route path="/plataforma/arsenal/aulas/:aulaSlug" element={<ArsenalAula />} />
                   <Route path="/plataforma/sessoes-taticas" element={<AcessoGuard accessKey="acesso_sessoes_taticas"><SessoesTaticas /></AcessoGuard>} />
                   <Route path="/plataforma/materiais" element={<Navigate to="/crm/materiais" replace />} />
                   <Route path="/plataforma/configuracoes" element={<Navigate to="/crm/settings" replace />} />

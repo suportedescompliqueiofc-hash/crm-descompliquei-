@@ -96,25 +96,25 @@ const DEFAULT_PAGES: Record<string, Record<string, boolean>> = {
   admin: {
     painel: true, performance: true, conversas: true, notificacoes: true, leads: true,
     agendamentos: true, vendas: true, procedimentos: true, metas: true, equipe: true,
-    evolucao: true, ia: true, athos_gs: false, arsenal: false, jornada: false, notas: false,
+    evolucao: true, ia: true, athos_gs: false, jornada: false, notas: false,
     sessoes_taticas: false, cadencias: true, atualizacoes: true, configuracoes: false,
   },
   comercial: {
     painel: true, performance: true, conversas: true, notificacoes: true, leads: true,
     agendamentos: true, vendas: true, procedimentos: false, metas: true, equipe: false,
-    evolucao: true, ia: false, athos_gs: false, arsenal: false, jornada: false, notas: false,
+    evolucao: true, ia: false, athos_gs: false, jornada: false, notas: false,
     sessoes_taticas: false, cadencias: false, atualizacoes: true, configuracoes: false,
   },
   atendente: {
     painel: false, performance: false, conversas: true, notificacoes: true, leads: false,
     agendamentos: false, vendas: false, procedimentos: false, metas: false, equipe: false,
-    evolucao: false, ia: false, athos_gs: false, arsenal: false, jornada: false, notas: false,
+    evolucao: false, ia: false, athos_gs: false, jornada: false, notas: false,
     sessoes_taticas: false, cadencias: false, atualizacoes: true, configuracoes: false,
   },
   custom: {
     painel: false, performance: false, conversas: true, notificacoes: true, leads: false,
     agendamentos: false, vendas: false, procedimentos: false, metas: false, equipe: false,
-    evolucao: false, ia: false, athos_gs: false, arsenal: false, jornada: false, notas: false,
+    evolucao: false, ia: false, athos_gs: false, jornada: false, notas: false,
     sessoes_taticas: false, cadencias: false, atualizacoes: true, configuracoes: false,
   },
 };

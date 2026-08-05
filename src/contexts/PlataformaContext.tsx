@@ -8,7 +8,6 @@ export type AcessoProduto = {
   ias_liberadas: string[];
   acesso_cerebro: boolean;
   acesso_crm: boolean;
-  acesso_arsenal: boolean;
   acesso_sessoes_taticas: boolean;
   acesso_materiais: boolean;
   acesso_ia_comercial: boolean;
@@ -22,7 +21,6 @@ const ACESSO_TOTAL: AcessoProduto = {
   ias_liberadas: [],
   acesso_cerebro: true,
   acesso_crm: true,
-  acesso_arsenal: true,
   acesso_sessoes_taticas: true,
   acesso_materiais: true,
   acesso_ia_comercial: true,
@@ -37,7 +35,6 @@ const ACESSO_CRM_ONLY: AcessoProduto = {
   ias_liberadas: [],
   acesso_cerebro: false,
   acesso_crm: true,
-  acesso_arsenal: false,
   acesso_sessoes_taticas: false,
   acesso_materiais: false,
   acesso_ia_comercial: false,
@@ -146,7 +143,6 @@ export function PlataformaProvider({ children }: { children: ReactNode }) {
             ias_liberadas: acessoData.ias_liberadas ?? [],
             acesso_cerebro: acessoData.acesso_cerebro ?? false,
             acesso_crm: acessoData.acesso_crm ?? false,
-            acesso_arsenal: acessoData.acesso_arsenal ?? false,
             acesso_sessoes_taticas: acessoData.acesso_sessoes_taticas ?? false,
             acesso_materiais: acessoData.acesso_materiais ?? false,
             acesso_ia_comercial: acessoData.acesso_ia_comercial ?? false,
@@ -261,7 +257,7 @@ export function PlataformaProvider({ children }: { children: ReactNode }) {
   const completedModules = progress.filter(p => p.completed).length;
   const progressPercent = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
 
-  const hasPlataformaAccess = acesso.acesso_arsenal || acesso.acesso_os ||
+  const hasPlataformaAccess = acesso.acesso_os ||
     acesso.acesso_sessoes_taticas || acesso.acesso_materiais;
 
   return (

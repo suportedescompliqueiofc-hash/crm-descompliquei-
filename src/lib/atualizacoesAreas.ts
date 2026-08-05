@@ -1,6 +1,5 @@
 export const AREA_OPTIONS = [
   { key: 'crm', label: 'CRM', acessoKey: 'acesso_crm' },
-  { key: 'arsenal', label: 'Arsenal', acessoKey: 'acesso_arsenal' },
   { key: 'os', label: 'Athos GS', acessoKey: 'acesso_os' },
   { key: 'sessoes_taticas', label: 'Sessões Táticas', acessoKey: 'acesso_sessoes_taticas' },
   { key: 'materiais', label: 'Materiais', acessoKey: 'acesso_materiais' },

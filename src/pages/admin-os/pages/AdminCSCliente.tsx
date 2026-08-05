@@ -73,7 +73,6 @@ const TIPO_ICONS: Record<string, React.ElementType> = {
 interface ClientDetailData {
   jornada: { id: string; totalPassos: number; passosConcluidos: number; pctConcluido: number; lastActivity: string | null } | null;
   ferramentasConstruidas: number;
-  aulasConcluidas: number;
   touchpoints: Array<{ id: string; tipo: string; resultado: string; data_contato: string; notas: string | null; duracao_minutos: number | null; proximo_contato: string | null; cliente_faltou: boolean | null }>;
   nps: { score: number; comentario: string | null; respondido_em: string } | null;
   npsHistory: Array<{
@@ -189,10 +188,9 @@ function useClientDetail(client: CSClient | null) {
       let jornada: ClientDetailData['jornada'] = null;
       let jornadaEstagios: ClientDetailData['jornadaEstagios'] = null;
       let ferramentasConstruidas = 0;
-      let aulasConcluidas = 0;
 
       if (crmUserId) {
-        const [jornadaRes, materiaisRes, aulasRes] = await Promise.allSettled([
+        const [jornadaRes, materiaisRes] = await Promise.allSettled([
           supabase.from('jornadas')
             .select('id, status, jornada_estagios(id, titulo, ordem, jornada_passos(id, titulo, concluido, concluido_em, obrigatorio))')
             .eq('user_id', crmUserId)
@@ -200,7 +198,6 @@ function useClientDetail(client: CSClient | null) {
             .limit(1)
             .maybeSingle(),
           supabase.from('meus_materiais').select('id').eq('user_id', crmUserId),
-          supabase.from('arsenal_aulas_progresso').select('id').eq('user_id', crmUserId).eq('concluido', true),
         ]);
 
         if (jornadaRes.status === 'fulfilled' && jornadaRes.value.data) {
@@ -225,7 +222,6 @@ function useClientDetail(client: CSClient | null) {
             }));
         }
         if (materiaisRes.status === 'fulfilled') ferramentasConstruidas = (materiaisRes.value.data || []).length;
-        if (aulasRes.status === 'fulfilled') aulasConcluidas = (aulasRes.value.data || []).length;
       }
 
       const dailyTaskCount = dailyTasksRes.count ?? 0;
@@ -239,7 +235,7 @@ function useClientDetail(client: CSClient | null) {
         : null;
 
       return {
-        jornada, ferramentasConstruidas, aulasConcluidas,
+        jornada, ferramentasConstruidas,
         touchpoints: (tpRes.data || []) as ClientDetailData['touchpoints'],
         nps: (npsRes.data || [])[0] ?? null,
         npsHistory: (npsRes.data || []) as unknown as ClientDetailData['npsHistory'],
@@ -279,7 +275,7 @@ function calcAutoScore(client: CSClient, d: ClientDetailData): AutoScore {
     }
   }
   const t = d.ferramentasConstruidas;
-  const arsenal = t >= 5 ? 100 : t >= 3 ? 75 : t >= 1 ? 45 : d.aulasConcluidas >= 3 ? 25 : d.aulasConcluidas >= 1 ? 10 : 0;
+  const arsenal = t >= 5 ? 100 : t >= 3 ? 75 : t >= 1 ? 45 : 0;
   const crm = d.crmCheckinScore ?? d.healthScores[0]?.dim_crm ?? 50;
   let responsividade = 30;
   if (client.cs_ultimo_touchpoint) {
@@ -383,7 +379,7 @@ function getMarcoAtingido(marcoId: string, client: CSClient, d: ClientDetailData
 const DIM_META: Record<string, { desc: string; weight: string }> = {
   'Ativação':       { desc: 'Conclusão do onboarding e checklist da plataforma',           weight: '20%' },
   'Jornada':        { desc: 'Progresso e atividade recente na jornada personalizada',       weight: '25%' },
-  'Arsenal':        { desc: 'Ferramentas construídas e aulas concluídas no Arsenal',        weight: '20%' },
+  'Arsenal':        { desc: 'Ferramentas construídas no Arsenal',        weight: '20%' },
   'CRM':            { desc: 'Taxa de conclusão dos checkins de performance (automático)',    weight: '25%' },
   'Responsividade': { desc: 'Regularidade de resposta aos touchpoints do CSM',              weight: '10%' },
   'Crescimento':    { desc: 'Faturamento vs. período anterior (sinal-mestre)',              weight: '32%' },
@@ -706,14 +702,10 @@ function DimDetailDialog({ dim, detail, client, autoScore, onClose }: {
         {/* ── ARSENAL ── */}
         {dim === 'Arsenal' && (
           <div className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-xl border border-border/40 p-4 text-center">
                 <p className="text-3xl font-bold tabular-nums font-display text-amber-600">{detail.ferramentasConstruidas}</p>
                 <p className="text-xs text-muted-foreground/70 mt-1">Ferramentas construídas</p>
-              </div>
-              <div className="rounded-xl border border-border/40 p-4 text-center">
-                <p className="text-3xl font-bold tabular-nums font-display">{detail.aulasConcluidas}</p>
-                <p className="text-xs text-muted-foreground/70 mt-1">Aulas concluídas</p>
               </div>
             </div>
             <div className="space-y-1.5">
@@ -722,8 +714,6 @@ function DimDetailDialog({ dim, detail, client, autoScore, onClose }: {
                 { label: 'Primeira ferramenta construída', done: detail.ferramentasConstruidas >= 1 },
                 { label: '3+ ferramentas construídas', done: detail.ferramentasConstruidas >= 3 },
                 { label: '5+ ferramentas construídas', done: detail.ferramentasConstruidas >= 5 },
-                { label: 'Primeira aula concluída', done: detail.aulasConcluidas >= 1 },
-                { label: '5+ aulas concluídas', done: detail.aulasConcluidas >= 5 },
               ] as { label: string; done: boolean }[]).map(({ label, done }) => (
                 <div key={label} className={cn('flex items-center gap-3 px-3.5 py-2.5 rounded-xl border', done ? 'border-emerald-200/60 bg-emerald-50/40' : 'border-border/40')}>
                   <div className={cn('h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0', done ? 'bg-emerald-100 text-emerald-600' : 'bg-muted text-muted-foreground/30')}>
@@ -2026,7 +2016,7 @@ export default function AdminCSCliente() {
                       value={autoScore.arsenal}
                       color="bg-amber-500"
                       auto
-                      detalhe={`${detail.ferramentasConstruidas} ferramenta${detail.ferramentasConstruidas !== 1 ? 's' : ''} construída${detail.ferramentasConstruidas !== 1 ? 's' : ''} · ${detail.aulasConcluidas} aula${detail.aulasConcluidas !== 1 ? 's' : ''} concluída${detail.aulasConcluidas !== 1 ? 's' : ''}`}
+                      detalhe={`${detail.ferramentasConstruidas} ferramenta${detail.ferramentasConstruidas !== 1 ? 's' : ''} construída${detail.ferramentasConstruidas !== 1 ? 's' : ''}`}
                       onClick={() => setDimDetailOpen('Arsenal')}
                     />
                     <DimBar

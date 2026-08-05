@@ -33,8 +33,7 @@ interface JornadaJSON {
       titulo: string;
       descricao: string;
       ordem: number;
-      tipo: "acao_livre" | "ferramenta_arsenal";
-      ferramenta_slug?: string | null;
+      tipo: "acao_livre";
       prazo_dias?: number;
       obrigatorio: boolean;
     }>;
@@ -124,17 +123,7 @@ function extrairJornada(text: string): JornadaJSON | null {
 
 async function salvarJornada(json: JornadaJSON, userId: string): Promise<boolean> {
   try {
-    // 1. Buscar slugs de ferramentas para mapear slug → id
-    const { data: ferramentas } = await (supabase as any)
-      .from("arsenal_ferramentas")
-      .select("id, slug")
-      .eq("ativo", true);
-
-    const slugMap = new Map<string, string>(
-      (ferramentas ?? []).map((f: any) => [f.slug, f.id])
-    );
-
-    // 2. Inserir jornada
+    // 1. Inserir jornada
     // A jornada pertence à CLÍNICA, não ao usuário que passou pelo onboarding: a
     // RLS de `jornadas` libera leitura por user_id = auth.uid() OU pela org do
     // perfil, então sem `organization_id` ela some para o resto da equipe — e
@@ -163,7 +152,7 @@ async function salvarJornada(json: JornadaJSON, userId: string): Promise<boolean
 
     if (errJ || !jornada) return false;
 
-    // 3. Inserir estágios + passos
+    // 2. Inserir estágios + passos
     const hoje = new Date();
     let cursorDias = 0;
 
@@ -188,18 +177,12 @@ async function salvarJornada(json: JornadaJSON, userId: string): Promise<boolean
       if (errE || !estagio) continue;
 
       for (const passo of est.passos) {
-        const ferramentaId =
-          passo.tipo === "ferramenta_arsenal" && passo.ferramenta_slug
-            ? (slugMap.get(passo.ferramenta_slug) ?? null)
-            : null;
-
         await (supabase as any).from("jornada_passos").insert({
           estagio_id: estagio.id,
           titulo: passo.titulo,
           descricao: passo.descricao ?? null,
           ordem: passo.ordem ?? 0,
           tipo: passo.tipo ?? "acao_livre",
-          ferramenta_id: ferramentaId,
           prazo_dias: passo.prazo_dias ?? null,
           obrigatorio: passo.obrigatorio ?? true,
         });
@@ -398,30 +381,24 @@ export default function OnboardingAthos() {
     setInicializando(true);
 
     try {
-      const [agentRes, diagnosticoRes, ferramentasRes, progressoRes] = await Promise.all([
+      const [agentRes, diagnosticoRes, progressoRes] = await Promise.all([
         (supabase as any).from("athos_agentes").select("system_prompt").eq("slug", "onboarding").single(),
         (supabase as any).from("meus_materiais").select("conteudo, titulo").eq("user_id", user.id).ilike("titulo", "Diagnóstico Estratégico%").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        (supabase as any).from("arsenal_ferramentas").select("nome, slug").eq("ativo", true).order("ordem"),
         (supabase as any).from("onboarding_progresso").select("historico_conversa").eq("user_id", user.id).maybeSingle(),
       ]);
 
       const agentPrompt = agentRes.data?.system_prompt ?? "";
       const diagnosticoConteudo = diagnosticoRes.data?.conteudo ?? "";
-      const ferramentas: Array<{ nome: string; slug: string }> = ferramentasRes.data ?? [];
 
       // Nome da clínica extraído das respostas ou do documento
       setNomeClinica(respostas?.p1 ?? "");
 
       // Compor system prompt final
-      const ferramentasTexto = ferramentas.length > 0
-        ? `\n\n---\n\nFERRAMENTAS DISPONÍVEIS NO ARSENAL (use os slugs ao montar a jornada):\n${ferramentas.map((f) => `- ${f.nome} (slug: ${f.slug})`).join("\n")}`
-        : "";
-
       const diagnosticoTexto = diagnosticoConteudo
         ? `\n\n---\n\nDIAGNÓSTICO DO CLIENTE:\n${diagnosticoConteudo}`
         : "";
 
-      const spFinal = agentPrompt + diagnosticoTexto + ferramentasTexto;
+      const spFinal = agentPrompt + diagnosticoTexto;
       setSystemPromptFinal(spFinal);
 
       // Restaurar histórico salvo

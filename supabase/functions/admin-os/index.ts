@@ -26,8 +26,8 @@ const ADMIN_READ_TOOLS = new Set<string>([
   "obter_tags", "obter_notificacoes", "analisar_leads_parados", "analisar_ranking_procedimentos",
   "obter_resumo_geral", "obter_metricas_receita", "obter_blacklist", "analisar_atendimento_ia",
   "buscar_conversas_lead", "analisar_nao_leads", "listar_cadencias", "obter_cadencia_detalhes",
-  "listar_materiais_complementares", "ler_material_complementar", "listar_arsenal",
-  "obter_arsenal_ferramenta", "obter_config_ia",
+  "listar_materiais_complementares", "ler_material_complementar",
+  "obter_config_ia",
 ]);
 
 // Tools cross-org exclusivas do admin (não precisam de uma org em foco)
@@ -855,36 +855,6 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
     },
   },
 
-  // ── PLATAFORMA — Arsenal ─────────────────────────────────────────────────────
-  {
-    type: "function",
-    function: {
-      name: "listar_arsenal",
-      description: "Lista as categorias e ferramentas do Arsenal. Use categoria_slug para filtrar por categoria especifica. Use busca para pesquisar por nome.",
-      parameters: {
-        type: "object",
-        properties: {
-          categoria_slug: { type: "string", description: "Slug da categoria para filtrar ferramentas (ex: 'posicionamento', 'vendas')." },
-          busca: { type: "string", description: "Texto para pesquisar no nome das ferramentas." },
-        },
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "obter_arsenal_ferramenta",
-      description: "Retorna detalhes completos de uma ferramenta do Arsenal, incluindo texto de aprendizado e template HTML para construcao. Use para mostrar o conteudo completo de uma ferramenta ao usuario.",
-      parameters: {
-        type: "object",
-        properties: {
-          ferramenta_id: { type: "string", description: "UUID da ferramenta." },
-          ferramenta_slug: { type: "string", description: "Slug da ferramenta (alternativa ao ID)." },
-        },
-      },
-    },
-  },
-
   // ── PLATAFORMA — Meus Materiais ──────────────────────────────────────────────
   {
     type: "function",
@@ -910,7 +880,6 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
         properties: {
           titulo: { type: "string" },
           conteudo: { type: "string", description: "HTML rico: <h2>, <p>, <strong>, <ul><li>, <ol><li>, <hr>." },
-          categoria_arsenal_id: { type: "string" },
           ferramenta_id: { type: "string" },
         },
         required: ["titulo", "conteudo"],
@@ -929,7 +898,6 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
           titulo: { type: "string" },
           conteudo: { type: "string", description: "HTML rico (TipTap)." },
           ferramenta_id: { type: "string" },
-          categoria_arsenal_id: { type: "string" },
         },
         required: ["material_id"],
       },
@@ -949,38 +917,6 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "atualizar_progresso_arsenal",
-      description: "Atualiza progresso do usuário em uma ferramenta do Arsenal.",
-      parameters: {
-        type: "object",
-        properties: {
-          ferramenta_id: { type: "string" },
-          status: { type: "string", enum: ["em_andamento", "concluido"] },
-        },
-        required: ["ferramenta_id", "status"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "salvar_construcao_ferramenta",
-      description: "Salva construção do usuário em uma ferramenta do Arsenal. Conteúdo DEVE ser HTML (TipTap).",
-      parameters: {
-        type: "object",
-        properties: {
-          ferramenta_id: { type: "string" },
-          titulo: { type: "string" },
-          conteudo: { type: "string", description: "HTML rico: <h2>, <p>, <strong>, <ul><li>." },
-        },
-        required: ["ferramenta_id", "conteudo"],
-      },
-    },
-  },
-
   // ── AGENDAMENTOS — Atualização e Exclusão ───────────────────────────────────
   {
     type: "function",
@@ -1396,8 +1332,7 @@ const TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
                     properties: {
                       titulo: { type: "string", description: "Nome do passo" },
                       descricao: { type: "string", description: "O que o cliente deve fazer neste passo" },
-                      tipo: { type: "string", enum: ["acao_livre", "ferramenta_arsenal"], description: "Tipo do passo. Use 'ferramenta_arsenal' tanto para ferramentas quanto para aulas do arsenal." },
-                      ferramenta_slug: { type: "string", description: "Slug da ferramenta OU da aula do arsenal (se tipo=ferramenta_arsenal). O sistema resolve automaticamente se é ferramenta ou aula." },
+                      tipo: { type: "string", enum: ["acao_livre"], description: "Tipo do passo." },
                       obrigatorio: { type: "boolean", description: "Se o passo é obrigatório (padrão: true)" },
                     },
                     required: ["titulo"],
@@ -2438,54 +2373,12 @@ async function executeTool(name: string, input: any, orgId: string, platformUser
         return JSON.stringify({ sucesso: true, passo_id: input.passo_id, concluido: input.concluido });
       }
 
-      // ── PLATAFORMA — Arsenal ──────────────────────────────────────────────────
-
-      case "listar_arsenal": {
-        const { data: categorias, error: catErr } = await (supabase as any)
-          .from("arsenal_categorias")
-          .select("id, nome, descricao, frase_ancora, icone, slug, ordem")
-          .order("ordem");
-        if (catErr) return JSON.stringify({ error: catErr.message });
-        let ferramentas: any[] = [];
-        if (input.categoria_slug) {
-          const cat = (categorias ?? []).find((c: any) => c.slug === input.categoria_slug);
-          if (cat) {
-            let q = (supabase as any).from("arsenal_ferramentas").select("id, nome, descricao, slug, ordem, video_url").eq("categoria_id", cat.id).eq("ativo", true).order("ordem");
-            if (input.busca) q = q.ilike("nome", `%${input.busca}%`);
-            const { data } = await q;
-            ferramentas = data ?? [];
-          }
-        } else {
-          let q = (supabase as any).from("arsenal_ferramentas").select("id, nome, descricao, slug, categoria_id, ordem").eq("ativo", true).order("ordem");
-          if (input.busca) q = q.ilike("nome", `%${input.busca}%`);
-          const { data } = await q;
-          ferramentas = data ?? [];
-        }
-        return JSON.stringify({
-          total_categorias: (categorias ?? []).length,
-          categorias: categorias ?? [],
-          total_ferramentas: ferramentas.length,
-          ferramentas,
-        });
-      }
-
-      case "obter_arsenal_ferramenta": {
-        if (!input.ferramenta_id && !input.ferramenta_slug) return JSON.stringify({ error: "Forneca ferramenta_id ou ferramenta_slug." });
-        let q = (supabase as any).from("arsenal_ferramentas").select("*, arsenal_categorias(nome, slug)");
-        if (input.ferramenta_id) q = q.eq("id", input.ferramenta_id);
-        else q = q.eq("slug", input.ferramenta_slug);
-        const { data, error } = await q.maybeSingle();
-        if (error) return JSON.stringify({ error: error.message });
-        if (!data) return JSON.stringify({ error: "Ferramenta nao encontrada." });
-        return JSON.stringify({ ferramenta: data });
-      }
-
       // ── PLATAFORMA — Meus Materiais ───────────────────────────────────────────
 
       case "listar_meus_materiais": {
         let q = (supabase as any)
           .from("meus_materiais")
-          .select("id, titulo, conteudo, categoria_arsenal_id, ferramenta_id, criado_manualmente, created_at, updated_at, arsenal_categorias(nome, slug), arsenal_ferramentas(nome)")
+          .select("id, titulo, conteudo, ferramenta_id, criado_manualmente, created_at, updated_at")
           .eq("user_id", platformUserId)
           .order("updated_at", { ascending: false })
           .limit(Math.min(input.limite ?? 30, 100));
@@ -2502,7 +2395,6 @@ async function executeTool(name: string, input: any, orgId: string, platformUser
             user_id: platformUserId,
             titulo: input.titulo,
             conteudo: input.conteudo,
-            categoria_arsenal_id: input.categoria_arsenal_id ?? null,
             ferramenta_id: input.ferramenta_id ?? null,
             criado_manualmente: true,
           })
@@ -2517,7 +2409,6 @@ async function executeTool(name: string, input: any, orgId: string, platformUser
         if (input.titulo !== undefined) updates.titulo = input.titulo;
         if (input.conteudo !== undefined) updates.conteudo = input.conteudo;
         if (input.ferramenta_id !== undefined) updates.ferramenta_id = input.ferramenta_id;
-        if (input.categoria_arsenal_id !== undefined) updates.categoria_arsenal_id = input.categoria_arsenal_id;
         if (Object.keys(updates).length === 1) return JSON.stringify({ error: "Nenhum campo para atualizar." });
         const { error } = await (supabase as any)
           .from("meus_materiais")
@@ -2536,73 +2427,6 @@ async function executeTool(name: string, input: any, orgId: string, platformUser
           .eq("user_id", platformUserId);
         if (error) return JSON.stringify({ error: error.message });
         return JSON.stringify({ sucesso: true, material_id: input.material_id });
-      }
-
-      case "atualizar_progresso_arsenal": {
-        const { error } = await (supabase as any)
-          .from("arsenal_progresso")
-          .upsert(
-            { user_id: platformUserId, ferramenta_id: input.ferramenta_id, status: input.status },
-            { onConflict: "user_id,ferramenta_id" }
-          );
-        if (error) return JSON.stringify({ error: error.message });
-        return JSON.stringify({ sucesso: true, ferramenta_id: input.ferramenta_id, status: input.status });
-      }
-
-      case "salvar_construcao_ferramenta": {
-        // Busca ferramenta para obter nome (para título padrão)
-        const { data: ferr } = await (supabase as any)
-          .from("arsenal_ferramentas")
-          .select("id, nome, categoria_id")
-          .eq("id", input.ferramenta_id)
-          .maybeSingle();
-        const titulo = input.titulo ?? (ferr?.nome ? `Construção — ${ferr.nome}` : "Construção");
-
-        // Verifica se já existe material vinculado a esta ferramenta para este user
-        const { data: existing } = await (supabase as any)
-          .from("meus_materiais")
-          .select("id")
-          .eq("user_id", platformUserId)
-          .eq("ferramenta_id", input.ferramenta_id)
-          .maybeSingle();
-
-        let result: any;
-        if (existing?.id) {
-          const { data, error } = await (supabase as any)
-            .from("meus_materiais")
-            .update({ titulo, conteudo: input.conteudo, updated_at: new Date().toISOString() })
-            .eq("id", existing.id)
-            .eq("user_id", platformUserId)
-            .select("id, titulo")
-            .single();
-          if (error) return JSON.stringify({ error: error.message });
-          result = { acao: "atualizado", material: data };
-        } else {
-          const { data, error } = await (supabase as any)
-            .from("meus_materiais")
-            .insert({
-              user_id: platformUserId,
-              titulo,
-              conteudo: input.conteudo,
-              ferramenta_id: input.ferramenta_id,
-              categoria_arsenal_id: ferr?.categoria_id ?? null,
-              criado_manualmente: false,
-            })
-            .select("id, titulo")
-            .single();
-          if (error) return JSON.stringify({ error: error.message });
-          result = { acao: "criado", material: data };
-        }
-
-        // Marca ferramenta como em andamento se ainda não estava concluída
-        await (supabase as any)
-          .from("arsenal_progresso")
-          .upsert(
-            { user_id: platformUserId, ferramenta_id: input.ferramenta_id, status: "em_andamento" },
-            { onConflict: "user_id,ferramenta_id", ignoreDuplicates: true }
-          );
-
-        return JSON.stringify({ sucesso: true, ...result });
       }
 
       case "atualizar_agendamento": {
@@ -2795,18 +2619,6 @@ async function executeTool(name: string, input: any, orgId: string, platformUser
       }
 
       case "criar_jornada": {
-        // Busca ferramentas e aulas do arsenal para vincular por slug
-        const [{ data: ferramentas }, { data: aulas }] = await Promise.all([
-          (supabase as any).from("arsenal_ferramentas").select("id, slug").eq("ativo", true),
-          (supabase as any).from("arsenal_aulas").select("id, slug").eq("ativo", true),
-        ]);
-        const slugMap = new Map<string, string>(
-          (ferramentas ?? []).map((f: any) => [f.slug, f.id])
-        );
-        const aulaSlugMap = new Map<string, string>(
-          (aulas ?? []).map((a: any) => [a.slug, a.id])
-        );
-
         // organization_id é OBRIGATÓRIO aqui, ainda que a coluna aceite NULL.
         // A RLS de leitura de `jornadas` libera por user_id = auth.uid() OU pela
         // organization_id do perfil. Sem org, a jornada fica visível apenas para
@@ -2860,28 +2672,12 @@ async function executeTool(name: string, input: any, orgId: string, platformUser
 
           const passos = est.passos ?? [];
           for (const [pi, passo] of passos.entries()) {
-            const rawSlug = passo.ferramenta_slug ?? null;
-            // 'aula' é alias para 'ferramenta_arsenal' — normaliza aqui
-            const rawTipo: string = passo.tipo ?? "acao_livre";
-            const isAulaOuFerramenta = rawTipo === "ferramenta_arsenal" || rawTipo === "aula";
-            const normalizedTipo = rawTipo === "aula" ? "ferramenta_arsenal" : rawTipo;
-
-            const ferramentaId =
-              isAulaOuFerramenta && rawSlug
-                ? (slugMap.get(rawSlug) ?? null)
-                : null;
-            const aulaId =
-              isAulaOuFerramenta && rawSlug && !ferramentaId
-                ? (aulaSlugMap.get(rawSlug) ?? null)
-                : null;
             await (supabase as any).from("jornada_passos").insert({
               estagio_id: estagio.id,
               titulo: passo.titulo,
               descricao: passo.descricao ?? null,
               ordem: pi,
-              tipo: normalizedTipo,
-              ferramenta_id: ferramentaId,
-              aula_id: aulaId,
+              tipo: "acao_livre",
               prazo_dias: passo.prazo_dias ?? null,
               obrigatorio: passo.obrigatorio ?? true,
             });
@@ -3496,11 +3292,9 @@ async function buildSystemPrompt(orgId: string, platformUserId: string): Promise
     "- 'Altera o prompt da IA', 'muda o prompt base' → obter_config_ia (ler antes) → atualizar_prompt_base_ia",
     "- 'Configura a clínica na IA', 'nome do agente', 'horário', 'pagamento' → obter_config_ia → configurar_dados_clinica_ia",
     "",
-    "### PLATAFORMA (Jornada, Arsenal, Materiais)",
+    "### PLATAFORMA (Jornada, Materiais)",
     "- 'Minha jornada', 'progresso da jornada' → obter_minha_jornada",
     "- 'Marca passo como concluído' → marcar_passo_jornada",
-    "- 'Ferramentas do Arsenal', 'categorias' → listar_arsenal",
-    "- 'Detalhe da ferramenta X' → obter_arsenal_ferramenta",
     "- 'Materiais complementares' → listar_materiais_complementares | 'Ler material X' → ler_material_complementar",
     "- 'Meus materiais' → listar_meus_materiais | 'Criar material' → criar_material",
     "- 'Criar jornada' → criar_jornada",

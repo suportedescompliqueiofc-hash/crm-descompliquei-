@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Calendar, BarChart, Layers,
-  ArrowRight, ArrowUpRight, Swords, BookMarked, Route,
+  ArrowRight, ArrowUpRight, BookMarked, Route,
   Crosshair,
 } from "lucide-react";
 import { usePlataforma } from "@/contexts/PlataformaContext";
@@ -11,7 +11,6 @@ import { PageHero } from "@/components/PageHero";
 // ─── Cores por ferramenta ──────────────────────────────────────────────────────
 
 const TOOL_ACCENTS: Record<string, string> = {
-  arsenal:  'bg-amber-500',
   jornada:  'bg-cyan-500',
   materiais:'bg-emerald-500',
   sessoes:  'bg-rose-500',
@@ -34,13 +33,6 @@ export default function Hub() {
   const temOS        = acesso.acesso_os;
 
   const tools = [
-    {
-      id: 'arsenal', icon: Swords,
-      title: 'Arsenal Comercial',
-      description: 'Ferramentas para construir processos reais',
-      action: () => navigate('/plataforma/arsenal'),
-      actionLabel: 'Explorar',
-    },
     {
       id: 'jornada', icon: Route,
       title: 'Meu Plano de Ação',

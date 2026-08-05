@@ -30,7 +30,6 @@ interface ClientDetailData {
     lastActivity: string | null;
   } | null;
   ferramentasConstruidas: number;
-  aulasConcluidas: number;
   touchpoints: Array<{
     id: string;
     tipo: string;
@@ -163,10 +162,9 @@ function useClientDetail(client: CSClient | null) {
 
       let jornada: ClientDetailData['jornada'] = null;
       let ferramentasConstruidas = 0;
-      let aulasConcluidas = 0;
 
       if (crmUserId) {
-        const [jornadaRes, materiaisRes, aulasRes] = await Promise.allSettled([
+        const [jornadaRes, materiaisRes] = await Promise.allSettled([
           supabase.from('jornadas')
             .select('id, status, jornada_estagios(id, jornada_passos(id, concluido, concluido_em, obrigatorio))')
             .eq('user_id', crmUserId)
@@ -174,7 +172,6 @@ function useClientDetail(client: CSClient | null) {
             .limit(1)
             .maybeSingle(),
           supabase.from('meus_materiais').select('id').eq('user_id', crmUserId),
-          supabase.from('arsenal_aulas_progresso').select('id').eq('user_id', crmUserId).eq('concluido', true),
         ]);
 
         if (jornadaRes.status === 'fulfilled' && jornadaRes.value.data) {
@@ -199,15 +196,11 @@ function useClientDetail(client: CSClient | null) {
         if (materiaisRes.status === 'fulfilled') {
           ferramentasConstruidas = (materiaisRes.value.data || []).length;
         }
-        if (aulasRes.status === 'fulfilled') {
-          aulasConcluidas = (aulasRes.value.data || []).length;
-        }
       }
 
       return {
         jornada,
         ferramentasConstruidas,
-        aulasConcluidas,
         touchpoints: (tpRes.data || []) as ClientDetailData['touchpoints'],
         nps: (npsRes.data || [])[0] ?? null,
         healthScores: (hsRes.data || []) as ClientDetailData['healthScores'],
@@ -244,7 +237,7 @@ function calcAutoScore(client: CSClient, d: ClientDetailData): AutoScore {
   }
 
   const t = d.ferramentasConstruidas;
-  const arsenal = t >= 5 ? 100 : t >= 3 ? 75 : t >= 1 ? 45 : d.aulasConcluidas >= 3 ? 25 : d.aulasConcluidas >= 1 ? 10 : 0;
+  const arsenal = t >= 5 ? 100 : t >= 3 ? 75 : t >= 1 ? 45 : 0;
 
   const crm = d.healthScores[0]?.dim_crm ?? 50;
 

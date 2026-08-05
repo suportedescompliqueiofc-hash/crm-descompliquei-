@@ -47,7 +47,6 @@ export const PLATFORM_ONBOARDING_ALLOWED_PATHS = [
   '/plataforma/ia-comercial',
   '/plataforma/sessoes-taticas',
   '/plataforma/onboarding',
-  '/plataforma/arsenal',
 ];
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
