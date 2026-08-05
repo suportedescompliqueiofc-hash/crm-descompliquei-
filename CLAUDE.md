@@ -43,6 +43,7 @@ This is a **multi-tenant WhatsApp CRM** (SaaS white-label) built on React + Vite
 - **REMOVIDO — Cérebro Central (2026-07-07):** `platform_cerebro` dropada (migration `20260707000001`), `Cerebro.tsx` deletado, campos `cerebro`/`cerebroPercent`/`isCerebroComplete` fora do `PlataformaContext`, tutorial `platform-cerebro` removido, `ia-proxy` sem a dependência. Não alimentava nenhum agente em uso.
 - **REMOVIDO — Trilha de Aprendizado:** por completo (client + admin). Ver memória `project_trilha_removal`. Seção "Materiais Complementares (Trilha…)" abaixo está OBSOLETA.
 - **REMOVIDO — Templates + Ferramentas do Arsenal (Fase 3-A):** `Materiais/MateriaisEditor`, `ArsenalCategoria/ArsenalFerramenta`, `AdminArsenal` deletados. **`Arsenal.tsx` mostra só Aulas.** As tabelas `arsenal_ferramentas`/`categorias` **ainda existem** (o copiloto as usa) — o drop destrutivo está STAGED em `supabase/migrations/_PENDENTE_20260706_drop_arsenal_ferramentas.sql` (pendente de patch do copiloto + deploy CLI + backup).
+- **REMOVIDO — Arsenal Comercial (2026-08-05):** feature inteira descartada — página/rota (`Arsenal.tsx`, `ArsenalAula.tsx`, `/plataforma/arsenal*`), painel admin (`AdminArsenalAulas.tsx`, `useAdminArsenal.ts`), hooks (`useArsenal.ts`, `useArsenalAulas.ts`), item de menu/Hub, permissão `arsenal` (`PageKey`) e entitlement `acesso_arsenal` (`platform_products`, `PlataformaContext`), tipos `ferramenta_arsenal`/`categoria_arsenal` em `jornada_passos` (Jornada volta a ter só `acao_livre`/`material`), FKs em `meus_materiais` (`categoria_arsenal_id`, `ferramenta_id`) e tools/handlers do Athos (`listar_arsenal`, `obter_arsenal_ferramenta`, `atualizar_progresso_arsenal`, `salvar_construcao_ferramenta`) em `descompliquei-os`/`admin-os` (espelhos). Métricas de "aulas/ferramentas do Arsenal concluídas" removidas de `AdminSistema.tsx`, `AdminClientePerfil.tsx`, `CSClientDrawer.tsx`. As 9 tabelas `arsenal_*` (`arsenal_categorias`, `arsenal_ferramentas`, `arsenal_progresso`, `arsenal_construcoes`, `arsenal_materiais`, `arsenal_templates`, `arsenal_blocos`, `arsenal_aulas`, `arsenal_aulas_progresso`) e a coluna `platform_products.acesso_arsenal` foram dropadas via `supabase/migrations/20260805120000_drop_arsenal_completo.sql` (com backup `*_bkp`). `metodologia-eva.md` foi realocado para `conhecimento/plataforma/athos-comercial/` (era referenciado por `athos-comercial.ts`, sobrevive à remoção). **Pendente (não bloqueia):** a dimensão "Arsenal" do health score de CS (20% do peso, em `AdminCSCliente.tsx`/`CSClientDrawer.tsx`/`types/cs.ts` etc.) mede na verdade `meus_materiais` — funciona normalmente, só ficou com nome desatualizado; renomear é decisão de produto separada.
 - **REMOVIDO — Mensagens Rápidas (2026-07-13):** feature inteira descartada (sobrepunha Cadências; a tool de IA `agendar_mensagem` nunca funcionou de fato — inseria em coluna NOT NULL sem preenchê-la). Saiu: `QuickMessagesPage.tsx`, `QuickMessagesSidebar.tsx`, `components/quick-messages/*`, hooks `useQuickMessages`/`useQuickMessageFolders`/`useScheduledMessages`, rota `/crm/quick-messages`, item de sidebar, permissão `msgs_rapidas` (`PageKey`), toggle "Rápidas" em `ActiveConversation.tsx`/`Conversas.tsx`/`OutboundConversas.tsx`, tutorial `quick-messages` + steps órfãos, tool `agendar_mensagem` (`descompliquei-os`/`admin-os`), e as tabelas `mensagens_rapidas`/`quick_message_folders`/`scheduled_quick_messages` (dropadas via migration `20260713150000_remove_quick_messages.sql`, que também limpou a dependência dessas tabelas em `blacklist_lead_permanently()`). Edge functions `process-folder-sequence` e `process-scheduled-messages` tiveram o código-fonte local removido, mas **seguem ativas no projeto remoto** (sem CLI access ao projeto `noncbgdczgcboronmcah` para `functions delete` — undeploy manual pendente). `send-quick-message` **continua** — é a função genérica de envio usada por qualquer mensagem no chat, apesar do nome.
 
 **Typecheck:** o codebase **não passa no `tsc`** (centenas de erros pré-existentes: `never`, `possibly null`). Builda via `vite build` (esbuild, sem typecheck). Para validar: `npx tsc -p tsconfig.app.json --noEmit` e olhar só o que quebra runtime — **sintaxe (TS1xxx/TS17002) e `Cannot find name` (TS2304)**. `npx tsc --noEmit` puro na raiz checa NADA (`files:[]`). Deploy de edge functions: MCP inline p/ arquivos pequenos; **arquivos grandes (whatsapp-ai-agent, descompliquei-os) o João deploya via CLI na máquina dele** (`supabase login` + `functions deploy`).
@@ -401,14 +402,9 @@ When `externalAdReply` with `sourceType = 'ad'` is found, it looks up the `criat
 - `debug_payloads` — temporary debug logging for API payloads
 - `platform_complementary_folders` — pastas/subpastas dos Materiais Complementares da Trilha. Columns: `id`, `nome`, `parent_id` (FK self — NULL = pasta raiz, preenchido = subpasta), `ordem_index`, `ativo`, `created_at`. Máx. 2 níveis de hierarquia (pasta → subpasta).
 - `platform_complementary_materials` — materiais (PDF ou HTML) vinculados a uma pasta. Columns: `id`, `folder_id` (FK → `platform_complementary_folders`), `titulo`, `tipo` (`'pdf'` | `'html'`), `pdf_url` (URL pública do Storage), `conteudo_html` (HTML inline), `ordem_index`, `ativo`, `created_at`. **`conteudo_html` NÃO é carregado na query inicial — é buscado sob demanda ao abrir o material.**
-- `arsenal_categorias` — categorias de ferramentas do Arsenal. Columns: `id`, `nome`, `slug`, `descricao`, `icone`, `cor`, `ordem_index`, `ativo`.
-- `arsenal_ferramentas` — ferramentas do Arsenal (construções práticas). Columns: `id`, `categoria_id` (FK → `arsenal_categorias`), `nome`, `slug`, `descricao`, `conteudo_json` (JSONB — campos do formulário), `ativo`, `ordem_index`. **`arsenal_categorias` não tem coluna `ativo` — nunca filtrar por ela.**
-- `arsenal_blocos` — blocos (seções) do Arsenal de Aulas. Columns: `id`, `nome`, `slug`, `descricao`, `ordem_index`, `ativo`.
-- `arsenal_aulas` — aulas dentro dos blocos. Columns: `id`, `bloco_id` (FK → `arsenal_blocos`), `nome`, `slug`, `descricao`, `video_url`, `duracao_minutos`, `ordem_index`, `ativo`.
-- `arsenal_aulas_progresso` — progresso por usuário nas aulas. Columns: `id`, `user_id` (= `auth.uid()`), `aula_id` (FK → `arsenal_aulas`), `concluido`, `concluido_em`.
 - `jornadas` — jornadas personalizadas geradas pelo Athos GS. Columns: `id`, `user_id` (= `auth.uid()`), `titulo`, `status` (`'rascunho'` | `'ativa'` | `'concluida'`), `gerada_por` (`'ia'` | `'admin'`), `created_at`, `updated_at`.
 - `jornada_estagios` — etapas de uma jornada. Columns: `id`, `jornada_id` (FK → `jornadas`), `titulo`, `descricao`, `ordem`, `prazo_dias`, `data_inicio`.
-- `jornada_passos` — passos dentro de uma etapa. Columns: `id`, `estagio_id` (FK → `jornada_estagios`), `titulo`, `descricao`, `ordem`, `tipo` (`'acao_livre'` | `'ferramenta_arsenal'` | `'categoria_arsenal'`), `ferramenta_id` (FK → `arsenal_ferramentas`), `categoria_id` (FK → `arsenal_categorias`), `aula_id` (FK → `arsenal_aulas` — `ON DELETE SET NULL`), `prazo_dias`, `obrigatorio`, `concluido`, `concluido_em`, `concluido_por`.
+- `jornada_passos` — passos dentro de uma etapa. Columns: `id`, `estagio_id` (FK → `jornada_estagios`), `titulo`, `descricao`, `ordem`, `tipo` (`'acao_livre'` | `'material'`), `prazo_dias`, `obrigatorio`, `concluido`, `concluido_em`, `concluido_por`.
 - `athos_agentes` — configurações de agentes da DescompliqueiOS. Columns: `id`, `slug`, `nome`, `descricao`, `system_prompt`, `ativo`. O `system_prompt` pode conter `[INSERIDO AUTOMATICAMENTE PELO SISTEMA]` como placeholder — a edge function `descompliquei-os` substitui por dados do diagnóstico do usuário antes de enviar à IA.
 - `os_conversations` — histórico de conversas com agentes OS. Columns: `id`, `user_id` (= `auth.uid()`), `titulo`, `agente_slug` (TEXT), `created_at`, `updated_at`.
 - `os_memories` — memória persistente do Athos GS entre conversas. Columns: `id`, `user_id` (= `auth.uid()`), `organization_id`, `tipo` (`'preferencia'` | `'fato'` | `'decisao'` | `'instrucao'` | `'contexto'`), `conteudo` (TEXT), `tags` (text[]), `fonte_conversation_id` (FK → `os_conversations`, nullable), `criado_em`, `atualizado_em`. Populada via tools explícitas (salvar_memoria) e auto-extração ao final de cada conversa.
@@ -445,39 +441,6 @@ When `externalAdReply` with `sourceType = 'ad'` is found, it looks up the `criat
 
 ---
 
-## Arsenal da Plataforma
-
-O Arsenal é a caixa de ferramentas comerciais da plataforma, com duas seções: **Aulas** (vídeo com blocos/módulos) e **Ferramentas** (construções por categoria).
-
-### Arquitetura de arquivos
-
-| Arquivo | Responsabilidade |
-|---------|-----------------|
-| `src/pages/plataforma/Arsenal.tsx` | Listagem — hero + abas "Aulas" / Ferramentas por categoria |
-| `src/pages/plataforma/ArsenalAula.tsx` | Página de aula individual — vídeo, descrição, botão concluir. Rota: `/plataforma/arsenal/aulas/:slug` |
-| `src/pages/plataforma/ArsenalFerramenta.tsx` (ou caminho similar) | Página de ferramenta individual. Rota: `/plataforma/arsenal/:categoriaSlug/:ferramentaSlug` |
-| `src/hooks/useArsenalAulas.ts` | Hook para aulas e progresso por usuário |
-| `src/hooks/useAdminArsenal.ts` | Hooks admin — `useAdminFerramentas()`, `useAdminCategorias()`, etc. |
-| `src/pages/admin-os/pages/AdminArsenal.tsx` | Gestão admin de ferramentas |
-| `src/pages/admin-os/pages/AdminArsenalAulas.tsx` | Gestão admin de aulas |
-
-### Rotas do Arsenal
-
-```
-/plataforma/arsenal                          → Arsenal.tsx (listagem)
-/plataforma/arsenal/aulas/:slug              → ArsenalAula.tsx (aula individual)
-/plataforma/arsenal/:categoriaSlug/:slug     → ArsenalFerramenta.tsx (ferramenta individual)
-/plataforma/arsenal/:categoriaSlug           → categoria filtrada na listagem
-```
-
-### Regras críticas
-
-- **`arsenal_categorias` NÃO tem coluna `ativo`** — nunca fazer `.eq('ativo', true)` nessa tabela. Apenas `arsenal_ferramentas` e `arsenal_aulas` têm `ativo`.
-- **Progresso de aulas** salvo em `arsenal_aulas_progresso` com `user_id = auth.uid()`. Usar `useArsenalAulas.ts` — nunca query direta de componente.
-- **Admin hooks**: sempre usar `useAdminFerramentas()` e `useAdminCategorias()` de `useAdminArsenal.ts` nos painéis admin — têm cache keys corretas e queries sem `ativo` em categorias.
-
----
-
 ## Jornada Personalizada (Plataforma)
 
 Jornada de implementação personalizada criada pelo Athos GS para cada cliente. Distinta da **Jornada do Paciente** (CRM/timeline de lead).
@@ -494,14 +457,10 @@ Jornada de implementação personalizada criada pelo Athos GS para cada cliente.
 
 ### Tipos de passo (`DraftPasso.tipo`)
 
-| tipo | Descrição | FK preenchida |
-|------|-----------|---------------|
-| `'acao_livre'` | Passo sem vínculo de ferramenta | nenhuma |
-| `'ferramenta_arsenal'` | Ferramenta do Arsenal | `ferramenta_id` |
-| `'categoria_arsenal'` | Categoria do Arsenal | `categoria_id` |
-| `'aula_arsenal'` | Aula do Arsenal (editor admin) | `aula_id` |
-
-> **Atenção:** Na DB e na tool do Athos, aulas são salvas com `tipo = 'ferramenta_arsenal'` e `aula_id` preenchido. O tipo `'aula_arsenal'` só existe no estado de rascunho do editor admin (`DraftPasso`). O `useSaveJornadaEstrutura` converte `'aula_arsenal'` → `'ferramenta_arsenal'` + `aula_id` ao salvar.
+| tipo | Descrição |
+|------|-----------|
+| `'acao_livre'` | Passo sem vínculo de ferramenta — único tipo desde a remoção do Arsenal (2026-08-05) |
+| `'material'` | Passo vinculado a um material (`meus_materiais`) |
 
 ### Locking sequencial de etapas
 
@@ -514,32 +473,9 @@ isLocked={i > 0 && getEstagioStatus(estagios[i - 1]) !== 'concluido'}
 
 `getEstagioStatus()` retorna `'nao_iniciado' | 'em_andamento' | 'concluido'`. Uma etapa é `'concluido'` quando todos os passos obrigatórios estão concluídos (ou todos os passos se não houver obrigatórios).
 
-### Botão "Abrir" nos passos
-
-```tsx
-// handleOpen() em PassoRow (Jornada.tsx)
-if (passo.tipo === 'ferramenta_arsenal' && passo.arsenal_ferramentas) {
-  navigate(`/plataforma/arsenal/${categoria.slug}/${ferramenta.slug}`);
-} else if (passo.aula_id && passo.arsenal_aulas) {
-  navigate(`/plataforma/arsenal/aulas/${passo.arsenal_aulas.slug}`);
-} else if (passo.tipo === 'categoria_arsenal' && passo.arsenal_categorias) {
-  navigate(`/plataforma/arsenal/${categoria.slug}`);
-}
-```
-
-O `useJornada()` faz join em `arsenal_aulas (id, slug)` além de `arsenal_ferramentas` e `arsenal_categorias`.
-
 ### Tool `criar_jornada` no Athos (edge function `descompliquei-os`)
 
-Ao montar a jornada, o Athos usa `ferramenta_slug` para vincular passos. A edge function resolve slugs contra **dois mapas**:
-1. `slugMap` — slugs de `arsenal_ferramentas` → `ferramenta_id`
-2. `aulaSlugMap` — slugs de `arsenal_aulas` → `aula_id`
-
-Regras:
-- `tipo: 'aula'` do Athos é normalizado para `tipo: 'ferramenta_arsenal'` automaticamente
-- O Athos **DEVE** usar sempre `tipo: 'ferramenta_arsenal'` para aulas e ferramentas — nunca `tipo: 'aula'`
-- Se o slug resolve em `aulaSlugMap`, o passo recebe `aula_id` (e `ferramenta_id = null`)
-- Se resolve em `slugMap`, recebe `ferramenta_id` (e `aula_id = null`)
+Desde a remoção do Arsenal (2026-08-05), o Athos monta passos apenas com `tipo: 'acao_livre'` — sem resolução de slug contra tabelas de ferramentas/aulas.
 
 ### data-tutorial na Jornada
 
@@ -734,10 +670,9 @@ steps: [
 | `CadenceModal.tsx` | (modal de cadências) | `cadence-modal-identity`, `cadence-field-nome`, `cadence-field-descricao`, `cadence-steps`, `cadence-add-step`, `cadence-submit` |
 | `Settings.tsx` | `settings` | `settings-nav`, `settings-nav-{id}`, `settings-profile`, `settings-pipeline`, `settings-sources`, `settings-tags`, `settings-marca`, `settings-whatsapp`, `settings-appearance`, `settings-security` |
 | `Hub.tsx` (plataforma) | (platform-tour step 2, 8) | `hub-tools`, `hub-tool-{id}` |
-| `Arsenal.tsx` (plataforma) | (platform-tour step 3) | `arsenal-header` |
-| `Jornada.tsx` (plataforma) | (platform-tour step 4) | `jornada-header` |
-| `Materiais.tsx` (plataforma) | (platform-tour step 5) | `materiais-header` |
-| `SidebarContent.tsx` | (platform-tour) | `sidebar-hub`, `sidebar-jornada`, `sidebar-arsenal`, `sidebar-materiais`, `sidebar-os`, `sidebar-sessoes` |
+| `Jornada.tsx` (plataforma) | (platform-tour step 3) | `jornada-header` |
+| `Materiais.tsx` (plataforma) | (platform-tour step 4) | `materiais-header` |
+| `SidebarContent.tsx` | (platform-tour) | `sidebar-hub`, `sidebar-jornada`, `sidebar-materiais`, `sidebar-os`, `sidebar-sessoes` |
 
 ### Regra obrigatória ao modificar páginas
 

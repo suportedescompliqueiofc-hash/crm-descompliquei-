@@ -1,5 +1,5 @@
 // Base de conhecimento comercial COMPARTILHADA entre os Athos (GS e CS).
-// Fonte da verdade: conhecimento/plataforma/athos-comercial/*.md + arsenal/metodologia-eva.md
+// Fonte da verdade: conhecimento/plataforma/athos-comercial/*.md (inclui metodologia-eva.md)
 // Importado por:
 //   - descompliquei-os (Athos GS — consultor comercial do cliente)
 //   - cs-athos        (Athos CS — copiloto do time de CS: diagnostica a operação e monta jornadas)
