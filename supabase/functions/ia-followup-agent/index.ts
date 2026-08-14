@@ -69,7 +69,7 @@ async function callFollowupAI(systemPrompt: string, userPrompt: string): Promise
         "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "openai/gpt-4.1-mini",
+        model: "deepseek/deepseek-v4-flash-0731",
         max_tokens: 512,
         temperature: 0.4,
         messages: [
